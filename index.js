@@ -3,7 +3,8 @@ const {
     GatewayIntentBits,
     SlashCommandBuilder,
     REST,
-    Routes
+    Routes,
+    EmbedBuilder
 } = require('discord.js');
 
 const token = process.env.TOKEN;
@@ -17,6 +18,10 @@ const client = new Client({
 const userFortunes = {};
 
 const commands = [
+    new SlashCommandBuilder()
+        .setName('소개')
+        .setDescription('안녕 날 소개하지'),
+
     new SlashCommandBuilder()
         .setName('안녕')
         .setDescription('양봉이에게 인사해보세요.'),
@@ -109,6 +114,29 @@ client.on('interactionCreate', async interaction => {
         );
 
     }
+
+    if (interaction.commandName === '소개') {
+
+        const embed = new EmbedBuilder()
+            .setTitle('🐝 양봉이 봇')
+            .setDescription(
+                '안녕 날 소개하지 난 양봉장의 전용 봇 양봉이라고 하오'
+            )
+            .setColor('Green')
+            .setThumbnail(
+                'https://cdn.discordapp.com/attachments/1110460136373366845/1506536312423841873/image.png?ex=6a0e9ec6&is=6a0d4d46&hm=df046c8c3c4fd195fbe36ebaa666f13d010f5be1b03090e878b5b53b8276c237&'
+            )
+            .setFooter({
+                text: '양봉장 봇 시스템'
+            });
+
+        await interaction.reply({
+            embeds: [embed]
+        });
+
+    }
+
+
 
 });
 
