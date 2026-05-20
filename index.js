@@ -184,13 +184,11 @@ client.on('interactionCreate', async interaction => {
 
     if (!interaction.isChatInputCommand()) return;
 
-
-    });
-
-    // /핑
     if (interaction.commandName === '안녕') {
         await interaction.reply('인사 똑바로해라.');
     }
+
+});
 
     // /주사위
     if (interaction.commandName === '주사위') {
