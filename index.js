@@ -268,9 +268,6 @@ client.on('interactionCreate', async interaction => {
             .setThumbnail(
                 'https://cdn.discordapp.com/attachments/1110460136373366845/1506536312423841873/image.png?ex=6a0e9ec6&is=6a0d4d46&hm=df046c8c3c4fd195fbe36ebaa666f13d010f5be1b03090e878b5b53b8276c237&'
             )
-            .setFooter({
-                text: '양봉장의 전용 봇, 아이스크림을 굉장히 좋아한다.\n'
-
             .addFields(
                 { name: '📜 명령어 목록', value: '  ' },
 
@@ -286,7 +283,8 @@ client.on('interactionCreate', async interaction => {
                 { name: '편지함 - 받은 편지를 확인합니다.', value: '/편지함' }
             )
 
-
+            .setFooter({
+                text: '양봉장의 전용 봇, 아이스크림을 굉장히 좋아한다.'
             });
 
         await interaction.reply({
