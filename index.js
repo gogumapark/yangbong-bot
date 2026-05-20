@@ -182,12 +182,31 @@ function createBoard(gameId) {
 
 client.on('interactionCreate', async interaction => {
 
+    // 1. 버튼 먼저 처리
+    if (interaction.isButton()) {
+        // 편지 버튼
+        if (interaction.customId.startsWith('letter_')) {
+            const id = interaction.customId.split('_')[1];
+            const letter = letters.get(id);
+
+            if (!letter) return interaction.reply({ content: '편지 없음', ephemeral: true });
+
+            return interaction.reply({
+                content: `📬 내용: ${letter.content}`,
+                ephemeral: true
+            });
+        }
+
+        return;
+    }
+
+    // 2. 슬래시 커맨드 처리
     if (!interaction.isChatInputCommand()) return;
 
-    // /핑
     if (interaction.commandName === '안녕') {
-        await interaction.reply('인사 똑바로해라.');
+        return interaction.reply('인사 똑바로해라.');
     }
+
 
     // /주사위
     if (interaction.commandName === '주사위') {
@@ -497,68 +516,68 @@ if (interaction.commandName === '편지') {
     });
 }
 
-});
+})
 
 client.on('interactionCreate', async interaction => {
 
-    if (!interaction.isButton()) return;
+    // 버튼 처리
+    if (interaction.isButton()) {
 
-    if (!interaction.customId.startsWith('ttt_')) return;
+        if (!interaction.customId.startsWith('ttt_')) return;
 
-    const [, gameId, index] = interaction.customId.split('_');
-    const game = tttGames.get(gameId);
+        const [, gameId, index] = interaction.customId.split('_');
+        const game = tttGames.get(gameId);
 
-    if (!game) return;
+        if (!game) return;
 
-    if (game.board[index]) {
-        return interaction.reply({
-            content: '이미 선택된 칸임',
-            ephemeral: true
+        if (game.board[index]) {
+            return interaction.reply({
+                content: '이미 선택된 칸임',
+                ephemeral: true
+            });
+        }
+
+        game.board[index] = game.turn;
+
+        const winPatterns = [
+            [0,1,2],[3,4,5],[6,7,8],
+            [0,3,6],[1,4,7],[2,5,8],
+            [0,4,8],[2,4,6]
+        ];
+
+        const checkWin = (symbol) =>
+            winPatterns.some(p =>
+                p.every(i => game.board[i] === symbol)
+            );
+
+        if (checkWin(game.turn)) {
+            tttGames.delete(gameId);
+
+            return interaction.update({
+                content: `🏆 ${game.turn} 승리!`,
+                components: []
+            });
+        }
+
+        const isDraw = game.board.every(cell => cell !== null);
+
+        if (isDraw) {
+            tttGames.delete(gameId);
+
+            return interaction.update({
+                content: `🤝 무승부!`,
+                components: []
+            });
+        }
+
+        game.turn = game.turn === '❌' ? '⭕' : '❌';
+
+        return interaction.update({
+            content: `현재 턴: ${game.turn}`,
+            components: createBoard(gameId)
         });
     }
 
-    game.board[index] = game.turn;
-
-    // 승리 체크
-    const winPatterns = [
-        [0,1,2],[3,4,5],[6,7,8],
-        [0,3,6],[1,4,7],[2,5,8],
-        [0,4,8],[2,4,6]
-    ];
-
-    const checkWin = (symbol) =>
-        winPatterns.some(p =>
-            p.every(i => game.board[i] === symbol)
-        );
-
-    if (checkWin(game.turn)) {
-    tttGames.delete(gameId);
-
-    return interaction.update({
-        content: `🏆 ${game.turn} 승리!`,
-        components: []
-    });
-}
-
-// 💥 무승부 체크 (핵심)
-const isDraw = game.board.every(cell => cell !== null);
-
-if (isDraw) {
-    tttGames.delete(gameId);
-
-    return interaction.update({
-        content: `🤝 무승부! 더 이상 진행할 수 없음`,
-        components: []
-    });
-}
-
-    // 턴 변경
-    game.turn = game.turn === '❌' ? '⭕' : '❌';
-
-    await interaction.update({
-        content: `현재 턴: ${game.turn}`,
-        components: createBoard(gameId)
-    });
 });
 
 client.login(token);
