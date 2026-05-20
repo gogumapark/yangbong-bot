@@ -18,10 +18,19 @@ const {
     EmbedBuilder
 } = require('discord.js');
 
-const deletedMessages = new Map();
 const token = process.env.TOKEN;
 const clientId = '1506507365560877156';
 const guildId = '1172129810861015131';
+
+const client = new Client({
+    intents: [
+        GatewayIntentBits.Guilds,
+        GatewayIntentBits.GuildMessages,
+        GatewayIntentBits.MessageContent
+    ]
+});
+
+const deletedMessages = new Map();
 
 client.on('messageDelete', message => {
 
@@ -36,14 +45,6 @@ client.on('messageDelete', message => {
 
     });
 
-});
-
-const client = new Client({
-    intents: [
-        GatewayIntentBits.Guilds,
-        GatewayIntentBits.GuildMessages,
-        GatewayIntentBits.MessageContent
-    ]
 });
 
 const userFortunes = {};
