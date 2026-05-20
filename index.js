@@ -16,7 +16,10 @@ const {
     SlashCommandBuilder,
     REST,
     Routes,
-    EmbedBuilder
+    EmbedBuilder,
+    ActionRowBuilder,
+    ButtonBuilder,
+    ButtonStyle
 } = require('discord.js');
 
 const token = process.env.TOKEN;
@@ -30,6 +33,8 @@ const client = new Client({
         GatewayIntentBits.MessageContent
     ]
 });
+
+const tttGames = new Map();
 
 const deletedMessages = new Map();
 
@@ -84,6 +89,10 @@ const commands = [
     new SlashCommandBuilder()
     .setName('유저정보')
     .setDescription('유저정보를 확인합니다'),
+
+    new SlashCommandBuilder()
+    .setName('틱택토')
+    .setDescription('틱택토 게임을 시작합니다'),
     
 ]
 .map(command => command.toJSON());
@@ -108,6 +117,33 @@ const rest = new REST({ version: '10' }).setToken(token);
 client.once('ready', () => {
     console.log(`${client.user.tag} 로그인 완료!`);
 });
+
+function createBoard(gameId) {
+    const game = tttGames.get(gameId);
+
+    const rows = [];
+
+    for (let i = 0; i < 3; i++) {
+        const row = new ActionRowBuilder();
+
+        for (let j = 0; j < 3; j++) {
+            const index = i * 3 + j;
+
+            row.addComponents(
+                new ButtonBuilder()
+                    .setCustomId(`ttt_${gameId}_${index}`)
+                    .setLabel(game.board[index] || '⬜')
+                    .setStyle(ButtonStyle.Secondary)
+                    .setDisabled(!!game.board[index])
+            );
+        }
+
+        rows.push(row);
+    }
+
+    return rows;
+}
+
 
 client.on('interactionCreate', async interaction => {
 
@@ -276,6 +312,72 @@ if (interaction.commandName === '유저정보') {
 }
 
 
+if (interaction.commandName === '틱택토') {
+
+    const gameId = interaction.id;
+
+    tttGames.set(gameId, {
+        board: Array(9).fill(null),
+        turn: '❌'
+    });
+
+    await interaction.reply({
+        content: '🎮 틱택토 시작! ❌ 먼저',
+        components: createBoard(gameId)
+    });
+}
+
+
+});
+
+client.on('interactionCreate', async interaction => {
+
+    if (!interaction.isButton()) return;
+
+    if (!interaction.customId.startsWith('ttt_')) return;
+
+    const [, gameId, index] = interaction.customId.split('_');
+    const game = tttGames.get(gameId);
+
+    if (!game) return;
+
+    if (game.board[index]) {
+        return interaction.reply({
+            content: '이미 선택된 칸임',
+            ephemeral: true
+        });
+    }
+
+    game.board[index] = game.turn;
+
+    // 승리 체크
+    const winPatterns = [
+        [0,1,2],[3,4,5],[6,7,8],
+        [0,3,6],[1,4,7],[2,5,8],
+        [0,4,8],[2,4,6]
+    ];
+
+    const checkWin = (symbol) =>
+        winPatterns.some(p =>
+            p.every(i => game.board[i] === symbol)
+        );
+
+    if (checkWin(game.turn)) {
+        tttGames.delete(gameId);
+
+        return interaction.update({
+            content: `🏆 ${game.turn} 승리!`,
+            components: []
+        });
+    }
+
+    // 턴 변경
+    game.turn = game.turn === '❌' ? '⭕' : '❌';
+
+    await interaction.update({
+        content: `현재 턴: ${game.turn}`,
+        components: createBoard(gameId)
+    });
 });
 
 client.login(token);
