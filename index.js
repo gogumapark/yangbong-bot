@@ -295,14 +295,17 @@ if (interaction.commandName === '삭제로그') {
 
 if (interaction.commandName === '유저정보') {
 
-    const user = await interaction.client.users.fetch(interaction.user.id);
-    const member = await interaction.guild.members.fetch(interaction.user.id);
+    await interaction.deferReply(); // ⭐ 핵심
 
-    // 추가 정보 (배너 / 소개글)
+    const targetUser =
+        interaction.options.getUser('유저') || interaction.user;
+
+    const user = await interaction.client.users.fetch(targetUser.id);
+    const member = await interaction.guild.members.fetch(targetUser.id);
     const fullUser = await user.fetch();
 
     const roles = member.roles.cache
-        .filter(r => r.id !== interaction.guild.id) // @everyone 제외
+        .filter(r => r.id !== interaction.guild.id)
         .map(r => r.name)
         .join(', ') || '없음';
 
@@ -320,9 +323,8 @@ if (interaction.commandName === '유저정보') {
             { name: '서버 역할', value: roles.length > 1024 ? '너무 많음' : roles }
         );
 
-    await interaction.reply({ embeds: [embed] });
+    await interaction.editReply({ embeds: [embed] }); // ⭐ 여기 중요
 }
-
 
 if (interaction.commandName === '틱택토') {
 
