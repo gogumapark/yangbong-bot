@@ -320,12 +320,10 @@ if (interaction.commandName === '유저정보') {
     // 추가 정보
     const fullUser = await user.fetch();
 
-    const roles = member
-        ? member.roles.cache
-            .filter(r => r.id !== interaction.guild.id)
-            .map(r => r.name)
-            .join(', ') || '없음'
-        : '서버에 없음';
+    const roles = member.roles.cache
+        .filter(r => r.id !== interaction.guild.id)
+        .map(r => `<@&${r.id}>`)
+        .join(' ') || '없음';
 
     const embed = new EmbedBuilder()
         .setTitle('👤 유저 정보')
@@ -354,10 +352,6 @@ if (interaction.commandName === '유저정보') {
                     ? `<t:${Math.floor(member.joinedTimestamp / 1000)}:R>`
                     : '서버 없음',
                 inline: true
-            },
-            {
-                name: '소개글 (Bio)',
-                value: fullUser.bio || '없음'
             },
             {
                 name: '서버 역할',
