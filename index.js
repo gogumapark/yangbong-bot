@@ -35,7 +35,7 @@ const client = new Client({
 });
 
 const tttGames = new Map();
-
+const letters = new Map();
 
 const deletedMessages = new Map();
 
@@ -100,6 +100,34 @@ const commands = [
     new SlashCommandBuilder()
     .setName('틱택토')
     .setDescription('틱택토 게임을 시작합니다'),
+
+    new SlashCommandBuilder()
+    .setName('편지')
+    .setDescription('유저에게 편지를 보냅니다')
+    .addUserOption(option =>
+        option.setName('유저')
+            .setDescription('받는 사람')
+            .setRequired(true)
+    )
+    .addStringOption(option =>
+        option.setName('종류')
+            .setDescription('편지 종류')
+            .setRequired(true)
+            .addChoices(
+                { name: '우정의 편지', value: 'friend' },
+                { name: '러브레터', value: 'love' },
+                { name: '결투신청서', value: 'duel' }
+            )
+    )
+    .addStringOption(option =>
+        option.setName('내용')
+            .setDescription('편지 내용')
+            .setRequired(true)
+    ),
+
+    new SlashCommandBuilder()
+    .setName('편지함')
+    .setDescription('받은 편지를 확인합니다')
     
 ]
 .map(command => command.toJSON());
@@ -377,6 +405,97 @@ if (interaction.commandName === '틱택토') {
     });
 }
 
+
+if (interaction.commandName === '편지') {
+
+    const to = interaction.options.getUser('유저');
+    const type = interaction.options.getString('종류');
+    const content = interaction.options.getString('내용');
+
+    const letter = {
+        from: interaction.user.id,
+        to: to.id,
+        type,
+        content,
+        createdAt: new Date()
+    };
+
+    const id = Date.now().toString();
+
+    letters.set(id, letter);
+
+    await interaction.reply({
+        content: `📨 편지를 보냈다! (${to.username})`,
+        ephemeral: true
+    });
+
+    // 받은 사람 DM
+    try {
+        await to.send(`📬 새로운 편지가 도착했습니다! /편지함 으로 확인하세요.`);
+    } catch {}
+}
+
+
+    if (interaction.commandName === '편지함') {
+
+    const userLetters = [...letters.entries()]
+        .filter(([id, l]) => l.to === interaction.user.id);
+
+    if (userLetters.length === 0) {
+        return interaction.reply({
+            content: '📭 받은 편지가 없습니다.',
+            ephemeral: true
+        });
+    }
+
+    const buttons = userLetters.map(([id, l], index) =>
+        new ButtonBuilder()
+            .setCustomId(`letter_${id}`)
+            .setLabel(`${l.type === 'love' ? '💌 러브' : l.type === 'duel' ? '⚔ 결투' : '🤝 우정'} #${index + 1}`)
+            .setStyle(ButtonStyle.Primary)
+    );
+
+    const row = new ActionRowBuilder().addComponents(buttons.slice(0, 5));
+
+    await interaction.reply({
+        content: '📬 편지를 선택하세요',
+        components: [row],
+        ephemeral: true
+    });
+}
+
+    if (interaction.isButton() && interaction.customId.startsWith('letter_')) {
+
+    const id = interaction.customId.split('_')[1];
+    const letter = letters.get(id);
+
+    if (!letter) return;
+
+    const fromUser = await client.users.fetch(letter.from);
+
+    const typeEmoji = {
+        friend: '🤝 우정의 편지',
+        love: '💌 러브레터',
+        duel: '⚔ 결투신청서'
+    };
+
+    const embed = new EmbedBuilder()
+        .setTitle(typeEmoji[letter.type])
+        .setDescription(letter.content)
+        .addFields(
+            { name: '보낸 사람', value: fromUser.username },
+            { name: '날짜', value: `<t:${Math.floor(letter.createdAt / 1000)}:R>` }
+        )
+        .setColor(
+            letter.type === 'love' ? 'Red' :
+            letter.type === 'duel' ? 'DarkRed' : 'Green'
+        );
+
+    await interaction.reply({
+        embeds: [embed],
+        ephemeral: true
+    });
+}
 
 });
 
