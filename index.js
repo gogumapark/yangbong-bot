@@ -35,6 +35,7 @@ const client = new Client({
 });
 
 const tttGames = new Map();
+const isDraw = game.board.every(cell => cell !== null);
 
 const deletedMessages = new Map();
 
@@ -363,13 +364,25 @@ client.on('interactionCreate', async interaction => {
         );
 
     if (checkWin(game.turn)) {
-        tttGames.delete(gameId);
+    tttGames.delete(gameId);
 
-        return interaction.update({
-            content: `🏆 ${game.turn} 승리!`,
-            components: []
-        });
-    }
+    return interaction.update({
+        content: `🏆 ${game.turn} 승리!`,
+        components: []
+    });
+}
+
+// 💥 무승부 체크 (핵심)
+const isDraw = game.board.every(cell => cell !== null);
+
+if (isDraw) {
+    tttGames.delete(gameId);
+
+    return interaction.update({
+        content: `🤝 무승부! 더 이상 진행할 수 없음`,
+        components: []
+    });
+}
 
     // 턴 변경
     game.turn = game.turn === '❌' ? '⭕' : '❌';
