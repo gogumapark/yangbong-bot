@@ -295,19 +295,30 @@ if (interaction.commandName === '삭제로그') {
 
 if (interaction.commandName === '유저정보') {
 
-    const user = interaction.user;
-    const member = interaction.member;
+    const user = await interaction.client.users.fetch(interaction.user.id);
+    const member = await interaction.guild.members.fetch(interaction.user.id);
+
+    // 추가 정보 (배너 / 소개글)
+    const fullUser = await user.fetch();
+
+    const roles = member.roles.cache
+        .filter(r => r.id !== interaction.guild.id) // @everyone 제외
+        .map(r => r.name)
+        .join(', ') || '없음';
 
     const embed = new EmbedBuilder()
         .setTitle('👤 유저 정보')
-        .setThumbnail(user.displayAvatarURL())
+        .setThumbnail(user.displayAvatarURL({ dynamic: true, size: 512 }))
+        .setImage(fullUser.bannerURL({ size: 1024 }) || null)
+        .setColor('Blue')
         .addFields(
-            { name: '이름', value: user.username, inline: true },
-            { name: 'ID', value: user.id, inline: true },
-            { name: '서버 닉네임', value: member.nickname || '없음', inline: true },
-            { name: '가입일', value: `<t:${Math.floor(member.joinedTimestamp / 1000)}:R>` }
-        )
-        .setColor('Blue');
+            { name: '유저 닉네임', value: member.nickname || user.username, inline: true },
+            { name: '유저 ID', value: user.id, inline: true },
+            { name: '디스코드 가입일', value: `<t:${Math.floor(user.createdTimestamp / 1000)}:R>`, inline: true },
+            { name: '서버 가입일', value: `<t:${Math.floor(member.joinedTimestamp / 1000)}:R>`, inline: true },
+            { name: '소개글 (Bio)', value: fullUser.bio || '없음' },
+            { name: '서버 역할', value: roles.length > 1024 ? '너무 많음' : roles }
+        );
 
     await interaction.reply({ embeds: [embed] });
 }
