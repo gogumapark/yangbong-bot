@@ -1,13 +1,3 @@
-const express = require('express');
-const app = express();
-
-app.get('/', (req, res) => {
-    res.send('봇 실행중!');
-});
-
-app.listen(3000, () => {
-    console.log('웹서버 실행중');
-});
 
 const {
     Client,
