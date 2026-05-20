@@ -271,9 +271,8 @@ client.on('interactionCreate', async interaction => {
             .setFooter({
                 text: '양봉장의 전용 봇, 아이스크림을 굉장히 좋아한다.\n' + 
                 '**명령어 목록**'
-            });
 
-            addFields(
+                            .addFields(
         { name: '삭제로그 - 최근 삭제된 메시지를 확인합니다.', value: '/삭제로그' },
         { name: '안녕 - 양봉이에게 인사해보세요', value: '/안녕' },
         { name: '운세 - 오늘의 운세를 알려줍니다.', value: '/운세' },
@@ -286,6 +285,9 @@ client.on('interactionCreate', async interaction => {
 
 
     )
+
+
+            });
 
         await interaction.reply({
             embeds: [embed]
