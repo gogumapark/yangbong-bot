@@ -180,20 +180,22 @@ function createBoard(gameId) {
 }
 
 
-client.on('interactionCreate', async (interaction) => {
+client.on('interactionCreate', async interaction => {
 
     if (!interaction.isChatInputCommand()) return;
 
+    // /핑
     if (interaction.commandName === '안녕') {
-        return interaction.reply('인사 똑바로해라.');
+        await interaction.reply('인사 똑바로해라.');
     }
 
+    // /주사위
     if (interaction.commandName === '주사위') {
-        const dice = Math.floor(Math.random() * 6) + 1;
-        return interaction.reply(`🎲 금나와라 뚝딱!! : ${dice}`);
-    }
 
-});
+        const dice = Math.floor(Math.random() * 6) + 1;
+
+        await interaction.reply(`🎲 금나와라 뚝딱!! : ${dice}`);
+    }
 
     if (interaction.commandName === '운세') {
 
@@ -495,51 +497,7 @@ if (interaction.commandName === '편지') {
     });
 }
 
-client.on('interactionCreate', async interaction => {
-
-    if (!interaction.isButton()) return;
-
-    // 편지 버튼
-    if (interaction.customId.startsWith('letter_')) {
-
-        const id = interaction.customId.split('_')[1];
-        const letter = letters.get(id);
-
-        if (!letter) {
-            return interaction.reply({
-                content: '편지를 찾을 수 없음',
-                ephemeral: true
-            });
-        }
-
-        const fromUser = await client.users.fetch(letter.from);
-
-        const typeEmoji = {
-            friend: '🤝 우정의 편지',
-            love: '💌 러브레터',
-            duel: '⚔ 결투신청서'
-        };
-
-        const embed = new EmbedBuilder()
-            .setTitle(typeEmoji[letter.type])
-            .setDescription(letter.content)
-            .addFields(
-                { name: '보낸 사람', value: fromUser.username },
-                { name: '날짜', value: `<t:${Math.floor(letter.createdAt / 1000)}:R>` }
-            )
-            .setColor(
-                letter.type === 'love' ? 'Red' :
-                letter.type === 'duel' ? 'DarkRed' : 'Green'
-            );
-
-        return interaction.reply({
-            embeds: [embed],
-            ephemeral: true
-        });
-    }
 });
-
-
 
 client.on('interactionCreate', async interaction => {
 
