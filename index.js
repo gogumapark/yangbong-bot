@@ -269,10 +269,12 @@ client.on('interactionCreate', async interaction => {
                 'https://cdn.discordapp.com/attachments/1110460136373366845/1506536312423841873/image.png?ex=6a0e9ec6&is=6a0d4d46&hm=df046c8c3c4fd195fbe36ebaa666f13d010f5be1b03090e878b5b53b8276c237&'
             )
             .setFooter({
-                text: '양봉장의 전용 봇, 아이스크림을 굉장히 좋아한다.\n' + 
-                '명령어 목록'
+                text: '양봉장의 전용 봇, 아이스크림을 굉장히 좋아한다.\n'
 
             .addFields(
+                { name: '📜 명령어 목록', value: '  ' },
+
+                { name: '도움말 - 양봉이의 도움말을 확인합니다.', value: '/도움말' },
                 { name: '삭제로그 - 최근 삭제된 메시지를 확인합니다.', value: '/삭제로그' },
                 { name: '안녕 - 양봉이에게 인사해보세요', value: '/안녕' },
                 { name: '운세 - 오늘의 운세를 알려줍니다.', value: '/운세' },
