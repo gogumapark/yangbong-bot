@@ -180,23 +180,20 @@ function createBoard(gameId) {
 }
 
 
-client.on('interactionCreate', async interaction => {
+client.on('interactionCreate', async (interaction) => {
 
     if (!interaction.isChatInputCommand()) return;
 
     if (interaction.commandName === '안녕') {
-        await interaction.reply('인사 똑바로해라.');
+        return interaction.reply('인사 똑바로해라.');
+    }
+
+    if (interaction.commandName === '주사위') {
+        const dice = Math.floor(Math.random() * 6) + 1;
+        return interaction.reply(`🎲 금나와라 뚝딱!! : ${dice}`);
     }
 
 });
-
-    // /주사위
-    if (interaction.commandName === '주사위') {
-
-        const dice = Math.floor(Math.random() * 6) + 1;
-
-        await interaction.reply(`🎲 금나와라 뚝딱!! : ${dice}`);
-    }
 
     if (interaction.commandName === '운세') {
 
