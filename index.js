@@ -278,7 +278,7 @@ client.on('interactionCreate', async interaction => {
         .setPlaceholder('📂 카테고리를 선택하세요')
         .addOptions(
             {
-                label: '기본 명령어',
+                label: '기본',
                 description: ' 안녕 / 도움말',
                 value: 'basic'
             },
@@ -307,56 +307,6 @@ client.on('interactionCreate', async interaction => {
         ephemeral: true
     });
 }
-
-if (interaction.isStringSelectMenu() && interaction.customId === 'help_menu') {
-
-    const value = interaction.values[0];
-
-    let embed = new EmbedBuilder()
-        .setColor('Green');
-
-    if (value === 'basic') {
-
-        embed
-            .setTitle('📌ㅣ기본 명령어')
-            .setDescription(
-                '/소개 - 봇 소개\n' +
-                '/안녕 - 인사\n' +
-                '/도움말 - 도움 메뉴'
-            );
-
-    } else if (value === 'game') {
-
-        embed
-            .setTitle('🎮ㅣ게임 명령어')
-            .setDescription(
-                '/주사위 - 주사위 굴리기\n' +
-                '/틱택토 - 틱택토 게임'
-            );
-
-    } else if (value === 'admin') {
-
-        embed
-            .setTitle('🧹ㅣ관리 명령어')
-            .setDescription(
-                '/청소 - 메시지 삭제\n' +
-                '/삭제로그 - 삭제된 메시지 보기'
-            );
-
-    } else if (value === 'social') {
-
-        embed
-            .setTitle('💌ㅣ소셜 명령어')
-            .setDescription(
-                '/편지 - 유저에게 편지 보내기\n' +
-                '/편지함 - 받은 편지 확인'
-            );
-    }
-
-    return interaction.update({ embeds: [embed] });
-}
-
-
 
 if (interaction.commandName === '청소') {
 
@@ -530,7 +480,7 @@ if (interaction.commandName === '편지') {
 
     // 받은 사람 DM
     try {
-        await to.send(`📬 새로운 편지가 도착했습니다! /편지함 으로 확인하세요.`);
+        await to.send(`📬 새로운 편지가 도착했습니다! 양봉장에서 **/편지함** 으로 확인하세요.`);
     } catch {}
 }
 
@@ -600,62 +550,54 @@ if (interaction.commandName === '편지') {
 
 client.on('interactionCreate', async interaction => {
 
-    // 버튼 처리
+    // ======================
+    // 1. 버튼 처리
+    // ======================
     if (interaction.isButton()) {
+        // 기존 버튼 코드 그대로
+    }
 
-        if (!interaction.customId.startsWith('ttt_')) return;
+    // ======================
+    // 2. select menu 처리 (이거 꼭!)
+    // ======================
+    if (interaction.isStringSelectMenu() && interaction.customId === 'help_menu') {
 
-        const [, gameId, index] = interaction.customId.split('_');
-        const game = tttGames.get(gameId);
+        const value = interaction.values[0];
 
-        if (!game) return;
+        let embed = new EmbedBuilder()
+            .setColor('Green');
 
-        if (game.board[index]) {
-            return interaction.reply({
-                content: '이미 선택된 칸임',
-                ephemeral: true
-            });
+        if (value === 'basic') {
+            embed.setTitle('📌 기본 명령어')
+                .setDescription('/소개\n/안녕\n/도움말');
         }
 
-        game.board[index] = game.turn;
-
-        const winPatterns = [
-            [0,1,2],[3,4,5],[6,7,8],
-            [0,3,6],[1,4,7],[2,5,8],
-            [0,4,8],[2,4,6]
-        ];
-
-        const checkWin = (symbol) =>
-            winPatterns.some(p =>
-                p.every(i => game.board[i] === symbol)
-            );
-
-        if (checkWin(game.turn)) {
-            tttGames.delete(gameId);
-
-            return interaction.update({
-                content: `🏆 ${game.turn} 승리!`,
-                components: []
-            });
+        if (value === 'game') {
+            embed.setTitle('🎮 게임')
+                .setDescription('/주사위\n/틱택토');
         }
 
-        const isDraw = game.board.every(cell => cell !== null);
-
-        if (isDraw) {
-            tttGames.delete(gameId);
-
-            return interaction.update({
-                content: `🤝 무승부!`,
-                components: []
-            });
+        if (value === 'admin') {
+            embed.setTitle('🧹 관리')
+                .setDescription('/청소\n/삭제로그');
         }
 
-        game.turn = game.turn === '❌' ? '⭕' : '❌';
+        if (value === 'social') {
+            embed.setTitle('💌 소셜')
+                .setDescription('/편지\n/편지함');
+        }
 
-        return interaction.update({
-            content: `현재 턴: ${game.turn}`,
-            components: createBoard(gameId)
-        });
+        return interaction.update({ embeds: [embed] });
+    }
+
+    // ======================
+    // 3. 슬래시 커맨드 처리
+    // ======================
+    if (!interaction.isChatInputCommand()) return;
+
+    // /도움말
+    if (interaction.commandName === '도움말') {
+        // 너 embed + menu 코드
     }
 
 });
