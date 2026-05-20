@@ -257,7 +257,7 @@ client.on('interactionCreate', async interaction => {
 
     }
 
-   if (interaction.commandName === '소개') {
+   if (interaction.commandName === '도움말') {
 
         const embed = new EmbedBuilder()
             .setTitle('🐝 양봉이')
