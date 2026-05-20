@@ -99,7 +99,7 @@ const commands = [
 
     new SlashCommandBuilder()
     .setName('틱택토')
-    .setDescription('틱택토 게임을 시작합니다'),
+    .setDescription('틱택토!!!!'),
 
     new SlashCommandBuilder()
     .setName('편지')
@@ -257,56 +257,41 @@ client.on('interactionCreate', async interaction => {
 
     }
 
-    if (interaction.commandName === '도움말') {
+   if (interaction.commandName === '소개') {
 
-    const embed = new EmbedBuilder()
-        .setTitle('🐝 양봉이')
-        .setDescription('**안녕!!** 난 양봉장의 전용 봇 양봉이라 하오!!')
-        .setColor('Green')
-        .setThumbnail(
-            'https://cdn.discordapp.com/attachments/1110460136373366845/1506536312423841873/image.png'
-        )
-        .setFooter({
-            text: '양봉장의 전용 봇, 아이스크림을 굉장히 좋아한다.\n\n' +
-            '도움말'
+        const embed = new EmbedBuilder()
+            .setTitle('🐝 양봉이')
+            .setDescription(
+                '안녕 날 소개하지 난 양봉장의 전용 봇 양봉이라고 하오'
+            )
+            .setColor('Green')
+            .setThumbnail(
+                'https://cdn.discordapp.com/attachments/1110460136373366845/1506536312423841873/image.png?ex=6a0e9ec6&is=6a0d4d46&hm=df046c8c3c4fd195fbe36ebaa666f13d010f5be1b03090e878b5b53b8276c237&'
+            )
+            .setFooter({
+                text: '양봉장의 전용 봇, 아이스크림을 굉장히 좋아한다.\n' + 
+                '**명령어 목록**'
+            });
+
+            addFieldsds(
+        { name: '삭제로그 - 최근 삭제된 메시지를 확인합니다.', value: '/삭제로그' },
+        { name: '안녕 - 양봉이에게 인사해보세요', value: '/안녕' },
+        { name: '운세 - 오늘의 운세를 알려줍니다.', value: '/운세' },
+        { name: '유저 정보 - 유저정보를 확인합니다.', value: '/유저정보  유저:' },
+        { name: '주사위 - 주사위를 굴립니다.', value: '/주사위' },
+        { name: '청소 - 메시지를 삭제합니다.', value: '/청소 개수: 1 ~ 100' },
+        { name: '틱택토 - 틱택토!!.', value: '/틱택토' },
+        { name: '편지 - 유저에게 편지를 보냅니다.', value: '/편지 유저: 종류: 내용:' },
+        { name: '편지함 - 받은 편지를 확인합니다.', value: '/편지함' },
+
+
+    )
+
+        await interaction.reply({
+            embeds: [embed]
         });
 
-    const { ActionRowBuilder, StringSelectMenuBuilder } = require('discord.js');
-
-    const menu = new StringSelectMenuBuilder()
-        .setCustomId('help_menu')
-        .setPlaceholder('📂 카테고리를 선택하세요')
-        .addOptions(
-            {
-                label: '기본',
-                description: ' 안녕 / 도움말',
-                value: 'basic'
-            },
-            {
-                label: '게임',
-                description: '틱택토 / 주사위',
-                value: 'game'
-            },
-            {
-                label: '관리',
-                description: '청소 / 삭제로그',
-                value: 'admin'
-            },
-            {
-                label: '소셜',
-                description: '편지 / 편지함',
-                value: 'social'
-            }
-        );
-
-    const row = new ActionRowBuilder().addComponents(menu);
-
-    await interaction.reply({
-        embeds: [embed],
-        components: [row],
-        ephemeral: true
-    });
-}
+    }
 
 if (interaction.commandName === '청소') {
 
@@ -550,56 +535,68 @@ if (interaction.commandName === '편지') {
 
 client.on('interactionCreate', async interaction => {
 
-    // ======================
-    // 1. 버튼 처리
-    // ======================
+    // 버튼 처리
     if (interaction.isButton()) {
-        // 기존 버튼 코드 그대로
-    }
 
-    // ======================
-    // 2. select menu 처리 (이거 꼭!)
-    // ======================
-    if (interaction.isStringSelectMenu() && interaction.customId === 'help_menu') {
+        if (!interaction.customId.startsWith('ttt_')) return;
 
-        const value = interaction.values[0];
+        const [, gameId, index] = interaction.customId.split('_');
+        const game = tttGames.get(gameId);
 
-        let embed = new EmbedBuilder()
-            .setColor('Green');
+        if (!game) return;
 
-        if (value === 'basic') {
-            embed.setTitle('📌 기본 명령어')
-                .setDescription('/소개\n/안녕\n/도움말');
+        if (game.board[index]) {
+            return interaction.reply({
+                content: '이미 선택된 칸임',
+                ephemeral: true
+            });
         }
 
-        if (value === 'game') {
-            embed.setTitle('🎮 게임')
-                .setDescription('/주사위\n/틱택토');
+        game.board[index] = game.turn;
+
+        const winPatterns = [
+            [0,1,2],[3,4,5],[6,7,8],
+            [0,3,6],[1,4,7],[2,5,8],
+            [0,4,8],[2,4,6]
+        ];
+
+        const checkWin = (symbol) =>
+            winPatterns.some(p =>
+                p.every(i => game.board[i] === symbol)
+            );
+
+        if (checkWin(game.turn)) {
+            tttGames.delete(gameId);
+
+            return interaction.update({
+                content: `🏆 ${game.turn} 승리!`,
+                components: []
+            });
         }
 
-        if (value === 'admin') {
-            embed.setTitle('🧹 관리')
-                .setDescription('/청소\n/삭제로그');
+        const isDraw = game.board.every(cell => cell !== null);
+
+        if (isDraw) {
+            tttGames.delete(gameId);
+
+            return interaction.update({
+                content: `🤝 무승부!`,
+                components: []
+            });
         }
 
-        if (value === 'social') {
-            embed.setTitle('💌 소셜')
-                .setDescription('/편지\n/편지함');
-        }
+        game.turn = game.turn === '❌' ? '⭕' : '❌';
 
-        return interaction.update({ embeds: [embed] });
-    }
-
-    // ======================
-    // 3. 슬래시 커맨드 처리
-    // ======================
-    if (!interaction.isChatInputCommand()) return;
-
-    // /도움말
-    if (interaction.commandName === '도움말') {
-        // 너 embed + menu 코드
+        return interaction.update({
+            content: `현재 턴: ${game.turn}`,
+            components: createBoard(gameId)
+        });
     }
 
 });
 
+
+
 client.login(token);
+
+
