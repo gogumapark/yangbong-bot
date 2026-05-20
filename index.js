@@ -58,8 +58,8 @@ const userFortunes = {};
 
 const commands = [
     new SlashCommandBuilder()
-        .setName('소개')
-        .setDescription('안녕 날 소개하지'),
+        .setName('도움말')
+        .setDescription('양봉이의 도움말을 확인합니다.'),
 
     new SlashCommandBuilder()
         .setName('안녕')
@@ -257,26 +257,106 @@ client.on('interactionCreate', async interaction => {
 
     }
 
-    if (interaction.commandName === '소개') {
+    if (interaction.commandName === '도움말') {
 
-        const embed = new EmbedBuilder()
-            .setTitle('🐝 양봉이')
-            .setDescription(
-                '안녕 날 소개하지 난 양봉장의 전용 봇 양봉이라고 하오'
-            )
-            .setColor('Green')
-            .setThumbnail(
-                'https://cdn.discordapp.com/attachments/1110460136373366845/1506536312423841873/image.png?ex=6a0e9ec6&is=6a0d4d46&hm=df046c8c3c4fd195fbe36ebaa666f13d010f5be1b03090e878b5b53b8276c237&'
-            )
-            .setFooter({
-                text: '양봉장의 전용 봇, 아이스크림을 굉장히 좋아한다.'
-            });
-
-        await interaction.reply({
-            embeds: [embed]
+    const embed = new EmbedBuilder()
+        .setTitle('🐝 양봉이')
+        .setDescription('**안녕!!** 난 양봉장의 전용 봇 양봉이라 하오!!')
+        .setColor('Green')
+        .setThumbnail(
+            'https://cdn.discordapp.com/attachments/1110460136373366845/1506536312423841873/image.png'
+        )
+        .setFooter({
+            text: '양봉장의 전용 봇, 아이스크림을 굉장히 좋아한다.\n\n' +
+            '도움말'
         });
 
+    const { ActionRowBuilder, StringSelectMenuBuilder } = require('discord.js');
+
+    const menu = new StringSelectMenuBuilder()
+        .setCustomId('help_menu')
+        .setPlaceholder('📂 카테고리를 선택하세요')
+        .addOptions(
+            {
+                label: '기본 명령어',
+                description: ' 안녕 / 도움말',
+                value: 'basic'
+            },
+            {
+                label: '게임',
+                description: '틱택토 / 주사위',
+                value: 'game'
+            },
+            {
+                label: '관리',
+                description: '청소 / 삭제로그',
+                value: 'admin'
+            },
+            {
+                label: '소셜',
+                description: '편지 / 편지함',
+                value: 'social'
+            }
+        );
+
+    const row = new ActionRowBuilder().addComponents(menu);
+
+    await interaction.reply({
+        embeds: [embed],
+        components: [row],
+        ephemeral: true
+    });
+}
+
+if (interaction.isStringSelectMenu() && interaction.customId === 'help_menu') {
+
+    const value = interaction.values[0];
+
+    let embed = new EmbedBuilder()
+        .setColor('Green');
+
+    if (value === 'basic') {
+
+        embed
+            .setTitle('📌ㅣ기본 명령어')
+            .setDescription(
+                '/소개 - 봇 소개\n' +
+                '/안녕 - 인사\n' +
+                '/도움말 - 도움 메뉴'
+            );
+
+    } else if (value === 'game') {
+
+        embed
+            .setTitle('🎮ㅣ게임 명령어')
+            .setDescription(
+                '/주사위 - 주사위 굴리기\n' +
+                '/틱택토 - 틱택토 게임'
+            );
+
+    } else if (value === 'admin') {
+
+        embed
+            .setTitle('🧹ㅣ관리 명령어')
+            .setDescription(
+                '/청소 - 메시지 삭제\n' +
+                '/삭제로그 - 삭제된 메시지 보기'
+            );
+
+    } else if (value === 'social') {
+
+        embed
+            .setTitle('💌ㅣ소셜 명령어')
+            .setDescription(
+                '/편지 - 유저에게 편지 보내기\n' +
+                '/편지함 - 받은 편지 확인'
+            );
     }
+
+    return interaction.update({ embeds: [embed] });
+}
+
+
 
 if (interaction.commandName === '청소') {
 
