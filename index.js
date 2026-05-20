@@ -89,7 +89,13 @@ const commands = [
 
     new SlashCommandBuilder()
     .setName('유저정보')
-    .setDescription('유저정보를 확인합니다'),
+    .setDescription('유저정보를 확인합니다')
+    .addUserOption(option =>
+        option
+            .setName('유저')
+            .setDescription('정보를 볼 유저')
+            .setRequired(false)
+    ),
 
     new SlashCommandBuilder()
     .setName('틱택토')
@@ -295,19 +301,31 @@ if (interaction.commandName === '삭제로그') {
 
 if (interaction.commandName === '유저정보') {
 
-    await interaction.deferReply(); // ⭐ 핵심
+    await interaction.deferReply();
 
     const targetUser =
         interaction.options.getUser('유저') || interaction.user;
 
-    const user = await interaction.client.users.fetch(targetUser.id);
-    const member = await interaction.guild.members.fetch(targetUser.id);
+    // 기본 유저 정보
+    const user = await client.users.fetch(targetUser.id);
+
+    // 서버 멤버 정보 (없을 수도 있음 → 안전 처리)
+    let member = null;
+    try {
+        member = await interaction.guild.members.fetch(targetUser.id);
+    } catch {
+        member = null;
+    }
+
+    // 추가 정보
     const fullUser = await user.fetch();
 
-    const roles = member.roles.cache
-        .filter(r => r.id !== interaction.guild.id)
-        .map(r => r.name)
-        .join(', ') || '없음';
+    const roles = member
+        ? member.roles.cache
+            .filter(r => r.id !== interaction.guild.id)
+            .map(r => r.name)
+            .join(', ') || '없음'
+        : '서버에 없음';
 
     const embed = new EmbedBuilder()
         .setTitle('👤 유저 정보')
@@ -315,15 +333,39 @@ if (interaction.commandName === '유저정보') {
         .setImage(fullUser.bannerURL({ size: 1024 }) || null)
         .setColor('Blue')
         .addFields(
-            { name: '유저 닉네임', value: member.nickname || user.username, inline: true },
-            { name: '유저 ID', value: user.id, inline: true },
-            { name: '디스코드 가입일', value: `<t:${Math.floor(user.createdTimestamp / 1000)}:R>`, inline: true },
-            { name: '서버 가입일', value: `<t:${Math.floor(member.joinedTimestamp / 1000)}:R>`, inline: true },
-            { name: '소개글 (Bio)', value: fullUser.bio || '없음' },
-            { name: '서버 역할', value: roles.length > 1024 ? '너무 많음' : roles }
+            {
+                name: '유저 닉네임',
+                value: member?.nickname || user.username,
+                inline: true
+            },
+            {
+                name: '유저 ID',
+                value: user.id,
+                inline: true
+            },
+            {
+                name: '디스코드 가입일',
+                value: `<t:${Math.floor(user.createdTimestamp / 1000)}:R>`,
+                inline: true
+            },
+            {
+                name: '서버 가입일',
+                value: member
+                    ? `<t:${Math.floor(member.joinedTimestamp / 1000)}:R>`
+                    : '서버 없음',
+                inline: true
+            },
+            {
+                name: '소개글 (Bio)',
+                value: fullUser.bio || '없음'
+            },
+            {
+                name: '서버 역할',
+                value: roles
+            }
         );
 
-    await interaction.editReply({ embeds: [embed] }); // ⭐ 여기 중요
+    return interaction.editReply({ embeds: [embed] });
 }
 
 if (interaction.commandName === '틱택토') {
