@@ -35,7 +35,7 @@ const client = new Client({
 });
 
 const tttGames = new Map();
-const isDraw = game.board.every(cell => cell !== null);
+
 
 const deletedMessages = new Map();
 
