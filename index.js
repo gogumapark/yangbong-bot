@@ -67,7 +67,11 @@ const commands = [
 
     new SlashCommandBuilder()
     .setName('삭제로그')
-    .setDescription('최근 삭제된 메시지를 확인합니다')
+    .setDescription('최근 삭제된 메시지를 확인합니다'),
+
+    new SlashCommandBuilder()
+    .setName('유저정보')
+    .setDescription('유저정보를 확인합니다'),
     
 ]
 .map(command => command.toJSON());
@@ -239,6 +243,26 @@ if (interaction.commandName === '삭제로그') {
     });
 
 }
+
+if (interaction.commandName === '유저정보') {
+
+    const user = interaction.user;
+    const member = interaction.member;
+
+    const embed = new EmbedBuilder()
+        .setTitle('👤 유저 정보')
+        .setThumbnail(user.displayAvatarURL())
+        .addFields(
+            { name: '이름', value: user.username, inline: true },
+            { name: 'ID', value: user.id, inline: true },
+            { name: '서버 닉네임', value: member.nickname || '없음', inline: true },
+            { name: '가입일', value: `<t:${Math.floor(member.joinedTimestamp / 1000)}:R>` }
+        )
+        .setColor('Blue');
+
+    await interaction.reply({ embeds: [embed] });
+}
+
 
 });
 
