@@ -149,7 +149,8 @@ const rest = new REST({ version: '10' }).setToken(token);
     }
 })();
 
-client.once('ready', () => {
+client.once('clientReady', () => {
+
     console.log(`${client.user.tag} 로그인 완료!`);
 });
 
@@ -241,8 +242,6 @@ client.on('interactionCreate', async interaction => {
                 ephemeral: true
             });
         }
-
-        return;
     }
 
     // 슬래시 명령어만 아래로 진행
@@ -577,46 +576,6 @@ if (interaction.commandName === '편지') {
 }
 
 
-    const id = interaction.customId.split('_')[1];
-    const letter = letters.get(id);
-
-    if (!letter) return;
-
-    const fromUser = await client.users.fetch(letter.from);
-
-    const typeEmoji = {
-        friend: '🤝 우정의 편지',
-        love: '💌 러브레터',
-        duel: '⚔ 결투신청서'
-    };
-
-    const embed = new EmbedBuilder()
-        .setTitle(typeEmoji[letter.type])
-        .setDescription(letter.content)
-        .addFields(
-            { name: '보낸 사람', value: fromUser.username },
-            { name: '날짜', value: `<t:${Math.floor(letter.createdAt / 1000)}:R>` }
-        )
-        .setColor(
-            letter.type === 'love' ? 'Red' :
-            letter.type === 'duel' ? 'DarkRed' : 'Green'
-        );
-
-    const deleteButton =
-    new ActionRowBuilder().addComponents(
-        new ButtonBuilder()
-            .setCustomId(`deleteletter_${id}`)
-            .setLabel('🗑 삭제')
-            .setStyle(ButtonStyle.Danger)
-    );
-
-await interaction.reply({
-    embeds: [embed],
-    components: [deleteButton],
-    ephemeral: true
-});
-
-});
 
 client.on('interactionCreate', async interaction => {
 
