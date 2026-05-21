@@ -464,7 +464,7 @@ client.on('interactionCreate', async interaction => {
 
         // ❌ 이미 오늘 했으면
         if (user.lastFortuneDate === today) {
-            return interaction.reply({
+            return interaction.deferReply({
                 content: '❌ 하루에 한번씩~.',
                 ephemeral: true
             });
@@ -504,7 +504,7 @@ client.on('interactionCreate', async interaction => {
 
         const random = fortunes[Math.floor(Math.random() * fortunes.length)];
 
-        return interaction.reply(
+        return interaction.editReply(
             `🔮 ${interaction.user.username}님의 오늘 운세\n\n` +
             `${random}\n\n` +
             `🔥 연속 출석: ${user.fortuneStreak}일\n` +
