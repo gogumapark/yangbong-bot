@@ -37,6 +37,17 @@ mongoose.connect(process.env.MONGO_URI)
     }
 
 
+    const letterSchema = new mongoose.Schema({
+        from: String,
+        to: String,
+        type: String,
+        content: String,
+        createdAt: { type: Date, default: Date.now }
+    });
+
+    const Letter = mongoose.model('Letter', letterSchema);
+
+
 
 const {
     Client,
@@ -67,7 +78,6 @@ const client = new Client({
 
 
 const tttGames = new Map();
-const letters = new Map();
 
 const deletedMessages = new Map();
 
@@ -237,7 +247,8 @@ client.on('interactionCreate', async interaction => {
         if (interaction.customId.startsWith('letter_')) {
 
             const id = interaction.customId.split('_')[1];
-            const letter = letters.get(id);
+
+            const letter = await Letter.findById(id);
 
             if (!letter) {
                 return interaction.reply({
@@ -246,8 +257,7 @@ client.on('interactionCreate', async interaction => {
                 });
             }
 
-            const fromUser =
-                await client.users.fetch(letter.from);
+            const fromUser = await client.users.fetch(letter.from);
 
             const typeEmoji = {
                 friend: '🤝 우정의 편지',
@@ -259,14 +269,8 @@ client.on('interactionCreate', async interaction => {
                 .setTitle(typeEmoji[letter.type])
                 .setDescription(letter.content)
                 .addFields(
-                    {
-                        name: '보낸 사람',
-                        value: fromUser.username
-                    },
-                    {
-                        name: '날짜',
-                        value: `<t:${Math.floor(letter.createdAt / 1000)}:R>`
-                    }
+                    { name: '보낸 사람', value: fromUser.username },
+                    { name: '날짜', value: `<t:${Math.floor(letter.createdAt / 1000)}:R>` }
                 )
                 .setColor(
                     letter.type === 'love'
@@ -276,17 +280,8 @@ client.on('interactionCreate', async interaction => {
                         : 'Green'
                 );
 
-            const deleteButton =
-                new ActionRowBuilder().addComponents(
-                    new ButtonBuilder()
-                        .setCustomId(`deleteletter_${id}`)
-                        .setLabel('🗑 삭제')
-                        .setStyle(ButtonStyle.Danger)
-                );
-
             return interaction.reply({
                 embeds: [embed],
-                components: [deleteButton],
                 ephemeral: true
             });
         }
@@ -297,28 +292,29 @@ client.on('interactionCreate', async interaction => {
             interaction.customId.startsWith('letters_next_')
         ) {
 
-            const userLetters = [...letters.entries()]
-                .filter(([id, l]) => l.to === interaction.user.id);
-
             const perPage = 5;
 
-            let page =
-                parseInt(interaction.customId.split('_')[2]);
+            // 현재 페이지 가져오기
+            let page = Number(interaction.customId.split('_')[2]) || 0;
 
-            if (interaction.customId.startsWith('letters_next_')) {
-                page++;
-            } else {
-                page--;
-            }
+            const direction = interaction.customId.startsWith('letters_next_') ? 1 : -1;
+            page = Math.max(0, page + direction);
+
+            
+            // 🔥 안전장치
+            if (page < 0) page = 0;
+
+            const allLetters = await Letter.find({
+                to: interaction.user.id
+            }).sort({ createdAt: -1 });
 
             const start = page * perPage;
 
-            const currentLetters =
-                userLetters.slice(start, start + perPage);
+            const currentLetters = allLetters.slice(start, start + perPage);
 
-            const buttons = currentLetters.map(([id, l], index) =>
+            const buttons = currentLetters.map((l, index) =>
                 new ButtonBuilder()
-                    .setCustomId(`letter_${id}`)
+                    .setCustomId(`letter_${l._id}`)
                     .setLabel(
                         `${l.type === 'love'
                             ? '💌 러브'
@@ -331,11 +327,8 @@ client.on('interactionCreate', async interaction => {
 
             const rows = [];
 
-            // 버튼이 있을 때만 추가
             if (buttons.length > 0) {
-                rows.push(
-                    new ActionRowBuilder().addComponents(buttons)
-                );
+                rows.push(new ActionRowBuilder().addComponents(buttons));
             }
 
             rows.push(
@@ -350,12 +343,12 @@ client.on('interactionCreate', async interaction => {
                         .setCustomId(`letters_next_${page}`)
                         .setLabel('다음 ▶')
                         .setStyle(ButtonStyle.Secondary)
-                        .setDisabled(start + perPage >= userLetters.length)
+                        .setDisabled(start + perPage >= allLetters.length)
                 )
             );
 
             return interaction.update({
-                content: `📬 편지함 (${userLetters.length}개)`,
+                content: `📬 편지함 (${allLetters.length}개)`,
                 components: rows
             });
         }
@@ -365,14 +358,16 @@ client.on('interactionCreate', async interaction => {
 
             const id = interaction.customId.split('_')[1];
 
-            if (!letters.has(id)) {
+            const letter = await Letter.findById(id);
+
+            if (!letter) {
                 return interaction.reply({
                     content: '이미 삭제된 편지입니다.',
                     ephemeral: true
                 });
             }
 
-            letters.delete(id);
+            await Letter.findByIdAndDelete(id);
 
             return interaction.update({
                 content: '🗑 편지가 삭제되었습니다.',
@@ -380,7 +375,6 @@ client.on('interactionCreate', async interaction => {
                 components: []
             });
         }
-
         // 틱택토
         if (interaction.customId.startsWith('ttt_')) {
 
@@ -681,17 +675,14 @@ client.on('interactionCreate', async interaction => {
         const type = interaction.options.getString('종류');
         const content = interaction.options.getString('내용');
 
-        const letter = {
+        const id = Date.now().toString();
+
+        const newLetter = await Letter.create({
             from: interaction.user.id,
             to: to.id,
             type,
-            content,
-            createdAt: new Date()
-        };
-
-        const id = Date.now().toString();
-
-        letters.set(id, letter);
+            content
+        });
 
         await interaction.reply({
             content: `📨 편지를 보냈다! (${to.username})`,
@@ -707,26 +698,27 @@ client.on('interactionCreate', async interaction => {
 
     if (interaction.commandName === '편지함') {
 
-        const userLetters = [...letters.entries()]
-            .filter(([id, l]) => l.to === interaction.user.id);
+        const perPage = 5;
+        const page = 0;
 
-        if (userLetters.length === 0) {
+        // 🔥 DB에서 가져오기
+        const allLetters = await Letter.find({
+            to: interaction.user.id
+        }).sort({ createdAt: -1 });
+
+        if (allLetters.length === 0) {
             return interaction.reply({
                 content: '📭 받은 편지가 없습니다.',
                 ephemeral: true
             });
         }
 
-        const page = 0;
-        const perPage = 5;
-
         const start = page * perPage;
-        const currentLetters =
-            userLetters.slice(start, start + perPage);
+        const currentLetters = allLetters.slice(start, start + perPage);
 
-        const buttons = currentLetters.map(([id, l], index) =>
+        const buttons = currentLetters.map((l, index) =>
             new ButtonBuilder()
-                .setCustomId(`letter_${id}`)
+                .setCustomId(`letter_${l._id}`)
                 .setLabel(
                     `${l.type === 'love'
                         ? '💌 러브'
@@ -739,9 +731,11 @@ client.on('interactionCreate', async interaction => {
 
         const rows = [];
 
-        rows.push(
-            new ActionRowBuilder().addComponents(buttons)
-        );
+        if (buttons.length > 0) {
+            rows.push(
+                new ActionRowBuilder().addComponents(buttons)
+            );
+        }
 
         const navButtons = new ActionRowBuilder().addComponents(
             new ButtonBuilder()
@@ -754,13 +748,13 @@ client.on('interactionCreate', async interaction => {
                 .setCustomId(`letters_next_${page}`)
                 .setLabel('다음 ▶')
                 .setStyle(ButtonStyle.Secondary)
-                .setDisabled(userLetters.length <= perPage)
+                .setDisabled(allLetters.length <= perPage)
         );
 
         rows.push(navButtons);
 
         await interaction.reply({
-            content: `📬 편지함 (${userLetters.length}개)`,
+            content: `📬 편지함 (${allLetters.length}개)`,
             components: rows,
             ephemeral: true
         });
