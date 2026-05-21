@@ -186,6 +186,7 @@ client.on('interactionCreate', async interaction => {
     // 버튼 처리
     if (interaction.isButton()) {
 
+        // 편지 열기
         if (interaction.customId.startsWith('letter_')) {
 
             const id = interaction.customId.split('_')[1];
@@ -224,8 +225,8 @@ client.on('interactionCreate', async interaction => {
                     letter.type === 'love'
                         ? 'Red'
                         : letter.type === 'duel'
-                            ? 'DarkRed'
-                            : 'Green'
+                        ? 'DarkRed'
+                        : 'Green'
                 );
 
             const deleteButton =
@@ -242,8 +243,152 @@ client.on('interactionCreate', async interaction => {
                 ephemeral: true
             });
         }
-    }
 
+        // 편지 페이지 이동
+        if (
+            interaction.customId.startsWith('letters_prev_') ||
+            interaction.customId.startsWith('letters_next_')
+        ) {
+
+            const userLetters = [...letters.entries()]
+                .filter(([id, l]) => l.to === interaction.user.id);
+
+            const perPage = 5;
+
+            let page =
+                parseInt(interaction.customId.split('_')[2]);
+
+            if (interaction.customId.startsWith('letters_next_')) {
+                page++;
+            } else {
+                page--;
+            }
+
+            const start = page * perPage;
+
+            const currentLetters =
+                userLetters.slice(start, start + perPage);
+
+            const buttons = currentLetters.map(([id, l], index) =>
+                new ButtonBuilder()
+                    .setCustomId(`letter_${id}`)
+                    .setLabel(
+                        `${l.type === 'love'
+                            ? '💌 러브'
+                            : l.type === 'duel'
+                            ? '⚔ 결투'
+                            : '🤝 우정'} #${start + index + 1}`
+                    )
+                    .setStyle(ButtonStyle.Primary)
+            );
+
+            const rows = [];
+
+            rows.push(
+                new ActionRowBuilder().addComponents(buttons)
+            );
+
+            rows.push(
+                new ActionRowBuilder().addComponents(
+                    new ButtonBuilder()
+                        .setCustomId(`letters_prev_${page}`)
+                        .setLabel('◀ 이전')
+                        .setStyle(ButtonStyle.Secondary)
+                        .setDisabled(page === 0),
+
+                    new ButtonBuilder()
+                        .setCustomId(`letters_next_${page}`)
+                        .setLabel('다음 ▶')
+                        .setStyle(ButtonStyle.Secondary)
+                        .setDisabled(start + perPage >= userLetters.length)
+                )
+            );
+
+            return interaction.update({
+                content: `📬 편지함 (${userLetters.length}개)`,
+                components: rows
+            });
+        }
+
+        // 편지 삭제
+        if (interaction.customId.startsWith('deleteletter_')) {
+
+            const id = interaction.customId.split('_')[1];
+
+            if (!letters.has(id)) {
+                return interaction.reply({
+                    content: '이미 삭제된 편지입니다.',
+                    ephemeral: true
+                });
+            }
+
+            letters.delete(id);
+
+            return interaction.update({
+                content: '🗑 편지가 삭제되었습니다.',
+                embeds: [],
+                components: []
+            });
+        }
+
+        // 틱택토
+        if (interaction.customId.startsWith('ttt_')) {
+
+            const [, gameId, index] = interaction.customId.split('_');
+            const game = tttGames.get(gameId);
+
+            if (!game) return;
+
+            if (game.board[index]) {
+                return interaction.reply({
+                    content: '이미 선택된 칸임',
+                    ephemeral: true
+                });
+            }
+
+            game.board[index] = game.turn;
+
+            const winPatterns = [
+                [0, 1, 2], [3, 4, 5], [6, 7, 8],
+                [0, 3, 6], [1, 4, 7], [2, 5, 8],
+                [0, 4, 8], [2, 4, 6]
+            ];
+
+            const checkWin = (symbol) =>
+                winPatterns.some(p =>
+                    p.every(i => game.board[i] === symbol)
+                );
+
+            if (checkWin(game.turn)) {
+                tttGames.delete(gameId);
+
+                return interaction.update({
+                    content: `🏆 ${game.turn} 승리!`,
+                    components: []
+                });
+            }
+
+            const isDraw = game.board.every(cell => cell !== null);
+
+            if (isDraw) {
+                tttGames.delete(gameId);
+
+                return interaction.update({
+                    content: `🤝 무승부!`,
+                    components: []
+                });
+            }
+
+            game.turn = game.turn === '❌' ? '⭕' : '❌';
+
+            return interaction.update({
+                content: `현재 턴: ${game.turn}`,
+                components: createBoard(gameId)
+            });
+        }
+
+        return;
+    }
 
     // 슬래시 명령어만 아래로 진행
     if (!interaction.isChatInputCommand()) return;
@@ -576,161 +721,6 @@ client.on('interactionCreate', async interaction => {
         });
     }
 
-
-
-    client.on('interactionCreate', async interaction => {
-
-        // 버튼 처리
-        if (interaction.isButton()) {
-
-            if (
-                interaction.customId.startsWith('letters_prev_') ||
-                interaction.customId.startsWith('letters_next_')
-            ) {
-
-                const userLetters = [...letters.entries()]
-                    .filter(([id, l]) => l.to === interaction.user.id);
-
-                const perPage = 5;
-
-                let page =
-                    parseInt(interaction.customId.split('_')[2]);
-
-                if (interaction.customId.startsWith('letters_next_')) {
-                    page++;
-                } else {
-                    page--;
-                }
-
-                const start = page * perPage;
-
-                const currentLetters =
-                    userLetters.slice(start, start + perPage);
-
-                const buttons = currentLetters.map(([id, l], index) =>
-                    new ButtonBuilder()
-                        .setCustomId(`letter_${id}`)
-                        .setLabel(
-                            `${l.type === 'love'
-                                ? '💌 러브'
-                                : l.type === 'duel'
-                                    ? '⚔ 결투'
-                                    : '🤝 우정'} #${start + index + 1}`
-                        )
-                        .setStyle(ButtonStyle.Primary)
-                );
-
-                const rows = [];
-
-                rows.push(
-                    new ActionRowBuilder().addComponents(buttons)
-                );
-
-                rows.push(
-                    new ActionRowBuilder().addComponents(
-                        new ButtonBuilder()
-                            .setCustomId(`letters_prev_${page}`)
-                            .setLabel('◀ 이전')
-                            .setStyle(ButtonStyle.Secondary)
-                            .setDisabled(page === 0),
-
-                        new ButtonBuilder()
-                            .setCustomId(`letters_next_${page}`)
-                            .setLabel('다음 ▶')
-                            .setStyle(ButtonStyle.Secondary)
-                            .setDisabled(start + perPage >= userLetters.length)
-                    )
-                );
-
-                return interaction.update({
-                    content: `📬 편지함 (${userLetters.length}개)`,
-                    components: rows
-                });
-            }
-
-
-
-
-
-            if (interaction.customId.startsWith('deleteletter_')) {
-
-                const id = interaction.customId.split('_')[1];
-
-                if (!letters.has(id)) {
-                    return interaction.reply({
-                        content: '이미 삭제된 편지입니다.',
-                        ephemeral: true
-                    });
-                }
-
-                letters.delete(id);
-
-                return interaction.update({
-                    content: '🗑 편지가 삭제되었습니다.',
-                    embeds: [],
-                    components: []
-                });
-            }
-
-
-            if (!interaction.customId.startsWith('ttt_')) return;
-
-            const [, gameId, index] = interaction.customId.split('_');
-            const game = tttGames.get(gameId);
-
-            if (!game) return;
-
-            if (game.board[index]) {
-                return interaction.reply({
-                    content: '이미 선택된 칸임',
-                    ephemeral: true
-                });
-            }
-
-            game.board[index] = game.turn;
-
-            const winPatterns = [
-                [0, 1, 2], [3, 4, 5], [6, 7, 8],
-                [0, 3, 6], [1, 4, 7], [2, 5, 8],
-                [0, 4, 8], [2, 4, 6]
-            ];
-
-            const checkWin = (symbol) =>
-                winPatterns.some(p =>
-                    p.every(i => game.board[i] === symbol)
-                );
-
-            if (checkWin(game.turn)) {
-                tttGames.delete(gameId);
-
-                return interaction.update({
-                    content: `🏆 ${game.turn} 승리!`,
-                    components: []
-                });
-            }
-
-            const isDraw = game.board.every(cell => cell !== null);
-
-            if (isDraw) {
-                tttGames.delete(gameId);
-
-                return interaction.update({
-                    content: `🤝 무승부!`,
-                    components: []
-                });
-            }
-
-            game.turn = game.turn === '❌' ? '⭕' : '❌';
-
-            return interaction.update({
-                content: `현재 턴: ${game.turn}`,
-                components: createBoard(gameId)
-            });
-        }
-
-    });
-
-
-
-    client.login(token);
 });
+
+client.login(token);
