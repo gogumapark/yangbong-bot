@@ -430,15 +430,13 @@ client.on('interactionCreate', async interaction => {
         return;
     }
 
-    // 슬래시 명령어만 아래로 진행
+
     if (!interaction.isChatInputCommand()) return;
 
     if (interaction.commandName === '안녕') {
         return interaction.reply('인사 똑바로해라.');
     }
 
-
-    // /주사위
     if (interaction.commandName === '주사위') {
 
         const dice = Math.floor(Math.random() * 6) + 1;
@@ -447,42 +445,46 @@ client.on('interactionCreate', async interaction => {
     }
 
     if (interaction.commandName === '운세') {
+        
+        await interaction.deferReply();
 
-    await interaction.deferReply();
+        const userId = interaction.user.id;
 
-    const userId = interaction.user.id;
+        const today =
+            new Date().toLocaleDateString();
 
-    const today =
-        new Date().toLocaleDateString();
+        if (userFortunes[userId] === today) {
 
-    if (userFortunes[userId] === today) {
+            return interaction.editReply(
+                '❌ 하루에 한번만~'
+            );
+        }
 
-        return interaction.editReply(
-            '❌ 하루에 한번만~'
-        );
-    }
+        userFortunes[userId] = today;
 
-    userFortunes[userId] = today;
+        if (money[userId] == null) {
+            money[userId] = 1000;
+        }
 
-    if (!money[userId]) {
-        money[userId] = 1000;
-    }
+        money[userId] += 1000;
 
-    money[userId] += 1000;
+        saveMoney();
 
-    saveMoney();
-
-    const fortunes = [
-        '🍀 오늘의 당신은 럭키가이!!',
-        '🔥 타올라라 열정이여!! 오늘은 성공의 느낌',
-        '💤 푹 쉬어라...',
-        '💰 왜인지 뜻밖의 행운이?!'
-    ];
+        const fortunes = [
+            '🍀 오늘의 당신은 럭키가이!!',
+            '🔥 타올라라 열정이여!! 오늘은 성공의 느낌', 
+            '💤 푹 쉬어라...', 
+            '💰 왜인지 뜻밖의 행운이?!',
+            '💻 게임하자 오늘은 그래도 돼.', 
+            '📙 공부나 해라....',
+            '⚡ 안좋은일이 있을수도..', 
+            '💚 연애운 급 상승~!'
+        ];
 
     const random =
         fortunes[Math.floor(Math.random() * fortunes.length)];
 
-    await interaction.editReply(
+    return interaction.editReply(
         `🔮 오늘의 운세\n\n${random}\n\n💰 운세 보상 +1000원!\n현재 돈: ${money[userId]}원`
     );
 }
@@ -824,5 +826,8 @@ client.on('interactionCreate', async interaction => {
 
 
 });
+
+
+
 
 client.login(token);
