@@ -10,22 +10,32 @@ app.listen(PORT, () => {
     console.log(`Server running on ${PORT}`);
 });
 
-const fs = require('fs');
+const mongoose = require('mongoose');
 
-const moneyFile = './money.json';
+mongoose.connect(process.env.MONGO_URI)
+    .then(() => console.log('MongoDB 연결 성공!'))
+    .catch(err => console.error('MongoDB 연결 실패:', err));
 
-let money = {};
+    const moneySchema = new mongoose.Schema({
+        userId: { type: String, unique: true },
+        money: { type: Number, default: 1000 }
+    });
 
-if (fs.existsSync(moneyFile)) {
-    money = JSON.parse(fs.readFileSync(moneyFile));
-}
+    const Money = mongoose.model('Money', moneySchema);
 
-function saveMoney() {
-    fs.writeFileSync(
-        moneyFile,
-        JSON.stringify(money, null, 4)
-    );
-}
+    async function getUser(userId) {
+        let user = await Money.findOne({ userId });
+
+        if (!user) {
+            user = await Money.create({
+                userId,
+                money: 1000
+            });
+        }
+
+        return user;
+    }
+
 
 
 const {
@@ -463,13 +473,14 @@ client.on('interactionCreate', async interaction => {
 
         userFortunes[userId] = today;
 
-        if (money[userId] == null) {
+        if 
+        (money[userId] == null) {
             money[userId] = 1000;
         }
 
-        money[userId] += 1000;
-
-        saveMoney();
+        const user = await getUser(userId);
+        user.money += 1000;
+        await user.save();
 
         const fortunes = [
             '🍀 오늘의 당신은 럭키가이!!',
@@ -766,65 +777,50 @@ client.on('interactionCreate', async interaction => {
 
     if (interaction.commandName === '돈') {
 
-    const userId = interaction.user.id;
+        const user = await getUser(interaction.user.id);
 
-    if (money[userId] == null) {
-        money[userId] = 1000;
-        saveMoney();
+        return interaction.reply({
+            content: `💰 현재 돈: ${user.money}원`,
+            ephemeral: true
+        });
     }
-
-    return interaction.reply({
-        content: `💰 현재 돈: ${money[userId]}원`,
-        ephemeral: true
-    });
-}
 
     if (interaction.commandName === '도박') {
 
-    const userId = interaction.user.id;
-    const bet = interaction.options.getInteger('금액');
+        const userId = interaction.user.id;
+        const bet = interaction.options.getInteger('금액');
 
-    if (!money[userId]) {
-        money[userId] = 1000;
-    }
+        const user = await getUser(userId);
 
-    if (bet <= 0) {
-        return interaction.reply({
-            content: '❌ 1원 이상 걸어라',
-            ephemeral: true
-        });
-    }
+        if (bet <= 0) {
+            return interaction.reply({
+                content: '❌ 1원 이상 걸어라',
+                ephemeral: true
+            });
+        }
 
-    if (money[userId] < bet) {
-        return interaction.reply({
-            content: '❌ 돈 부족',
-            ephemeral: true
-        });
-    }
+        if (user.money < bet) {
+            return interaction.reply({
+                content: '❌ 돈 부족',
+                ephemeral: true
+            });
+        }
 
-    const win = Math.random() < 0.5;
+        const win = Math.random() < 0.5;
 
-    if (win) {
+        if (win) {
+            user.money += bet;
+        } else {
+            user.money -= bet;
+        }
 
-        money[userId] += bet;
-
-        saveMoney();
-
-        return interaction.reply(
-            `🎉 승리!\n💰 +${bet}원\n현재 돈: ${money[userId]}원`
-        );
-
-    } else {
-
-        money[userId] -= bet;
-
-        saveMoney();
+        await user.save();
 
         return interaction.reply(
-            `💀 패배...\n💸 -${bet}원\n현재 돈: ${money[userId]}원`
+            `${win ? '🎉 승리!' : '💀 패배...'}\n` +
+            `${win ? '+' : '-'}${bet}원\n현재 돈: ${user.money}원`
         );
     }
-}
 
 
 });
