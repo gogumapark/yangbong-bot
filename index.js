@@ -18,7 +18,10 @@ mongoose.connect(process.env.MONGO_URI)
 
     const moneySchema = new mongoose.Schema({
         userId: { type: String, unique: true },
-        money: { type: Number, default: 1000 }
+        money: { type: Number, default: 1000 },
+
+        lastFortuneDate: { type: String, default: null },
+        fortuneStreak: { type: Number, default: 0 }
     });
 
     const Money = mongoose.model('Money', moneySchema);
@@ -450,39 +453,62 @@ client.on('interactionCreate', async interaction => {
 
     if (interaction.commandName === '운세') {
         const userId = interaction.user.id;
-        const today = new Date().toLocaleDateString();
+        const user = await getUser(userId);
 
-        // 1️⃣ 하루 제한 체크 (여기만 나에게 보이게)
-        if (userFortunes[userId] === today) {
+        const today = new Date().toLocaleDateString('sv-SE', {
+            timeZone: 'Asia/Seoul'
+        });
+
+        const yesterday = new Date(Date.now() - 86400000)
+            .toLocaleDateString('sv-SE', { timeZone: 'Asia/Seoul' });
+
+        // ❌ 이미 오늘 했으면
+        if (user.lastFortuneDate === today) {
             return interaction.reply({
-                content: '❌ 하루에 한번만~',
+                content: '❌ 하루에 한번씩~.',
                 ephemeral: true
             });
         }
 
-        // 2️⃣ 기록 저장
-        userFortunes[userId] = today;
+        // 🔥 연속 체크
+        if (user.lastFortuneDate === yesterday) {
+            user.fortuneStreak += 1;
+        } else {
+            user.fortuneStreak = 1; // 끊기면 초기화
+        }
 
-        const user = await getUser(userId);
-        user.money += 1000;
+        user.lastFortuneDate = today;
+
+        // 🎁 기본 보상
+        let reward = 1000;
+
+        // 🔥 스트릭 보너스
+        if (user.fortuneStreak >= 3) reward += 500;
+        if (user.fortuneStreak >= 7) reward += 1500;
+        if (user.fortuneStreak >= 14) reward += 3000;
+
+        user.money += reward;
+
         await user.save();
 
         const fortunes = [
-            '🍀 오늘의 당신은 럭키가이!!',
-            '🔥 타올라라 열정이여!! 오늘은 성공의 느낌',
+            '🍀 오늘의 당신은 럭키가이!',
+            '🔥 타올라라 열정이여!, 성공의 기분',
+            '💰 금전운 급 상승~!',
             '💤 푹 쉬어라...',
-            '💰 왜인지 뜻밖의 행운이?!',
-            '💻 게임하자 오늘은 그래도 돼.',
-            '📙 공부나 해라....',
-            '⚡ 안좋은일이 있을수도..',
+            '💻 오늘은 게임을 해도 될 것 같아~!',
+            '📙 공부나 해라..',
+            '⚡ 길가다 벼락맞을 확률 120%',
             '💚 연애운 급 상승~!'
         ];
 
         const random = fortunes[Math.floor(Math.random() * fortunes.length)];
 
-        // 3️⃣ 운세는 모두에게 공개
         return interaction.reply(
-            `🔮 ${interaction.user.username}오늘의 운세를 확인하셨습니다! : \n\n${random}\n\n💰 옛다 1000원이다!!`
+            `🔮 ${interaction.user.username}님의 오늘 운세\n\n` +
+            `${random}\n\n` +
+            `🔥 연속 출석: ${user.fortuneStreak}일\n` +
+            `💰 보상: +${reward}원`
         );
     }
     
