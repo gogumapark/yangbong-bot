@@ -183,22 +183,7 @@ function createBoard(gameId) {
 client.on('interactionCreate', async interaction => {
 
     // 1. 버튼 먼저 처리
-    if (interaction.isButton()) {
-        // 편지 버튼
-        if (interaction.customId.startsWith('letter_')) {
-            const id = interaction.customId.split('_')[1];
-            const letter = letters.get(id);
 
-            if (!letter) return interaction.reply({ content: '편지 없음', ephemeral: true });
-
-            return interaction.reply({
-                content: `📬 내용: ${letter.content}`,
-                ephemeral: true
-            });
-        }
-
-        return;
-    }
 
     // 2. 슬래시 커맨드 처리
     if (!interaction.isChatInputCommand()) return;
@@ -482,18 +467,51 @@ if (interaction.commandName === '편지') {
         });
     }
 
-    const buttons = userLetters.map(([id, l], index) =>
+    const page = 0;
+    const perPage = 5;
+
+    const start = page * perPage;
+    const currentLetters =
+        userLetters.slice(start, start + perPage);
+
+    const buttons = currentLetters.map(([id, l], index) =>
         new ButtonBuilder()
             .setCustomId(`letter_${id}`)
-            .setLabel(`${l.type === 'love' ? '💌 러브' : l.type === 'duel' ? '⚔ 결투' : '🤝 우정'} #${index + 1}`)
+            .setLabel(
+                `${l.type === 'love'
+                    ? '💌 러브'
+                    : l.type === 'duel'
+                    ? '⚔ 결투'
+                    : '🤝 우정'} #${start + index + 1}`
+            )
             .setStyle(ButtonStyle.Primary)
     );
 
-    const row = new ActionRowBuilder().addComponents(buttons.slice(0, 5));
+    const rows = [];
+
+    rows.push(
+        new ActionRowBuilder().addComponents(buttons)
+    );
+
+    const navButtons = new ActionRowBuilder().addComponents(
+        new ButtonBuilder()
+            .setCustomId(`letters_prev_${page}`)
+            .setLabel('◀ 이전')
+            .setStyle(ButtonStyle.Secondary)
+            .setDisabled(page === 0),
+
+        new ButtonBuilder()
+            .setCustomId(`letters_next_${page}`)
+            .setLabel('다음 ▶')
+            .setStyle(ButtonStyle.Secondary)
+            .setDisabled(userLetters.length <= perPage)
+    );
+
+    rows.push(navButtons);
 
     await interaction.reply({
-        content: '📬 편지를 선택하세요',
-        components: [row],
+        content: `📬 편지함 (${userLetters.length}개)` ,
+        components: rows,
         ephemeral: true
     });
 }
@@ -525,10 +543,19 @@ if (interaction.commandName === '편지') {
             letter.type === 'duel' ? 'DarkRed' : 'Green'
         );
 
-    await interaction.reply({
-        embeds: [embed],
-        ephemeral: true
-    });
+    const deleteButton =
+    new ActionRowBuilder().addComponents(
+        new ButtonBuilder()
+            .setCustomId(`deleteletter_${id}`)
+            .setLabel('🗑 삭제')
+            .setStyle(ButtonStyle.Danger)
+    );
+
+await interaction.reply({
+    embeds: [embed],
+    components: [deleteButton],
+    ephemeral: true
+});
 }
 
 })
@@ -537,6 +564,94 @@ client.on('interactionCreate', async interaction => {
 
     // 버튼 처리
     if (interaction.isButton()) {
+
+        if (
+    interaction.customId.startsWith('letters_prev_') ||
+    interaction.customId.startsWith('letters_next_')
+) {
+
+    const userLetters = [...letters.entries()]
+        .filter(([id, l]) => l.to === interaction.user.id);
+
+    const perPage = 5;
+
+    let page =
+        parseInt(interaction.customId.split('_')[2]);
+
+    if (interaction.customId.startsWith('letters_next_')) {
+        page++;
+    } else {
+        page--;
+    }
+
+    const start = page * perPage;
+
+    const currentLetters =
+        userLetters.slice(start, start + perPage);
+
+    const buttons = currentLetters.map(([id, l], index) =>
+        new ButtonBuilder()
+            .setCustomId(`letter_${id}`)
+            .setLabel(
+                `${l.type === 'love'
+                    ? '💌 러브'
+                    : l.type === 'duel'
+                    ? '⚔ 결투'
+                    : '🤝 우정'} #${start + index + 1}`
+            )
+            .setStyle(ButtonStyle.Primary)
+    );
+
+    const rows = [];
+
+    rows.push(
+        new ActionRowBuilder().addComponents(buttons)
+    );
+
+    rows.push(
+        new ActionRowBuilder().addComponents(
+            new ButtonBuilder()
+                .setCustomId(`letters_prev_${page}`)
+                .setLabel('◀ 이전')
+                .setStyle(ButtonStyle.Secondary)
+                .setDisabled(page === 0),
+
+            new ButtonBuilder()
+                .setCustomId(`letters_next_${page}`)
+                .setLabel('다음 ▶')
+                .setStyle(ButtonStyle.Secondary)
+                .setDisabled(start + perPage >= userLetters.length)
+        )
+    );
+
+    return interaction.update({
+        content: `📬 편지함 (${userLetters.length}개)` ,
+        components: rows
+    });
+}
+
+
+
+    if (interaction.customId.startsWith('deleteletter_')) {
+
+        const id = interaction.customId.split('_')[1];
+
+        if (!letters.has(id)) {
+            return interaction.reply({
+                content: '이미 삭제된 편지입니다.',
+                ephemeral: true
+            });
+        }
+
+        letters.delete(id);
+
+        return interaction.update({
+            content: '🗑 편지가 삭제되었습니다.',
+            embeds: [],
+            components: []
+        });
+    }
+
 
         if (!interaction.customId.startsWith('ttt_')) return;
 
