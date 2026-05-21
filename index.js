@@ -10,6 +10,24 @@ app.listen(PORT, () => {
     console.log(`Server running on ${PORT}`);
 });
 
+const fs = require('fs');
+
+const moneyFile = './money.json';
+
+let money = {};
+
+if (fs.existsSync(moneyFile)) {
+    money = JSON.parse(fs.readFileSync(moneyFile));
+}
+
+function saveMoney() {
+    fs.writeFileSync(
+        moneyFile,
+        JSON.stringify(money, null, 4)
+    );
+}
+
+
 const {
     Client,
     GatewayIntentBits,
@@ -22,9 +40,12 @@ const {
     ButtonStyle
 } = require('discord.js');
 
+
+
 const token = process.env.TOKEN;
 const clientId = '1506507365560877156';
 const guildId = '1172129810861015131';
+
 
 const client = new Client({
     intents: [
@@ -34,6 +55,7 @@ const client = new Client({
     ]
 });
 
+const money = new Map();
 const tttGames = new Map();
 const letters = new Map();
 
@@ -127,7 +149,22 @@ const commands = [
 
     new SlashCommandBuilder()
         .setName('편지함')
-        .setDescription('받은 편지를 확인합니다')
+        .setDescription('받은 편지를 확인합니다'),
+
+
+    new SlashCommandBuilder()
+    .setName('돈')
+    .setDescription('현재 돈을 확인합니다'),
+
+    new SlashCommandBuilder()
+        .setName('도박')
+        .setDescription('돈을 걸고 도박합니다')
+        .addIntegerOption(option =>
+            option
+                .setName('금액')
+                .setDescription('배팅할 금액')
+                .setRequired(true)
+        ),
 
 ]
     .map(command => command.toJSON());
@@ -428,13 +465,23 @@ client.on('interactionCreate', async interaction => {
         // 오늘 날짜 저장
         userFortunes[userId] = today;
 
+                    // 돈 데이터 없으면 생성
+        if (!money[userId]) {
+            money[userId] = 1000;
+        }
+
+        // 운세 보상
+        money[userId] += 1000;
+
+        saveMoney();
+
 
         const fortunes = [
             '🍀 오늘의 당신은 럭키가이!!',
             '🔥 타올라라 열정이여!! 오늘은 성공의 느낌',
             '💤 푹 쉬어라...',
             '💰 왜인지 뜻밖의 행운이?!',
-            '💻 게임하자 오늘은 그래도 돼.',
+            '💻 게임을 맘 껏 해도 괜찮은 기분',
             '📙 공부나 해라....',
             '⚡ 안좋은일이 있을수도..',
             '💚 연애운 급 상승~!'
@@ -445,7 +492,7 @@ client.on('interactionCreate', async interaction => {
             fortunes[Math.floor(Math.random() * fortunes.length)];
 
         await interaction.reply(
-            `🔮 오늘의 운세\n\n${random}`
+            `🔮 오늘의 운세\n\n${random}\n\n💰 운세 보상 +1000원!\n현재 돈: ${money[userId]}원`
         );
 
     }
@@ -723,6 +770,68 @@ client.on('interactionCreate', async interaction => {
             ephemeral: true
         });
     }
+
+    if (interaction.commandName === '돈') {
+
+    const userId = interaction.user.id;
+
+    if (!money[userId]) {
+        money[userId] = 1000;
+        saveMoney();
+    }
+
+    return interaction.reply(
+        `💰 현재 돈: ${money[userId]}원`
+    );
+}
+
+    if (interaction.commandName === '도박') {
+
+    const userId = interaction.user.id;
+    const bet = interaction.options.getInteger('금액');
+
+    if (!money[userId]) {
+        money[userId] = 1000;
+    }
+
+    if (bet <= 0) {
+        return interaction.reply({
+            content: '❌ 1원 이상 걸어라',
+            ephemeral: true
+        });
+    }
+
+    if (money[userId] < bet) {
+        return interaction.reply({
+            content: '❌ 돈 부족',
+            ephemeral: true
+        });
+    }
+
+    const win = Math.random() < 0.5;
+
+    if (win) {
+
+        money[userId] += bet;
+
+        saveMoney();
+
+        return interaction.reply(
+            `🎉 승리!\n💰 +${bet}원\n현재 돈: ${money[userId]}원`
+        );
+
+    } else {
+
+        money[userId] -= bet;
+
+        saveMoney();
+
+        return interaction.reply(
+            `💀 패배...\n💸 -${bet}원\n현재 돈: ${money[userId]}원`
+        );
+    }
+}
+
 
 });
 
