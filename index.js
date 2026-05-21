@@ -482,7 +482,7 @@ client.on('interactionCreate', async interaction => {
 
         // 3️⃣ 운세는 모두에게 공개
         return interaction.reply(
-            `🔮 ${interaction.user.username}님의 오늘 운세\n\n${random}\n\n💰 +1000원 지급됨!`
+            `🔮 ${interaction.user.username}오늘의 운세를 확인하셨습니다! : \n\n${random}\n\n💰 옛다 1000원이다!!`
         );
     }
     
