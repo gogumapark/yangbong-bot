@@ -458,6 +458,7 @@ client.on('interactionCreate', async interaction => {
         const userId = interaction.user.id;
         const today = new Date().toLocaleDateString();
 
+        // 1️⃣ 하루 제한 체크 (여기만 나에게 보이게)
         if (userFortunes[userId] === today) {
             return interaction.reply({
                 content: '❌ 하루에 한번만~',
@@ -465,8 +466,7 @@ client.on('interactionCreate', async interaction => {
             });
         }
 
-        await interaction.deferReply({ ephemeral: true });
-
+        // 2️⃣ 기록 저장
         userFortunes[userId] = today;
 
         const user = await getUser(userId);
@@ -486,11 +486,12 @@ client.on('interactionCreate', async interaction => {
 
         const random = fortunes[Math.floor(Math.random() * fortunes.length)];
 
-        return interaction.editReply(
-            `🔮 오늘의 운세\n\n${random}\n\n💰 운세 보상 +1000원!\n현재 돈: ${user.money}원`
+        // 3️⃣ 운세는 모두에게 공개
+        return interaction.reply(
+            `🔮 ${interaction.user.username}님의 오늘 운세\n\n${random}\n\n💰 +1000원 지급됨!`
         );
     }
-
+    
     if (interaction.commandName === '도움말') {
 
         const embed = new EmbedBuilder()
