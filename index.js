@@ -455,7 +455,7 @@ client.on('interactionCreate', async interaction => {
 
         if (userFortunes[userId] === today) {
 
-            return interaction.reply({
+            return interaction.editReply({
                 content: '❌ 하루에 한번만~',
                 ephemeral: true
             });
