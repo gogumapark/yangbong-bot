@@ -464,7 +464,7 @@ client.on('interactionCreate', async interaction => {
 
         // ❌ 이미 오늘 했으면
         if (user.lastFortuneDate === today) {
-            return interaction.deferReply({
+            return interaction.Reply({
                 content: '❌ 하루에 한번씩~.',
                 ephemeral: true
             });
