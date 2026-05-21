@@ -284,9 +284,12 @@ client.on('interactionCreate', async interaction => {
 
             const rows = [];
 
-            rows.push(
-                new ActionRowBuilder().addComponents(buttons)
-            );
+            // 버튼이 있을 때만 추가
+            if (buttons.length > 0) {
+                rows.push(
+                    new ActionRowBuilder().addComponents(buttons)
+                );
+            }
 
             rows.push(
                 new ActionRowBuilder().addComponents(
