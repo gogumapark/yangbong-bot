@@ -55,7 +55,7 @@ const client = new Client({
     ]
 });
 
-const money = new Map();
+
 const tttGames = new Map();
 const letters = new Map();
 
