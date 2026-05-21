@@ -21,8 +21,23 @@ mongoose.connect(process.env.MONGO_URI)
         money: { type: Number, default: 1000 },
 
         lastFortuneDate: { type: String, default: null },
-        fortuneStreak: { type: Number, default: 0 }
+        fortuneStreak: { type: Number, default: 0 },
+
+        stocks: {
+            type: Map,
+            of: Number,
+            default: {}
+        }
     });
+
+    const stockSchema = new mongoose.Schema({
+        name: { type: String, unique: true },
+        owner: String,
+        price: { type: Number, default: 100 },
+        listed: { type: Boolean, default: true }
+    });
+
+    const Stock = mongoose.model('Stock', stockSchema);
 
     const Money = mongoose.model('Money', moneySchema);
 
@@ -33,7 +48,7 @@ mongoose.connect(process.env.MONGO_URI)
             user = await Money.create({
                 userId,
                 money: 1000
-            });
+            });f
         }
 
         return user;
@@ -102,6 +117,46 @@ client.on('messageDelete', message => {
 const userFortunes = {};
 
 const commands = [
+    new SlashCommandBuilder()
+        .setName('주식')
+        .setDescription('주식 정보 확인'),
+
+    new SlashCommandBuilder()
+        .setName('회사생성')
+        .setDescription('주식 회사를 만듭니다')
+        .addStringOption(o =>
+            o.setName('이름')
+            .setDescription('회사 이름')
+            .setRequired(true)
+        ),
+
+    new SlashCommandBuilder()
+        .setName('매수')
+        .setDescription('주식 구매')
+        .addStringOption(o =>
+            o.setName('회사')
+            .setRequired(true))
+        .addIntegerOption(o =>
+            o.setName('수량')
+            .setRequired(true)),
+
+    new SlashCommandBuilder()
+        .setName('매도')
+        .setDescription('주식 판매')
+        .addStringOption(o =>
+            o.setName('회사')
+            .setRequired(true))
+        .addIntegerOption(o =>
+            o.setName('수량')
+            .setRequired(true)),
+
+    new SlashCommandBuilder()
+        .setName('상장폐지')
+        .setDescription('회사 상장 폐지')
+        .addStringOption(o =>
+            o.setName('회사')
+            .setRequired(true)),
+
     new SlashCommandBuilder()
         .setName('도움말')
         .setDescription('양봉이의 도움말을 확인합니다.'),
@@ -239,6 +294,21 @@ function createBoard(gameId) {
 
     return rows;
 }
+
+setInterval(async () => {
+    const stocks = await Stock.find();
+
+    for (let stock of stocks) {
+        if (!stock.listed) continue;
+
+        const change = (Math.random() - 0.5) * 20; 
+        stock.price = Math.max(1, Math.floor(stock.price + change));
+
+        await stock.save();
+    }
+
+    console.log("📈 주식 가격 업데이트 완료");
+}, 60000);
 
 
 client.on('interactionCreate', async interaction => {
@@ -464,7 +534,7 @@ client.on('interactionCreate', async interaction => {
 
         // ❌ 이미 오늘 했으면
         if (user.lastFortuneDate === today) {
-            return interaction.Reply({
+            return interaction.reply({
                 content: '❌ 하루에 한번씩~.',
                 ephemeral: true
             });
@@ -832,6 +902,99 @@ client.on('interactionCreate', async interaction => {
             `${win ? '+' : '-'}${bet}원\n현재 돈: ${user.money}원`
         );
     }
+
+    if (interaction.commandName === '회사생성') {
+        const name = interaction.options.getString('이름');
+
+        const exists = await Stock.findOne({ name });
+        if (exists) {
+            return interaction.reply({
+                content: '이미 존재하는 회사임',
+                ephemeral: true
+            });
+        }
+
+        await Stock.create({
+            name,
+            owner: interaction.user.id,
+            price: 100
+        });
+
+        return interaction.reply(`🏢 ${name} 회사 생성 완료! (가격: 100원)`);
+    }
+
+    if (interaction.commandName === '매수') {
+        const name = interaction.options.getString('회사');
+        const qty = interaction.options.getInteger('수량');
+
+        const stock = await Stock.findOne({ name, listed: true });
+        if (!stock) return interaction.reply('회사 없음');
+
+        const user = await getUser(interaction.user.id);
+
+        const cost = stock.price * qty;
+
+        if (user.money < cost) {
+            return interaction.reply('돈 부족');
+        }
+
+        user.money -= cost;
+        user.stocks.set(name, (user.stocks.get(name) || 0) + qty);
+
+        await user.save();
+
+        return interaction.reply(`📈 ${name} ${qty}주 매수 완료`);
+    }
+
+    if (interaction.commandName === '매도') {
+            const name = interaction.options.getString('회사');
+            const qty = interaction.options.getInteger('수량');
+
+            const stock = await Stock.findOne({ name, listed: true });
+            if (!stock) return interaction.reply('회사 없음');
+
+            const user = await getUser(interaction.user.id);
+
+            const owned = user.stocks.get(name) || 0;
+
+            if (owned < qty) {
+                return interaction.reply('주식 부족');
+            }
+
+            user.stocks.set(name, owned - qty);
+            user.money += stock.price * qty;
+
+            await user.save();
+
+            return interaction.reply(`💰 ${name} ${qty}주 매도 완료`);
+        }
+
+        if (interaction.commandName === '상장폐지') {
+        const name = interaction.options.getString('회사');
+
+        const stock = await Stock.findOne({ name });
+        if (!stock) return interaction.reply('없음');
+
+        stock.listed = false;
+        stock.price = 0;
+        await stock.save();
+
+        return interaction.reply(`💀 ${name} 상장폐지됨`);
+    }
+
+
+    if (interaction.commandName === '주식') {
+        const stocks = await Stock.find({ listed: true });
+
+        const list = stocks
+            .map(s => `📊 ${s.name} - ${s.price}원`)
+            .join('\n');
+
+        return interaction.reply({
+            content: list || '주식 없음'
+        });
+    }
+
 
 
 });
