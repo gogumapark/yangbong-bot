@@ -456,7 +456,7 @@ client.on('interactionCreate', async interaction => {
 
     if (interaction.commandName === '운세') {
         
-        await interaction.deferReply();
+        await interaction.deferReply({ ephemeral: true });
 
         const userId = interaction.user.id;
 
@@ -467,16 +467,10 @@ client.on('interactionCreate', async interaction => {
 
             return interaction.editReply({
                 content: '❌ 하루에 한번만~',
-                ephemeral: true
             });
         }
 
         userFortunes[userId] = today;
-
-        if 
-        (money[userId] == null) {
-            money[userId] = 1000;
-        }
 
         const user = await getUser(userId);
         user.money += 1000;
@@ -497,7 +491,7 @@ client.on('interactionCreate', async interaction => {
         fortunes[Math.floor(Math.random() * fortunes.length)];
 
     return interaction.editReply(
-        `🔮 오늘의 운세\n\n${random}\n\n💰 운세 보상 +1000원!\n현재 돈: ${money[userId]}원`
+        `🔮 오늘의 운세\n\n${random}\n\n💰 운세 보상 +1000원!\n현재 돈: ${user.money}원`
     );
 }
 
