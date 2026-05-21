@@ -48,7 +48,7 @@ mongoose.connect(process.env.MONGO_URI)
             user = await Money.create({
                 userId,
                 money: 1000
-            });f
+            });
         }
 
         return user;
@@ -125,7 +125,7 @@ const commands = [
         .setName('회사생성')
         .setDescription('주식 회사를 만듭니다')
         .addStringOption(o =>
-            o.setName('이름')
+            o.setName('회사')
             .setDescription('회사 이름')
             .setRequired(true)
         ),
