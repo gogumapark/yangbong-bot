@@ -765,7 +765,7 @@ client.on('interactionCreate', async interaction => {
 
     const userId = interaction.user.id;
 
-    if (!money[userId]) {
+    if (money[userId] == null) {
         money[userId] = 1000;
         saveMoney();
     }
