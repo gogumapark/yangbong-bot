@@ -448,54 +448,44 @@ client.on('interactionCreate', async interaction => {
 
     if (interaction.commandName === '운세') {
 
-        const userId = interaction.user.id;
+    await interaction.deferReply();
 
-        const today =
-            new Date().toLocaleDateString();
+    const userId = interaction.user.id;
 
-        // 하루 1번 제한
-        if (userFortunes[userId] === today) {
+    const today =
+        new Date().toLocaleDateString();
 
-            return interaction.reply({
-                content: '❌ 하루에 한번만~',
-                ephemeral: true
-            });
-        }
+    if (userFortunes[userId] === today) {
 
-        // 오늘 날짜 저장
-        userFortunes[userId] = today;
-
-                    // 돈 데이터 없으면 생성
-        if (!money[userId]) {
-            money[userId] = 1000;
-        }
-
-        // 운세 보상
-        money[userId] += 1000;
-
-        saveMoney();
-
-
-        const fortunes = [
-            '🍀 오늘의 당신은 럭키가이!!',
-            '🔥 타올라라 열정이여!! 오늘은 성공의 느낌',
-            '💤 푹 쉬어라...',
-            '💰 왜인지 뜻밖의 행운이?!',
-            '💻 게임을 맘 껏 해도 괜찮은 기분',
-            '📙 공부나 해라....',
-            '⚡ 안좋은일이 있을수도..',
-            '💚 연애운 급 상승~!'
-        ];
-
-
-        const random =
-            fortunes[Math.floor(Math.random() * fortunes.length)];
-
-        await interaction.reply(
-            `🔮 오늘의 운세\n\n${random}\n\n💰 운세 보상 +1000원!\n현재 돈: ${money[userId]}원`
+        return interaction.editReply(
+            '❌ 하루에 한번만~'
         );
-
     }
+
+    userFortunes[userId] = today;
+
+    if (!money[userId]) {
+        money[userId] = 1000;
+    }
+
+    money[userId] += 1000;
+
+    saveMoney();
+
+    const fortunes = [
+        '🍀 오늘의 당신은 럭키가이!!',
+        '🔥 타올라라 열정이여!! 오늘은 성공의 느낌',
+        '💤 푹 쉬어라...',
+        '💰 왜인지 뜻밖의 행운이?!'
+    ];
+
+    const random =
+        fortunes[Math.floor(Math.random() * fortunes.length)];
+
+    await interaction.editReply(
+        `🔮 오늘의 운세\n\n${random}\n\n💰 운세 보상 +1000원!\n현재 돈: ${money[userId]}원`
+    );
+}
 
     if (interaction.commandName === '도움말') {
 
