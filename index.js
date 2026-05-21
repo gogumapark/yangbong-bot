@@ -615,9 +615,8 @@ await interaction.reply({
     components: [deleteButton],
     ephemeral: true
 });
-}
 
-})
+});
 
 client.on('interactionCreate', async interaction => {
 
