@@ -455,9 +455,10 @@ client.on('interactionCreate', async interaction => {
 
         if (userFortunes[userId] === today) {
 
-            return interaction.editReply(
-                '❌ 하루에 한번만~'
-            );
+            return interaction.reply({
+                content: '❌ 하루에 한번만~',
+                ephemeral: true
+            });
         }
 
         userFortunes[userId] = today;
@@ -772,9 +773,10 @@ client.on('interactionCreate', async interaction => {
         saveMoney();
     }
 
-    return interaction.reply(
-        `💰 현재 돈: ${money[userId]}원`
-    );
+    return interaction.reply({
+        content: `💰 현재 돈: ${money[userId]}원`,
+        ephemeral: true
+    });
 }
 
     if (interaction.commandName === '도박') {
