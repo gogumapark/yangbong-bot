@@ -168,7 +168,7 @@ const commands = [
 
     new SlashCommandBuilder()
         .setName('도박')
-        .setDescription('돈을 걸고 도박합니다')
+        .setDescription('인생은 한방!!!!')
         .addIntegerOption(option =>
             option
                 .setName('금액')
@@ -455,20 +455,17 @@ client.on('interactionCreate', async interaction => {
     }
 
     if (interaction.commandName === '운세') {
-        
-        await interaction.deferReply({ ephemeral: true });
-
         const userId = interaction.user.id;
-
-        const today =
-            new Date().toLocaleDateString();
+        const today = new Date().toLocaleDateString();
 
         if (userFortunes[userId] === today) {
-
-            return interaction.editReply({
+            return interaction.reply({
                 content: '❌ 하루에 한번만~',
+                ephemeral: true
             });
         }
+
+        await interaction.deferReply({ ephemeral: true });
 
         userFortunes[userId] = today;
 
@@ -478,22 +475,21 @@ client.on('interactionCreate', async interaction => {
 
         const fortunes = [
             '🍀 오늘의 당신은 럭키가이!!',
-            '🔥 타올라라 열정이여!! 오늘은 성공의 느낌', 
-            '💤 푹 쉬어라...', 
+            '🔥 타올라라 열정이여!! 오늘은 성공의 느낌',
+            '💤 푹 쉬어라...',
             '💰 왜인지 뜻밖의 행운이?!',
-            '💻 게임하자 오늘은 그래도 돼.', 
+            '💻 게임하자 오늘은 그래도 돼.',
             '📙 공부나 해라....',
-            '⚡ 안좋은일이 있을수도..', 
+            '⚡ 안좋은일이 있을수도..',
             '💚 연애운 급 상승~!'
         ];
 
-    const random =
-        fortunes[Math.floor(Math.random() * fortunes.length)];
+        const random = fortunes[Math.floor(Math.random() * fortunes.length)];
 
-    return interaction.editReply(
-        `🔮 오늘의 운세\n\n${random}\n\n💰 운세 보상 +1000원!\n현재 돈: ${user.money}원`
-    );
-}
+        return interaction.editReply(
+            `🔮 오늘의 운세\n\n${random}\n\n💰 운세 보상 +1000원!\n현재 돈: ${user.money}원`
+        );
+    }
 
     if (interaction.commandName === '도움말') {
 
