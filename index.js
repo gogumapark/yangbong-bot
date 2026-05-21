@@ -118,44 +118,60 @@ const userFortunes = {};
 
 const commands = [
     new SlashCommandBuilder()
-        .setName('주식')
-        .setDescription('주식 정보 확인'),
+    .setName('주식')
+    .setDescription('주식 정보 확인'),
 
     new SlashCommandBuilder()
         .setName('회사생성')
         .setDescription('주식 회사를 만듭니다')
-        .addStringOption(o =>
-            o.setName('회사')
-            .setDescription('회사 이름')
-            .setRequired(true)
+        .addStringOption(option =>
+            option
+                .setName('이름')
+                .setDescription('회사 이름')
+                .setRequired(true)
         ),
 
     new SlashCommandBuilder()
         .setName('매수')
-        .setDescription('주식 구매')
-        .addStringOption(o =>
-            o.setName('회사')
-            .setRequired(true))
-        .addIntegerOption(o =>
-            o.setName('수량')
-            .setRequired(true)),
+        .setDescription('주식을 구매합니다')
+        .addStringOption(option =>
+            option
+                .setName('회사')
+                .setDescription('회사 이름')
+                .setRequired(true)
+        )
+        .addIntegerOption(option =>
+            option
+                .setName('수량')
+                .setDescription('구매 수량')
+                .setRequired(true)
+        ),
 
     new SlashCommandBuilder()
         .setName('매도')
-        .setDescription('주식 판매')
-        .addStringOption(o =>
-            o.setName('회사')
-            .setRequired(true))
-        .addIntegerOption(o =>
-            o.setName('수량')
-            .setRequired(true)),
+        .setDescription('주식을 판매합니다')
+        .addStringOption(option =>
+            option
+                .setName('회사')
+                .setDescription('회사 이름')
+                .setRequired(true)
+        )
+        .addIntegerOption(option =>
+            option
+                .setName('수량')
+                .setDescription('판매 수량')
+                .setRequired(true)
+        ),
 
     new SlashCommandBuilder()
         .setName('상장폐지')
-        .setDescription('회사 상장 폐지')
-        .addStringOption(o =>
-            o.setName('회사')
-            .setRequired(true)),
+        .setDescription('회사를 상장 폐지합니다')
+        .addStringOption(option =>
+            option
+                .setName('회사')
+                .setDescription('회사 이름')
+                .setRequired(true)
+        ),
 
     new SlashCommandBuilder()
         .setName('도움말')
