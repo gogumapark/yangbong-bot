@@ -23,6 +23,9 @@ mongoose.connect(process.env.MONGO_URI)
         lastFortuneDate: { type: String, default: null },
         fortuneStreak: { type: Number, default: 0 },
 
+        begCount: { type: Number, default: 0 },
+        lastBegDate: { type: String, default: null },
+
         stocks: {
             type: Map,
             of: Number,
@@ -334,8 +337,6 @@ setInterval(async () => {
 
         await stock.save();
     }
-
-    console.log("📈 주식 가격 업데이트 완료");
 }, 600000);
 
 
@@ -1096,6 +1097,7 @@ client.on('interactionCreate', async interaction => {
         }
 
     if (interaction.commandName === '주식') {
+
         await interaction.deferReply();
 
         const stocks = await Stock.find();
@@ -1106,63 +1108,96 @@ client.on('interactionCreate', async interaction => {
 
         const user = await getUser(interaction.user.id);
 
-        // 회사 목록
-        const companyList = await Promise.all(
-            stocks.map(async s => {
+        // 회사 목록 표
+        let companyTable =
+            '회사명           가격        상태\n' +
+            '────────────────────────────\n';
 
-                let ownerName = '알 수 없음';
+        for (const s of stocks) {
 
-                try {
-                    const owner = await client.users.fetch(s.owner);
-                    ownerName = owner.username;
-                } catch {}
+            const name =
+                s.name.padEnd(15, ' ');
 
-                return (
-                    `📊 ${s.name} | ` +
-                    `💰 ${s.price}원 | ` +
-                    `👑 ${ownerName} | ` +
-                    `${s.listed ? '🟢 상장중' : '💀 상장폐지'}`
-                );
-            })
-        );
+            const price =
+                `${s.price}원`.padEnd(10, ' ');
 
-        // 내 주식 현황
-        const myStocks = [];
+            const status =
+                s.listed ? '상장중' : '상장폐지';
+
+            companyTable +=
+                `${name}${price}${status}\n`;
+        }
+
+        // 내 주식 표
+        let myStockTable =
+            '회사명           보유수량\n' +
+            '────────────────────\n';
+
+        let hasStock = false;
 
         for (const [name, qty] of user.stocks) {
 
             if (qty <= 0) continue;
 
-            myStocks.push(`📦 ${name} : ${qty}주`);
+            hasStock = true;
+
+            myStockTable +=
+                `${name.padEnd(15, ' ')}${qty}주\n`;
         }
 
-        const stockText =
-            myStocks.length > 0
-                ? myStocks.join('\n')
-                : '보유 주식 없음';
+        if (!hasStock) {
+            myStockTable += '보유 주식 없음';
+        }
 
         return interaction.editReply({
             content:
-                `🏢 현재 생성된 회사 목록\n\n` +
-                `${companyList.join('\n')}\n\n` +
-                `━━━━━━━━━━━━━━\n` +
-                `📈 ${interaction.user.username}님의 주식 현황\n\n` +
-                `${stockText}`
+    `🏢 현재 생성된 회사 목록
+
+    \`\`\`
+    ${companyTable}
+    \`\`\`
+
+    📈 ${interaction.user.username}님의 주식 현황
+
+    \`\`\`
+    ${myStockTable}
+    \`\`\``
         });
     }
 
 
     if (interaction.commandName === '구걸') {
+
         await interaction.deferReply({ flags: 64 });
 
         const user = await getUser(interaction.user.id);
 
+        const today = new Date().toLocaleDateString('sv-SE', {
+            timeZone: 'Asia/Seoul'
+        });
+
+        // 날짜 바뀌면 초기화
+        if (user.lastBegDate !== today) {
+            user.lastBegDate = today;
+            user.begCount = 0;
+        }
+
+        // 하루 3번 제한
+        if (user.begCount >= 3) {
+            return interaction.editReply(
+                '❌ㅣ에라이 거지야 세번이상은 안된다!!'
+            );
+        }
+
+        user.begCount += 1;
         user.money += 500;
 
         await user.save();
 
         return interaction.editReply(
-            `🪙 500원을 구걸했다!\n현재 돈: ${user.money}원`
+            `🪙 500원을 구걸했다!\n` +
+            `📅 오늘 구걸 횟수: ${user.begCount}/3\n` +
+            `💰 현재 돈: ${user.money}원`
         );
     }
 
