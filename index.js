@@ -52,7 +52,7 @@ mongoose.connect(process.env.MONGO_URI)
                 }
             },
             {
-                new: true,
+                returnDocument: 'after',
                 upsert: true
             }
         );
@@ -341,198 +341,267 @@ setInterval(async () => {
 
 client.on('interactionCreate', async interaction => {
 
-    // 버튼 처리
-    if (interaction.isButton()) {
+   try {
 
-        // 편지 열기
-        if (interaction.customId.startsWith('letter_')) {
+        // 버튼 처리
+        if (interaction.isButton()) {
 
-            const id = interaction.customId.split('_')[1];
+            // =========================
+            // 편지 열기
+            // =========================
+            if (interaction.customId.startsWith('letter_')) {
 
-            const letter = await Letter.findById(id);
+                const id = interaction.customId.split('_')[1];
 
-            if (!letter) {
-                return interaction.reply({
-                    content: '편지를 찾을 수 없음',
-                    ephemeral: true
-                });
-            }
+                const letter = await Letter.findById(id);
 
-            const fromUser = await client.users.fetch(letter.from);
+                if (!letter) {
+                    return interaction.reply({
+                        content: '편지를 찾을 수 없음',
+                        flags: 64
+                    });
+                }
 
-            const typeEmoji = {
-                friend: '🤝 우정의 편지',
-                love: '💌 러브레터',
-                duel: '⚔ 결투신청서'
-            };
+                const fromUser = await client.users.fetch(letter.from);
 
-            const embed = new EmbedBuilder()
-                .setTitle(typeEmoji[letter.type])
-                .setDescription(letter.content)
-                .addFields(
-                    { name: '보낸 사람', value: fromUser.username },
-                    { name: '날짜', value: `<t:${Math.floor(letter.createdAt / 1000)}:R>` }
-                )
-                .setColor(
-                    letter.type === 'love'
-                        ? 'Red'
-                        : letter.type === 'duel'
-                        ? 'DarkRed'
-                        : 'Green'
-                );
+                const typeEmoji = {
+                    friend: '🤝 우정의 편지',
+                    love: '💌 러브레터',
+                    duel: '⚔ 결투신청서'
+                };
 
-            return interaction.reply({
-                embeds: [embed],
-                ephemeral: true
-            });
-        }
-
-        // 편지 페이지 이동
-        if (
-            interaction.customId.startsWith('letters_prev_') ||
-            interaction.customId.startsWith('letters_next_')
-        ) {
-
-            const perPage = 5;
-
-            // 현재 페이지 가져오기
-            let page = Number(interaction.customId.split('_')[2]) || 0;
-
-            const direction = interaction.customId.startsWith('letters_next_') ? 1 : -1;
-            page = Math.max(0, page + direction);
-
-            
-            // 🔥 안전장치
-            if (page < 0) page = 0;
-
-            const allLetters = await Letter.find({
-                to: interaction.user.id
-            }).sort({ createdAt: -1 });
-
-            const start = page * perPage;
-
-            const currentLetters = allLetters.slice(start, start + perPage);
-
-            const buttons = currentLetters.map((l, index) =>
-                new ButtonBuilder()
-                    .setCustomId(`letter_${l._id}`)
-                    .setLabel(
-                        `${l.type === 'love'
-                            ? '💌 러브'
-                            : l.type === 'duel'
-                            ? '⚔ 결투'
-                            : '🤝 우정'} #${start + index + 1}`
+                const embed = new EmbedBuilder()
+                    .setTitle(typeEmoji[letter.type])
+                    .setDescription(letter.content)
+                    .addFields(
+                        {
+                            name: '보낸 사람',
+                            value: fromUser.username
+                        },
+                        {
+                            name: '날짜',
+                            value: `<t:${Math.floor(letter.createdAt / 1000)}:R>`
+                        }
                     )
-                    .setStyle(ButtonStyle.Primary)
-            );
+                    .setColor(
+                        letter.type === 'love'
+                            ? 'Red'
+                            : letter.type === 'duel'
+                            ? 'DarkRed'
+                            : 'Green'
+                    );
 
-            const rows = [];
-
-            if (buttons.length > 0) {
-                rows.push(new ActionRowBuilder().addComponents(buttons));
-            }
-
-            rows.push(
-                new ActionRowBuilder().addComponents(
-                    new ButtonBuilder()
-                        .setCustomId(`letters_prev_${page}`)
-                        .setLabel('◀ 이전')
-                        .setStyle(ButtonStyle.Secondary)
-                        .setDisabled(page === 0),
-
-                    new ButtonBuilder()
-                        .setCustomId(`letters_next_${page}`)
-                        .setLabel('다음 ▶')
-                        .setStyle(ButtonStyle.Secondary)
-                        .setDisabled(start + perPage >= allLetters.length)
-                )
-            );
-
-            return interaction.update({
-                content: `📬 편지함 (${allLetters.length}개)`,
-                components: rows
-            });
-        }
-
-        // 편지 삭제
-        if (interaction.customId.startsWith('deleteletter_')) {
-
-            const id = interaction.customId.split('_')[1];
-
-            const letter = await Letter.findById(id);
-
-            if (!letter) {
                 return interaction.reply({
-                    content: '이미 삭제된 편지입니다.',
-                    ephemeral: true
+                    embeds: [embed],
+                    flags: 64
                 });
             }
 
-            await Letter.findByIdAndDelete(id);
+            // =========================
+            // 편지 페이지 이동
+            // =========================
+            if (
+                interaction.customId.startsWith('letters_prev_') ||
+                interaction.customId.startsWith('letters_next_')
+            ) {
 
-            return interaction.update({
-                content: '🗑 편지가 삭제되었습니다.',
-                embeds: [],
-                components: []
-            });
-        }
-        // 틱택토
-        if (interaction.customId.startsWith('ttt_')) {
+                const perPage = 5;
 
-            const [, gameId, index] = interaction.customId.split('_');
-            const game = tttGames.get(gameId);
+                let page =
+                    Number(interaction.customId.split('_')[2]) || 0;
 
-            if (!game) return;
+                const direction =
+                    interaction.customId.startsWith('letters_next_')
+                        ? 1
+                        : -1;
 
-            if (game.board[index]) {
-                return interaction.reply({
-                    content: '이미 선택된 칸임',
-                    ephemeral: true
-                });
-            }
+                page = Math.max(0, page + direction);
 
-            game.board[index] = game.turn;
+                const allLetters = await Letter.find({
+                    to: interaction.user.id
+                }).sort({ createdAt: -1 });
 
-            const winPatterns = [
-                [0, 1, 2], [3, 4, 5], [6, 7, 8],
-                [0, 3, 6], [1, 4, 7], [2, 5, 8],
-                [0, 4, 8], [2, 4, 6]
-            ];
+                const start = page * perPage;
 
-            const checkWin = (symbol) =>
-                winPatterns.some(p =>
-                    p.every(i => game.board[i] === symbol)
+                const currentLetters =
+                    allLetters.slice(start, start + perPage);
+
+                const buttons = currentLetters.map((l, index) =>
+                    new ButtonBuilder()
+                        .setCustomId(`letter_${l._id}`)
+                        .setLabel(
+                            `${l.type === 'love'
+                                ? '💌 러브'
+                                : l.type === 'duel'
+                                ? '⚔ 결투'
+                                : '🤝 우정'} #${start + index + 1}`
+                        )
+                        .setStyle(ButtonStyle.Primary)
                 );
 
-            if (checkWin(game.turn)) {
-                tttGames.delete(gameId);
+                const rows = [];
+
+                if (buttons.length > 0) {
+                    rows.push(
+                        new ActionRowBuilder().addComponents(buttons)
+                    );
+                }
+
+                rows.push(
+                    new ActionRowBuilder().addComponents(
+
+                        new ButtonBuilder()
+                            .setCustomId(`letters_prev_${page}`)
+                            .setLabel('◀ 이전')
+                            .setStyle(ButtonStyle.Secondary)
+                            .setDisabled(page === 0),
+
+                        new ButtonBuilder()
+                            .setCustomId(`letters_next_${page}`)
+                            .setLabel('다음 ▶')
+                            .setStyle(ButtonStyle.Secondary)
+                            .setDisabled(
+                                start + perPage >= allLetters.length
+                            )
+                    )
+                );
 
                 return interaction.update({
-                    content: `🏆 ${game.turn} 승리!`,
+                    content: `📬 편지함 (${allLetters.length}개)`,
+                    components: rows
+                });
+            }
+
+            // =========================
+            // 편지 삭제
+            // =========================
+            if (interaction.customId.startsWith('deleteletter_')) {
+
+                const id = interaction.customId.split('_')[1];
+
+                const letter = await Letter.findById(id);
+
+                if (!letter) {
+
+                    return interaction.reply({
+                        content: '이미 삭제된 편지입니다.',
+                        flags: 64
+                    });
+                }
+
+                await Letter.findByIdAndDelete(id);
+
+                return interaction.update({
+                    content: '🗑 편지가 삭제되었습니다.',
+                    embeds: [],
                     components: []
                 });
             }
 
-            const isDraw = game.board.every(cell => cell !== null);
+            // =========================
+            // 틱택토
+            // =========================
+            if (interaction.customId.startsWith('ttt_')) {
 
-            if (isDraw) {
-                tttGames.delete(gameId);
+                const [, gameId, index] =
+                    interaction.customId.split('_');
+
+                const game = tttGames.get(gameId);
+
+                if (!game) {
+
+                    return interaction.reply({
+                        content: '게임이 종료됨',
+                        flags: 64
+                    });
+                }
+
+                if (game.board[index]) {
+
+                    return interaction.reply({
+                        content: '이미 선택된 칸임',
+                        flags: 64
+                    });
+                }
+
+                game.board[index] = game.turn;
+
+                const winPatterns = [
+                    [0,1,2],
+                    [3,4,5],
+                    [6,7,8],
+                    [0,3,6],
+                    [1,4,7],
+                    [2,5,8],
+                    [0,4,8],
+                    [2,4,6]
+                ];
+
+                const checkWin = (symbol) =>
+                    winPatterns.some(p =>
+                        p.every(i => game.board[i] === symbol)
+                    );
+
+                if (checkWin(game.turn)) {
+
+                    tttGames.delete(gameId);
+
+                    return interaction.update({
+                        content: `🏆 ${game.turn} 승리!`,
+                        components: []
+                    });
+                }
+
+                const isDraw =
+                    game.board.every(cell => cell !== null);
+
+                if (isDraw) {
+
+                    tttGames.delete(gameId);
+
+                    return interaction.update({
+                        content: `🤝 무승부!`,
+                        components: []
+                    });
+                }
+
+                game.turn =
+                    game.turn === '❌'
+                        ? '⭕'
+                        : '❌';
 
                 return interaction.update({
-                    content: `🤝 무승부!`,
-                    components: []
+                    content: `현재 턴: ${game.turn}`,
+                    components: createBoard(gameId)
                 });
             }
 
-            game.turn = game.turn === '❌' ? '⭕' : '❌';
-
-            return interaction.update({
-                content: `현재 턴: ${game.turn}`,
-                components: createBoard(gameId)
-            });
+            return;
         }
 
-        return;
+    } catch (error) {
+
+        console.error(error);
+
+        try {
+
+            if (interaction.deferred || interaction.replied) {
+
+                await interaction.editReply({
+                    content: '❌ 오류 발생'
+                });
+
+            } else {
+
+                await interaction.reply({
+                    content: '❌ 오류 발생',
+                    flags: 64
+                });
+            }
+
+        } catch (e) {
+            console.error(e);
+        }
     }
 
 
@@ -651,7 +720,7 @@ client.on('interactionCreate', async interaction => {
 
             return interaction.reply({
                 content: '❌ 메시지 관리 권한 없잖아!',
-                ephemeral: true
+                flags: 64
             });
 
         }
@@ -664,7 +733,7 @@ client.on('interactionCreate', async interaction => {
 
             return interaction.reply({
                 content: '❌ 1~100개만 삭제 가능함 ㅇㅇ.;;;',
-                ephemeral: true
+                flags: 64
             });
 
         }
@@ -673,7 +742,7 @@ client.on('interactionCreate', async interaction => {
 
         await interaction.reply({
             content: `🧹 메시지 ${amount}개 삭제 완료!`,
-            ephemeral: true
+            flags: 64
         });
 
     }
@@ -687,7 +756,7 @@ client.on('interactionCreate', async interaction => {
 
             return interaction.reply({
                 content: '❌ 최근 삭제된 메시지가 없다!',
-                ephemeral: true
+                flags: 64
             });
 
         }
@@ -809,7 +878,7 @@ client.on('interactionCreate', async interaction => {
 
         await interaction.reply({
             content: `📨 편지를 보냈습니다! (${to.username})`,
-            ephemeral: true
+            flags: 64
         });
 
         // 받은 사람 DM
@@ -832,7 +901,7 @@ client.on('interactionCreate', async interaction => {
         if (allLetters.length === 0) {
             return interaction.reply({
                 content: '📭 받은 편지가 없습니다.',
-                ephemeral: true
+                flags: 64
             });
         }
 
@@ -879,7 +948,7 @@ client.on('interactionCreate', async interaction => {
         await interaction.reply({
             content: `📬 편지함 (${allLetters.length}개)`,
             components: rows,
-            ephemeral: true
+            flags: 64
         });
     }
 
@@ -889,7 +958,7 @@ client.on('interactionCreate', async interaction => {
 
         return interaction.reply({
             content: `💰 현재 돈: ${user.money}원`,
-            ephemeral: true
+            flags: 64
         });
     }
 
@@ -903,14 +972,14 @@ client.on('interactionCreate', async interaction => {
         if (bet <= 0) {
             return interaction.reply({
                 content: '❌ 1원 이상 걸어라',
-                ephemeral: true
+                flags: 64
             });
         }
 
         if (user.money < bet) {
             return interaction.reply({
                 content: '❌ 돈 부족',
-                ephemeral: true
+                flags: 64
             });
         }
 
@@ -1084,7 +1153,7 @@ client.on('interactionCreate', async interaction => {
 
 
     if (interaction.commandName === '구걸') {
-        await interaction.deferReply({ ephemeral: true });
+        await interaction.deferReply({ flags: 64 });
 
         const user = await getUser(interaction.user.id);
 
