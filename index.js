@@ -923,14 +923,13 @@ client.on('interactionCreate', async interaction => {
     }
 
     if (interaction.commandName === '회사생성') {
+        await interaction.deferReply();
+
         const name = interaction.options.getString('이름');
 
         const exists = await Stock.findOne({ name });
         if (exists) {
-            return interaction.reply({
-                content: '이미 존재하는 회사임',
-                ephemeral: true
-            });
+            return interaction.editReply('이미 존재하는 회사임');
         }
 
         await Stock.create({
@@ -939,22 +938,24 @@ client.on('interactionCreate', async interaction => {
             price: 100
         });
 
-        return interaction.reply(`🏢 ${name} 회사 생성 완료! (가격: 100원)`);
+        return interaction.editReply(`🏢 ${name} 회사 생성 완료! (가격: 100원)`);
     }
 
     if (interaction.commandName === '매수') {
+        await interaction.deferReply();
+
         const name = interaction.options.getString('회사');
         const qty = interaction.options.getInteger('수량');
 
         const stock = await Stock.findOne({ name, listed: true });
-        if (!stock) return interaction.reply('회사 없음');
+        if (!stock) return interaction.editReply('회사 없음');
 
         const user = await getUser(interaction.user.id);
 
         const cost = stock.price * qty;
 
         if (user.money < cost) {
-            return interaction.reply('돈 부족');
+            return interaction.editReply('돈 부족');
         }
 
         user.money -= cost;
@@ -962,44 +963,48 @@ client.on('interactionCreate', async interaction => {
 
         await user.save();
 
-        return interaction.reply(`📈 ${name} ${qty}주 매수 완료`);
+        return interaction.editReply(`📈 ${name} ${qty}주 매수 완료`);
     }
 
     if (interaction.commandName === '매도') {
-            const name = interaction.options.getString('회사');
-            const qty = interaction.options.getInteger('수량');
+        await interaction.deferReply();
 
-            const stock = await Stock.findOne({ name, listed: true });
-            if (!stock) return interaction.reply('회사 없음');
+        const name = interaction.options.getString('회사');
+        const qty = interaction.options.getInteger('수량');
 
-            const user = await getUser(interaction.user.id);
+        const stock = await Stock.findOne({ name, listed: true });
+        if (!stock) return interaction.editReply('회사 없음');
 
-            const owned = user.stocks.get(name) || 0;
+        const user = await getUser(interaction.user.id);
 
-            if (owned < qty) {
-                return interaction.reply('주식 부족');
-            }
+        const owned = user.stocks.get(name) || 0;
 
-            user.stocks.set(name, owned - qty);
-            user.money += stock.price * qty;
-
-            await user.save();
-
-            return interaction.reply(`💰 ${name} ${qty}주 매도 완료`);
+        if (owned < qty) {
+            return interaction.editReply('주식 부족');
         }
 
-        if (interaction.commandName === '상장폐지') {
-        const name = interaction.options.getString('회사');
+        user.stocks.set(name, owned - qty);
+        user.money += stock.price * qty;
 
-        const stock = await Stock.findOne({ name });
-        if (!stock) return interaction.reply('없음');
+        await user.save();
 
-        stock.listed = false;
-        stock.price = 0;
-        await stock.save();
-
-        return interaction.reply(`💀 ${name} 상장폐지됨`);
+        return interaction.editReply(`💰 ${name} ${qty}주 매도 완료`);
     }
+
+        if (interaction.commandName === '상장폐지') {
+            await interaction.deferReply();
+
+            const name = interaction.options.getString('회사');
+
+            const stock = await Stock.findOne({ name });
+            if (!stock) return interaction.editReply('없음');
+
+            stock.listed = false;
+            stock.price = 0;
+            await stock.save();
+
+            return interaction.editReply(`💀 ${name} 상장폐지됨`);
+        }
 
 
     if (interaction.commandName === '주식') {
