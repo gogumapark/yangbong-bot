@@ -433,6 +433,70 @@ client.on('interactionCreate', async interaction => {
         // 버튼 처리
         if (interaction.isButton()) {
 
+
+
+            if (interaction.customId.startsWith('help_')) {
+
+                let text = '';
+
+                // 경제
+                if (interaction.customId === 'help_economy') {
+
+                    text =
+            `💰 경제 명령어
+
+            /돈
+            /구걸
+            /도박
+            /주식
+            /매수
+            /매도
+            /회사생성
+            /회사삭제
+            /상장폐지
+            /돈순위`;
+                }
+
+                // 게임
+                else if (interaction.customId === 'help_game') {
+
+                    text =
+            `🎮 게임 명령어
+
+            /틱택토
+            /주사위
+            /운세`;
+                }
+
+                // 소셜
+                else if (interaction.customId === 'help_social') {
+
+                    text =
+            `📨 소셜 명령어
+
+            /편지
+            /편지함
+            /유저정보
+            /안녕`;
+                }
+
+                // 관리
+                else if (interaction.customId === 'help_manage') {
+
+                    text =
+            `🛠 관리 명령어
+
+            /청소
+            /삭제로그`;
+                }
+
+                return interaction.reply({
+                    content: `\`\`\`\n${text}\n\`\`\``,
+                    flags: 64
+                });
+            }
+
+
             // =========================
             // 편지 열기
             // =========================
@@ -766,38 +830,37 @@ client.on('interactionCreate', async interaction => {
     
     if (interaction.commandName === '도움말') {
 
-        const embed = new EmbedBuilder()
-            .setTitle('🐝 양봉이')
-            .setDescription(
-                '안녕 날 소개하지 난 양봉장의 전용 봇 양봉이라고 하오'
-            )
-            .setColor('Green')
-            .setThumbnail(
-                'https://cdn.discordapp.com/attachments/1110460136373366845/1506536312423841873/image.png?ex=6a0e9ec6&is=6a0d4d46&hm=df046c8c3c4fd195fbe36ebaa666f13d010f5be1b03090e878b5b53b8276c237&'
-            )
-            .addFields(
-                { name: '📜 명령어 목록', value: '  ' },
+        const row = new ActionRowBuilder()
+            .addComponents(
 
-                { name: '도움말 - 양봉이의 도움말을 확인합니다.', value: '/도움말' },
-                { name: '삭제로그 - 최근 삭제된 메시지를 확인합니다.', value: '/삭제로그' },
-                { name: '안녕 - 양봉이에게 인사해보세요', value: '/안녕' },
-                { name: '운세 - 오늘의 운세를 알려줍니다.', value: '/운세' },
-                { name: '유저 정보 - 유저정보를 확인합니다.', value: '/유저정보  유저:' },
-                { name: '주사위 - 주사위를 굴립니다.', value: '/주사위' },
-                { name: '청소 - 메시지를 삭제합니다.', value: '/청소 개수: 1 ~ 100' },
-                { name: '틱택토 - 틱택토!!.', value: '/틱택토' },
-                { name: '편지 - 유저에게 편지를 보냅니다.', value: '/편지 유저: 종류: 내용:' },
-                { name: '편지함 - 받은 편지를 확인합니다.', value: '/편지함' }
-            )
+                new ButtonBuilder()
+                    .setCustomId('help_economy')
+                    .setLabel('💰 경제')
+                    .setStyle(ButtonStyle.Success),
 
-            .setFooter({
-                text: '양봉장의 전용 봇, 아이스크림을 굉장히 좋아한다.'
-            });
+                new ButtonBuilder()
+                    .setCustomId('help_game')
+                    .setLabel('🎮 게임')
+                    .setStyle(ButtonStyle.Primary),
 
-        await interaction.reply({
-            embeds: [embed]
+                new ButtonBuilder()
+                    .setCustomId('help_social')
+                    .setLabel('📨 소셜')
+                    .setStyle(ButtonStyle.Secondary),
+
+                new ButtonBuilder()
+                    .setCustomId('help_manage')
+                    .setLabel('🛠 관리')
+                    .setStyle(ButtonStyle.Danger)
+            );
+
+        return interaction.reply({
+            content:
+    `🐝 안녕! 나는 양봉장의 전용 봇 "양봉이"다!
+
+    원하는 도움말 카테고리를 선택해라 😎`,
+            components: [row]
         });
-
     }
 
     if (interaction.commandName === '청소') {
@@ -1134,7 +1197,7 @@ client.on('interactionCreate', async interaction => {
         await Stock.create({
             name,
             owner: interaction.user.id,
-            price: 100,
+            price: 1000,
             news: [
                 `📰 ${name} 회사 창립! 투자자 관심 집중`
             ]
