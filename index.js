@@ -26,6 +26,8 @@ mongoose.connect(process.env.MONGO_URI)
         begCount: { type: Number, default: 0 },
         lastBegDate: { type: String, default: null },
 
+        deleteCost: { type: Number, default: 1000 },
+
         stocks: {
             type: Map,
             of: Number,
@@ -124,6 +126,25 @@ client.on('messageDelete', message => {
 const userFortunes = {};
 
 const commands = [
+
+
+    new SlashCommandBuilder()
+        .setName('돈순위')
+        .setDescription('플레이어 돈 순위를 확인합니다'),
+
+
+
+    new SlashCommandBuilder()
+        .setName('회사삭제')
+        .setDescription('회사를 삭제합니다')
+        .addStringOption(option =>
+            option
+                .setName('회사')
+                .setDescription('삭제할 회사 이름')
+                .setRequired(true)
+        ),
+
+
 
     new SlashCommandBuilder()
     .setName('주식')
@@ -1198,6 +1219,97 @@ client.on('interactionCreate', async interaction => {
             `🪙 500원을 구걸했다!\n` +
             `📅 오늘 구걸 횟수: ${user.begCount}/3\n` +
             `💰 현재 돈: ${user.money}원`
+        );
+    }
+
+
+    if (interaction.commandName === '돈순위') {
+
+        await interaction.deferReply();
+
+        const users = await Money.find()
+            .sort({ money: -1 })
+            .limit(10);
+
+        let text =
+            '순위   돈        유저\n' +
+            '────────────────────────\n';
+
+        for (let i = 0; i < users.length; i++) {
+
+            let username = '알 수 없음';
+
+            try {
+                const discordUser =
+                    await client.users.fetch(users[i].userId);
+
+                username = discordUser.username;
+            } catch {}
+
+            text +=
+                `${String(i + 1).padEnd(6)} ` +
+                `${String(users[i].money).padEnd(10)} ` +
+                `${username}\n`;
+        }
+
+        return interaction.editReply({
+            content:
+    `💰 플레이어 돈 순위
+
+    \`\`\`
+    ${text}
+    \`\`\``
+        });
+    }
+
+    if (interaction.commandName === '회사삭제') {
+
+        await interaction.deferReply();
+
+        const name =
+            interaction.options.getString('회사');
+
+        const stock = await Stock.findOne({ name });
+
+        if (!stock) {
+            return interaction.editReply('❌ 회사 없음');
+        }
+
+        // 자기 회사만 삭제 가능
+        if (stock.owner !== interaction.user.id) {
+            return interaction.editReply('❌ 자기 회사만 삭제 가능');
+        }
+
+        const user = await getUser(interaction.user.id);
+
+        // 삭제 비용 없으면 생성
+        if (!user.deleteCost) {
+            user.deleteCost = 1000;
+        }
+
+        // 돈 부족
+        if (user.money < user.deleteCost) {
+
+            return interaction.editReply(
+                `❌ 회사 삭제 비용 부족\n현재 비용: ${user.deleteCost}원`
+            );
+        }
+
+        // 돈 차감
+        user.money -= user.deleteCost;
+
+        // 다음 비용 증가
+        const currentCost = user.deleteCost;
+        user.deleteCost += 1000;
+
+        await user.save();
+
+        await Stock.deleteOne({ name });
+
+        return interaction.editReply(
+            `🗑 ${name} 회사 삭제 완료!\n` +
+            `💸 삭제 비용: ${currentCost}원\n` +
+            `📈 다음 삭제 비용: ${user.deleteCost}원`
         );
     }
 
