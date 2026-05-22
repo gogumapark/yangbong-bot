@@ -434,116 +434,6 @@ client.on('interactionCreate', async interaction => {
         // 버튼 처리
         if (interaction.isButton()) {
 
-
-
-            // =========================
-// 도움말 드롭다운
-// =========================
-        if (interaction.isStringSelectMenu()) {
-
-            if (interaction.customId === 'help_menu') {
-
-                const value = interaction.values[0];
-
-                let embed;
-
-                // 인삿말
-                if (value === 'greet') {
-
-                    embed = new EmbedBuilder()
-                        .setTitle('👋 인삿말 도움말')
-                        .setColor('Green')
-                        .setDescription(`
-        \`/안녕\`
-        양봉이에게 인사합니다.
-
-        \`/주사위\`
-        주사위를 굴립니다.
-        `);
-                }
-
-                // 게임
-                if (value === 'game') {
-
-                    embed = new EmbedBuilder()
-                        .setTitle('🎮 게임 도움말')
-                        .setColor('Blue')
-                        .setDescription(`
-        \`/틱택토\`
-        틱택토 게임 시작
-
-        \`/도박 금액:\`
-        돈을 걸고 도박합니다.
-        `);
-                }
-
-                // 경제
-                if (value === 'economy') {
-
-                    embed = new EmbedBuilder()
-                        .setTitle('💰 경제 도움말')
-                        .setColor('Gold')
-                        .setDescription(`
-        \`/돈\`
-        현재 돈 확인
-
-        \`/구걸\`
-        500원 획득 (하루 3번)
-
-        \`/주식\`
-        주식 목록 확인
-
-        \`/회사생성 이름:\`
-        회사 생성
-
-        \`/매수 회사: 수량:\`
-        주식 구매
-
-        \`/매도 회사: 수량:\`
-        주식 판매
-        `);
-                }
-
-                // 편지
-                if (value === 'letter') {
-
-                    embed = new EmbedBuilder()
-                        .setTitle('📨 편지 도움말')
-                        .setColor('Pink')
-                        .setDescription(`
-        \`/편지\`
-        유저에게 편지 보내기
-
-        \`/편지함\`
-        받은 편지 확인
-        `);
-                }
-
-                // 관리
-                if (value === 'manage') {
-
-                    embed = new EmbedBuilder()
-                        .setTitle('🛠 관리 도움말')
-                        .setColor('Red')
-                        .setDescription(`
-        \`/청소 개수:\`
-        메시지 삭제
-
-        \`/삭제로그\`
-        최근 삭제 메시지 확인
-
-        \`/유저정보 유저:\`
-        유저 정보 확인
-        `);
-                }
-
-                return interaction.update({
-                    embeds: [embed]
-                });
-            }
-        }
-
-
             // =========================
             // 편지 열기
             // =========================
@@ -775,6 +665,97 @@ client.on('interactionCreate', async interaction => {
             }
 
             return;
+        }
+
+        // =========================
+        // 도움말 드롭다운
+        // =========================
+        if (interaction.isStringSelectMenu()) {
+
+            if (interaction.customId === 'help_menu') {
+
+                const value = interaction.values[0];
+
+                let embed;
+
+                if (value === 'greet') {
+
+                    embed = new EmbedBuilder()
+                        .setTitle('👋 인삿말 도움말')
+                        .setColor('Green')
+                        .setDescription(`
+        \`/안녕\`
+        양봉이에게 인사합니다.
+
+        \`/주사위\`
+        주사위를 굴립니다.
+        `);
+                }
+
+                if (value === 'game') {
+
+                    embed = new EmbedBuilder()
+                        .setTitle('🎮 게임 도움말')
+                        .setColor('Blue')
+                        .setDescription(`
+        \`/틱택토\`
+        틱택토 게임 시작
+
+        \`/도박 금액:\`
+        돈을 걸고 도박합니다.
+        `);
+                }
+
+                if (value === 'economy') {
+
+                    embed = new EmbedBuilder()
+                        .setTitle('💰 경제 도움말')
+                        .setColor('Gold')
+                        .setDescription(`
+        \`/돈\`
+        현재 돈 확인
+
+        \`/구걸\`
+        500원 획득
+
+        \`/주식\`
+        주식 목록 확인
+        `);
+                }
+
+                if (value === 'letter') {
+
+                    embed = new EmbedBuilder()
+                        .setTitle('📨 편지 도움말')
+                        .setColor('Pink')
+                        .setDescription(`
+        \`/편지\`
+        유저에게 편지 보내기
+
+        \`/편지함\`
+        받은 편지 확인
+        `);
+                }
+
+                if (value === 'manage') {
+
+                    embed = new EmbedBuilder()
+                        .setTitle('🛠 관리 도움말')
+                        .setColor('Red')
+                        .setDescription(`
+        \`/청소\`
+        메시지 삭제
+
+        \`/삭제로그\`
+        삭제 메시지 확인
+        `);
+                }
+
+                return interaction.update({
+                    embeds: [embed],
+                    components: []
+                });
+            }
         }
 
     } catch (error) {
