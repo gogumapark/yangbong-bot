@@ -42,16 +42,20 @@ mongoose.connect(process.env.MONGO_URI)
     const Money = mongoose.model('Money', moneySchema);
 
     async function getUser(userId) {
-        let user = await Money.findOne({ userId });
 
-        if (!user) {
-            user = await Money.create({
-                userId,
-                money: 1000
-            });
-        }
-
-        return user;
+        return await Money.findOneAndUpdate(
+            { userId },
+            {
+                $setOnInsert: {
+                    userId,
+                    money: 1000
+                }
+            },
+            {
+                new: true,
+                upsert: true
+            }
+        );
     }
 
 
