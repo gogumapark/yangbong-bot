@@ -117,6 +117,7 @@ client.on('messageDelete', message => {
 const userFortunes = {};
 
 const commands = [
+
     new SlashCommandBuilder()
     .setName('주식')
     .setDescription('주식 정보 확인'),
@@ -319,6 +320,8 @@ setInterval(async () => {
 
         const change = (Math.random() - 0.5) * 20; 
         stock.price = Math.max(1, Math.floor(stock.price + change));
+
+        if (stock.price < 1) stock.price = 1;
 
         await stock.save();
     }
