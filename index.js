@@ -1006,15 +1006,16 @@ client.on('interactionCreate', async interaction => {
             return interaction.editReply(`💀 ${name} 상장폐지됨`);
         }
 
-
     if (interaction.commandName === '주식') {
+        await interaction.deferReply();
+
         const stocks = await Stock.find({ listed: true });
 
         const list = stocks
             .map(s => `📊 ${s.name} - ${s.price}원`)
             .join('\n');
 
-        return interaction.reply({
+        return interaction.editReply({
             content: list || '주식 없음'
         });
     }
