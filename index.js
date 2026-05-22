@@ -547,7 +547,7 @@ client.on('interactionCreate', async interaction => {
 
     if (interaction.commandName === '운세') {
 
-        await interaction.deferReply();
+        await interaction.deferReply({ flags: 64 });
 
         const userId = interaction.user.id;
         const user = await getUser(userId);
@@ -573,10 +573,8 @@ client.on('interactionCreate', async interaction => {
 
         user.lastFortuneDate = today;
 
-        // 🎁 기본 보상
         let reward = 1000;
 
-        // 🔥 스트릭 보너스
         if (user.fortuneStreak >= 3) reward += 500;
         if (user.fortuneStreak >= 7) reward += 1500;
         if (user.fortuneStreak >= 14) reward += 3000;
@@ -1026,14 +1024,18 @@ client.on('interactionCreate', async interaction => {
     if (interaction.commandName === '주식') {
         await interaction.deferReply();
 
-        const stocks = await Stock.find({ listed: true });
+        const stocks = await Stock.find();
 
         if (stocks.length === 0) {
             return interaction.editReply('주식 없음');
         }
 
-        const list = await Promise.all(
+        const user = await getUser(interaction.user.id);
+
+        // 회사 목록
+        const companyList = await Promise.all(
             stocks.map(async s => {
+
                 let ownerName = '알 수 없음';
 
                 try {
@@ -1041,12 +1043,37 @@ client.on('interactionCreate', async interaction => {
                     ownerName = owner.username;
                 } catch {}
 
-                return `📊 ${s.name} - ${s.price}원 | 👑 ${ownerName}`;
+                return (
+                    `📊 ${s.name} | ` +
+                    `💰 ${s.price}원 | ` +
+                    `👑 ${ownerName} | ` +
+                    `${s.listed ? '🟢 상장중' : '💀 상장폐지'}`
+                );
             })
         );
 
+        // 내 주식 현황
+        const myStocks = [];
+
+        for (const [name, qty] of user.stocks) {
+
+            if (qty <= 0) continue;
+
+            myStocks.push(`📦 ${name} : ${qty}주`);
+        }
+
+        const stockText =
+            myStocks.length > 0
+                ? myStocks.join('\n')
+                : '보유 주식 없음';
+
         return interaction.editReply({
-            content: list.join('\n')
+            content:
+                `🏢 현재 생성된 회사 목록\n\n` +
+                `${companyList.join('\n')}\n\n` +
+                `━━━━━━━━━━━━━━\n` +
+                `📈 ${interaction.user.username}님의 주식 현황\n\n` +
+                `${stockText}`
         });
     }
 
