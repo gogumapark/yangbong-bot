@@ -120,7 +120,7 @@ const commands = [
 
     new SlashCommandBuilder()
     .setName('주식')
-    .setDescription('주식 정보 확인'),
+    .setDescription('주식 정보 확인합니다.'),
 
     new SlashCommandBuilder()
         .setName('회사생성')
@@ -261,6 +261,11 @@ const commands = [
                 .setRequired(true)
         ),
 
+
+    new SlashCommandBuilder()
+    .setName('구걸')
+    .setDescription('옛다 거지야'),
+
 ]
     .map(command => command.toJSON());
 
@@ -327,7 +332,7 @@ setInterval(async () => {
     }
 
     console.log("📈 주식 가격 업데이트 완료");
-}, 60000);
+}, 600000);
 
 
 client.on('interactionCreate', async interaction => {
@@ -541,6 +546,9 @@ client.on('interactionCreate', async interaction => {
     }
 
     if (interaction.commandName === '운세') {
+
+        await interaction.deferReply();
+
         const userId = interaction.user.id;
         const user = await getUser(userId);
 
@@ -553,17 +561,14 @@ client.on('interactionCreate', async interaction => {
 
         // ❌ 이미 오늘 했으면
         if (user.lastFortuneDate === today) {
-            return interaction.reply({
-                content: '❌ 하루에 한번씩~.',
-                ephemeral: true
-            });
+            return interaction.editReply('❌ 하루에 한번씩~.');
         }
 
         // 🔥 연속 체크
         if (user.lastFortuneDate === yesterday) {
             user.fortuneStreak += 1;
         } else {
-            user.fortuneStreak = 1; // 끊기면 초기화
+            user.fortuneStreak = 1;
         }
 
         user.lastFortuneDate = today;
@@ -800,7 +805,7 @@ client.on('interactionCreate', async interaction => {
         });
 
         await interaction.reply({
-            content: `📨 편지를 보냈다! (${to.username})`,
+            content: `📨 편지를 보냈습니다! (${to.username})`,
             ephemeral: true
         });
 
@@ -928,8 +933,18 @@ client.on('interactionCreate', async interaction => {
         const name = interaction.options.getString('이름');
 
         const exists = await Stock.findOne({ name });
+
         if (exists) {
-            return interaction.editReply('이미 존재하는 회사임');
+            return interaction.editReply('이미 존재하는 회사입니다.');
+        }
+
+        // 🔥 유저 회사 개수 체크
+        const myCompanies = await Stock.countDocuments({
+            owner: interaction.user.id
+        });
+
+        if (myCompanies >= 2) {
+            return interaction.editReply('❌ 회사는 최대 2개까지 생성 가능합니다!');
         }
 
         await Stock.create({
@@ -938,7 +953,9 @@ client.on('interactionCreate', async interaction => {
             price: 100
         });
 
-        return interaction.editReply(`🏢 ${name} 회사 생성 완료! (가격: 100원)`);
+        return interaction.editReply(
+            `🏢 ${name} 회사 생성 완료! (가격: 100원)`
+        );
     }
 
     if (interaction.commandName === '매수') {
@@ -955,7 +972,7 @@ client.on('interactionCreate', async interaction => {
         const cost = stock.price * qty;
 
         if (user.money < cost) {
-            return interaction.editReply('돈 부족');
+            return interaction.editReply('돈이 부족합니다');
         }
 
         user.money -= cost;
@@ -963,7 +980,7 @@ client.on('interactionCreate', async interaction => {
 
         await user.save();
 
-        return interaction.editReply(`📈 ${name} ${qty}주 매수 완료`);
+        return interaction.editReply(`📈 ${name} ${qty}주 매수 완료!`);
     }
 
     if (interaction.commandName === '매도') {
@@ -980,7 +997,7 @@ client.on('interactionCreate', async interaction => {
         const owned = user.stocks.get(name) || 0;
 
         if (owned < qty) {
-            return interaction.editReply('주식 부족');
+            return interaction.editReply('주식이 부족합니다.');
         }
 
         user.stocks.set(name, owned - qty);
@@ -1003,7 +1020,7 @@ client.on('interactionCreate', async interaction => {
             stock.price = 0;
             await stock.save();
 
-            return interaction.editReply(`💀 ${name} 상장폐지됨`);
+            return interaction.editReply(`💀 ${name} 상장폐지되었습니다. 바이바이 휴지조각`);
         }
 
     if (interaction.commandName === '주식') {
@@ -1011,15 +1028,42 @@ client.on('interactionCreate', async interaction => {
 
         const stocks = await Stock.find({ listed: true });
 
-        const list = stocks
-            .map(s => `📊 ${s.name} - ${s.price}원`)
-            .join('\n');
+        if (stocks.length === 0) {
+            return interaction.editReply('주식 없음');
+        }
+
+        const list = await Promise.all(
+            stocks.map(async s => {
+                let ownerName = '알 수 없음';
+
+                try {
+                    const owner = await client.users.fetch(s.owner);
+                    ownerName = owner.username;
+                } catch {}
+
+                return `📊 ${s.name} - ${s.price}원 | 👑 ${ownerName}`;
+            })
+        );
 
         return interaction.editReply({
-            content: list || '주식 없음'
+            content: list.join('\n')
         });
     }
 
+
+    if (interaction.commandName === '구걸') {
+        await interaction.deferReply({ ephemeral: true });
+
+        const user = await getUser(interaction.user.id);
+
+        user.money += 500;
+
+        await user.save();
+
+        return interaction.editReply(
+            `🪙 500원을 구걸했다!\n현재 돈: ${user.money}원`
+        );
+    }
 
 
 });
