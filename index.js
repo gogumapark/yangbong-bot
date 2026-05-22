@@ -80,17 +80,18 @@ mongoose.connect(process.env.MONGO_URI)
 
 
 
-const {
-    Client,
-    GatewayIntentBits,
-    SlashCommandBuilder,
-    REST,
-    Routes,
-    EmbedBuilder,
-    ActionRowBuilder,
-    ButtonBuilder,
-    ButtonStyle
-} = require('discord.js');
+    const {
+        Client,
+        GatewayIntentBits,
+        SlashCommandBuilder,
+        REST,
+        Routes,
+        EmbedBuilder,
+        ActionRowBuilder,
+        ButtonBuilder,
+        ButtonStyle,
+        StringSelectMenuBuilder
+    } = require('discord.js');
 
 
 
@@ -435,66 +436,112 @@ client.on('interactionCreate', async interaction => {
 
 
 
-            if (interaction.customId.startsWith('help_')) {
+            // =========================
+// 도움말 드롭다운
+// =========================
+        if (interaction.isStringSelectMenu()) {
 
-                let text = '';
+            if (interaction.customId === 'help_menu') {
 
-                // 경제
-                if (interaction.customId === 'help_economy') {
+                const value = interaction.values[0];
 
-                    text =
-            `💰 경제 명령어
+                let embed;
 
-            /돈
-            /구걸
-            /도박
-            /주식
-            /매수
-            /매도
-            /회사생성
-            /회사삭제
-            /상장폐지
-            /돈순위`;
+                // 인삿말
+                if (value === 'greet') {
+
+                    embed = new EmbedBuilder()
+                        .setTitle('👋 인삿말 도움말')
+                        .setColor('Green')
+                        .setDescription(`
+        \`/안녕\`
+        양봉이에게 인사합니다.
+
+        \`/주사위\`
+        주사위를 굴립니다.
+        `);
                 }
 
                 // 게임
-                else if (interaction.customId === 'help_game') {
+                if (value === 'game') {
 
-                    text =
-            `🎮 게임 명령어
+                    embed = new EmbedBuilder()
+                        .setTitle('🎮 게임 도움말')
+                        .setColor('Blue')
+                        .setDescription(`
+        \`/틱택토\`
+        틱택토 게임 시작
 
-            /틱택토
-            /주사위
-            /운세`;
+        \`/도박 금액:\`
+        돈을 걸고 도박합니다.
+        `);
                 }
 
-                // 소셜
-                else if (interaction.customId === 'help_social') {
+                // 경제
+                if (value === 'economy') {
 
-                    text =
-            `📨 소셜 명령어
+                    embed = new EmbedBuilder()
+                        .setTitle('💰 경제 도움말')
+                        .setColor('Gold')
+                        .setDescription(`
+        \`/돈\`
+        현재 돈 확인
 
-            /편지
-            /편지함
-            /유저정보
-            /안녕`;
+        \`/구걸\`
+        500원 획득 (하루 3번)
+
+        \`/주식\`
+        주식 목록 확인
+
+        \`/회사생성 이름:\`
+        회사 생성
+
+        \`/매수 회사: 수량:\`
+        주식 구매
+
+        \`/매도 회사: 수량:\`
+        주식 판매
+        `);
+                }
+
+                // 편지
+                if (value === 'letter') {
+
+                    embed = new EmbedBuilder()
+                        .setTitle('📨 편지 도움말')
+                        .setColor('Pink')
+                        .setDescription(`
+        \`/편지\`
+        유저에게 편지 보내기
+
+        \`/편지함\`
+        받은 편지 확인
+        `);
                 }
 
                 // 관리
-                else if (interaction.customId === 'help_manage') {
+                if (value === 'manage') {
 
-                    text =
-            `🛠 관리 명령어
+                    embed = new EmbedBuilder()
+                        .setTitle('🛠 관리 도움말')
+                        .setColor('Red')
+                        .setDescription(`
+        \`/청소 개수:\`
+        메시지 삭제
 
-            /청소
-            /삭제로그`;
+        \`/삭제로그\`
+        최근 삭제 메시지 확인
+
+        \`/유저정보 유저:\`
+        유저 정보 확인
+        `);
                 }
 
-                return interaction.reply({
-                    content: `\`\`\`\n${text}\n\`\`\``,
-                    flags: 64
+                return interaction.update({
+                    embeds: [embed]
                 });
             }
+        }
 
 
             // =========================
@@ -830,106 +877,80 @@ client.on('interactionCreate', async interaction => {
     
     if (interaction.commandName === '도움말') {
 
-        const row = new ActionRowBuilder()
-            .addComponents(
-
-                new ButtonBuilder()
-                    .setCustomId('help_economy')
-                    .setLabel('💰 경제')
-                    .setStyle(ButtonStyle.Success),
-
-                new ButtonBuilder()
-                    .setCustomId('help_game')
-                    .setLabel('🎮 게임')
-                    .setStyle(ButtonStyle.Primary),
-
-                new ButtonBuilder()
-                    .setCustomId('help_social')
-                    .setLabel('📨 소셜')
-                    .setStyle(ButtonStyle.Secondary),
-
-                new ButtonBuilder()
-                    .setCustomId('help_manage')
-                    .setLabel('🛠 관리')
-                    .setStyle(ButtonStyle.Danger)
-            );
-
-        return interaction.reply({
-            content:
-    `🐝 안녕! 나는 양봉장의 전용 봇 "양봉이"다!
-
-    원하는 도움말 카테고리를 선택해라 😎`,
-            components: [row]
-        });
-    }
-
-    if (interaction.commandName === '청소') {
-
-        // 관리자 권한 체크
-        if (!interaction.member.permissions.has('ManageMessages')) {
-
-            return interaction.reply({
-                content: '❌ 메시지 관리 권한 없잖아!',
-                flags: 64
-            });
-
-        }
-
-        const amount =
-            interaction.options.getInteger('개수');
-
-        // 1~100 제한
-        if (amount < 1 || amount > 100) {
-
-            return interaction.reply({
-                content: '❌ 1~100개만 삭제 가능함 ㅇㅇ.;;;',
-                flags: 64
-            });
-
-        }
-
-        await interaction.channel.bulkDelete(amount, true);
-
-        await interaction.reply({
-            content: `🧹 메시지 ${amount}개 삭제 완료!`,
-            flags: 64
-        });
-
-    }
-
-    if (interaction.commandName === '삭제로그') {
-
-        const data =
-            deletedMessages.get(interaction.channel.id);
-
-        if (!data) {
-
-            return interaction.reply({
-                content: '❌ 최근 삭제된 메시지가 없다!',
-                flags: 64
-            });
-
-        }
-
-        const embed = new EmbedBuilder()
-            .setTitle('🗑 최근 삭제된 메시지')
-            .addFields(
+        const menu = new StringSelectMenuBuilder()
+            .setCustomId('help_menu')
+            .setPlaceholder('카테고리 선택')
+            .addOptions(
                 {
-                    name: '작성자',
-                    value: data.author
+                    label: '👋 인삿말',
+                    description: '기본 인삿말 명령어',
+                    value: 'greet'
                 },
                 {
-                    name: '내용',
-                    value: data.content
+                    label: '🎮 게임',
+                    description: '게임 명령어',
+                    value: 'game'
+                },
+                {
+                    label: '💰 경제',
+                    description: '돈/주식 명령어',
+                    value: 'economy'
+                },
+                {
+                    label: '📨 편지',
+                    description: '편지 기능',
+                    value: 'letter'
+                },
+                {
+                    label: '🛠 관리',
+                    description: '관리 명령어',
+                    value: 'manage'
                 }
-            )
-            .setColor('Red');
+            );
 
-        await interaction.reply({
-            embeds: [embed]
+        const row = new ActionRowBuilder()
+            .addComponents(menu);
+
+        return interaction.reply({
+            content: '📚 도움말 카테고리를 선택하세요.',
+            components: [row],
+            flags: 64
         });
-
     }
+
+        if (interaction.commandName === '삭제로그') {
+
+            const data =
+                deletedMessages.get(interaction.channel.id);
+
+            if (!data) {
+
+                return interaction.reply({
+                    content: '❌ 최근 삭제된 메시지가 없다!',
+                    flags: 64
+                });
+
+            }
+
+            const embed = new EmbedBuilder()
+                .setTitle('🗑 최근 삭제된 메시지')
+                .addFields(
+                    {
+                        name: '작성자',
+                        value: data.author
+                    },
+                    {
+                        name: '내용',
+                        value: data.content
+                    }
+                )
+                .setColor('Red');
+
+            await interaction.reply({
+                embeds: [embed]
+            });
+
+        }
 
     if (interaction.commandName === '유저정보') {
 
