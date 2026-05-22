@@ -777,6 +777,8 @@ client.on('interactionCreate', async interaction => {
 
     if (interaction.commandName === '틱택토') {
 
+        await interaction.deferReply();
+
         const gameId = interaction.id;
 
         tttGames.set(gameId, {
@@ -784,12 +786,11 @@ client.on('interactionCreate', async interaction => {
             turn: '❌'
         });
 
-        await interaction.reply({
+        return interaction.editReply({
             content: '🎮 틱택토 시작! ❌ 먼저',
             components: createBoard(gameId)
         });
     }
-
 
     if (interaction.commandName === '편지') {
 
@@ -1099,6 +1100,17 @@ client.on('interactionCreate', async interaction => {
 
 });
 
+
+
+client.on('error', console.error);
+
+process.on('unhandledRejection', error => {
+    console.error('Unhandled promise rejection:', error);
+});
+
+process.on('uncaughtException', error => {
+    console.error('Uncaught exception:', error);
+});
 
 
 
