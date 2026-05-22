@@ -39,7 +39,11 @@ mongoose.connect(process.env.MONGO_URI)
         name: { type: String, unique: true },
         owner: String,
         price: { type: Number, default: 100 },
-        listed: { type: Boolean, default: true }
+        listed: { type: Boolean, default: true },
+        news: {
+            type: [String],
+            default: []
+        }
     });
 
     const Stock = mongoose.model('Stock', stockSchema);
@@ -346,18 +350,79 @@ function createBoard(gameId) {
 }
 
 setInterval(async () => {
+
     const stocks = await Stock.find();
 
+    const goodNews = [
+        '하늘에서 내려온 토끼가 하는말 바니바니 대박대박!!',
+        '고굼박 최고!!, 대박소식!!',
+        '매출 폭등!',
+        '유저들의 관심 급상승!!, 대표가 맛있고 회사가 친절해요!',
+        '해외 진출 성공!!! 세상으로 뻗어나가는 기술력!!'
+    ];
+
+    const badNews = [
+        '맛없는 사내식당.., 1인 시위 발발',
+        '대표 논란 발생!!, 직원 성추행, 음란한 대표,',
+        '매출 폭락...',
+        '산업스파이 등장!!! 급 떡락!!!',
+        '대표에게 막말 논란.. 결국 못참은 대표, 분노의 오줌 갈기기 '
+    ];
+
     for (let stock of stocks) {
+
         if (!stock.listed) continue;
 
-        const change = (Math.random() - 0.5) * 20; 
-        stock.price = Math.max(1, Math.floor(stock.price + change));
+        let change =
+            Math.floor(Math.random() * 21) - 10;
 
-        if (stock.price < 1) stock.price = 1;
+        // 뉴스 확률
+        const eventChance = Math.random();
+
+        // 호재
+        if (eventChance < 0.1) {
+
+            const news =
+                goodNews[
+                    Math.floor(Math.random() * goodNews.length)
+                ];
+
+            change +=
+                Math.floor(Math.random() * 40) + 20;
+
+            stock.news.unshift(
+                `🟢 ${news}`
+            );
+        }
+
+        // 악재
+        else if (eventChance < 0.2) {
+
+            const news =
+                badNews[
+                    Math.floor(Math.random() * badNews.length)
+                ];
+
+            change -=
+                Math.floor(Math.random() * 40) + 20;
+
+            stock.news.unshift(
+                `🔴 ${news}`
+            );
+        }
+
+        stock.price += change;
+
+        if (stock.price < 1) {
+            stock.price = 1;
+        }
+
+        // 뉴스 최대 5개 유지
+        stock.news = stock.news.slice(0, 5);
 
         await stock.save();
     }
+
 }, 600000);
 
 
@@ -1022,33 +1087,62 @@ client.on('interactionCreate', async interaction => {
     }
 
     if (interaction.commandName === '회사생성') {
+
         await interaction.deferReply();
 
-        const name = interaction.options.getString('이름');
+        const name =
+            interaction.options.getString('이름');
 
-        const exists = await Stock.findOne({ name });
+        const exists =
+            await Stock.findOne({ name });
 
         if (exists) {
-            return interaction.editReply('이미 존재하는 회사입니다.');
+            return interaction.editReply(
+                '이미 존재하는 회사입니다.'
+            );
         }
 
-        // 🔥 유저 회사 개수 체크
-        const myCompanies = await Stock.countDocuments({
-            owner: interaction.user.id
-        });
+        const user =
+            await getUser(interaction.user.id);
+
+        // 회사 생성 비용
+        const createCost = 1000;
+
+        if (user.money < createCost) {
+
+            return interaction.editReply(
+                `❌ 회사 생성 비용 부족 (${createCost}원 필요)`
+            );
+        }
+
+        // 최대 2개 제한
+        const myCompanies =
+            await Stock.countDocuments({
+                owner: interaction.user.id
+            });
 
         if (myCompanies >= 2) {
-            return interaction.editReply('❌ 회사는 최대 2개까지 생성 가능합니다!');
+
+            return interaction.editReply(
+                '❌ 회사는 최대 2개까지 생성 가능'
+            );
         }
+
+        user.money -= createCost;
+        await user.save();
 
         await Stock.create({
             name,
             owner: interaction.user.id,
-            price: 100
+            price: 100,
+            news: [
+                `📰 ${name} 회사 창립! 투자자 관심 집중`
+            ]
         });
 
         return interaction.editReply(
-            `🏢 ${name} 회사 생성 완료! (가격: 100원)`
+            `🏢 ${name} 회사 생성 완료!\n` +
+            `💸 생성 비용: ${createCost}원`
         );
     }
 
@@ -1074,6 +1168,14 @@ client.on('interactionCreate', async interaction => {
 
         await user.save();
 
+        stock.news.unshift(
+            `📈 ${interaction.user.username}님이 ${qty}주 매수`
+        );
+
+        stock.news = stock.news.slice(0, 5);
+
+        await stock.save();
+
         return interaction.editReply(`📈 ${name} ${qty}주 매수 완료!`);
     }
 
@@ -1098,6 +1200,14 @@ client.on('interactionCreate', async interaction => {
         user.money += stock.price * qty;
 
         await user.save();
+
+        stock.news.unshift(
+            `📉 ${interaction.user.username}님이 ${qty}주 매도`
+        );
+
+        stock.news = stock.news.slice(0, 5);
+
+        await stock.save();
 
         return interaction.editReply(`💰 ${name} ${qty}주 매도 완료`);
     }
@@ -1147,6 +1257,16 @@ client.on('interactionCreate', async interaction => {
 
             companyTable +=
                 `${name}${price}${status}\n`;
+
+            // 최근 뉴스 표시
+            if (s.news && s.news.length > 0) {
+
+                companyTable +=
+                    `📰 ${s.news[0]}\n`;
+            }
+
+            companyTable +=
+                '────────────────────────────\n';
         }
 
         // 내 주식 표
