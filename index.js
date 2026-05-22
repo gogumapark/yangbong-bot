@@ -685,10 +685,13 @@ client.on('interactionCreate', async interaction => {
                         .setColor('Green')
                         .setDescription(`
         \`/안녕\`
-        양봉이에게 인사합니다.
+        양봉이에게 인사합니다. 
 
-        \`/주사위\`
-        주사위를 굴립니다.
+        \`/유저정보 유저:\`
+        유저 정보를 확인합니다!
+
+        \`/도움말\`
+        양봉이의 도움말을 확인합니다! 
         `);
                 }
 
@@ -699,7 +702,7 @@ client.on('interactionCreate', async interaction => {
                         .setColor('Blue')
                         .setDescription(`
         \`/틱택토\`
-        틱택토 게임 시작
+        틱택토!!
 
         \`/도박 금액:\`
         돈을 걸고 도박합니다.
@@ -713,10 +716,30 @@ client.on('interactionCreate', async interaction => {
                         .setColor('Gold')
                         .setDescription(`
         \`/돈\`
-        현재 돈 확인
+        현재 돈을 확인합니다!!
+
+        \`/돈순위\`
+        현재 돈 순위를 확인합니다!!
 
         \`/구걸\`
-        500원 획득
+        하루 세번 500원을 획득합니다!!
+
+        \`/운세\`
+        오늘의 운세를 확인합니다!! (출석체크!! 1000원 씩 흭득!!)
+
+        \`/회사삭제 회사:\`
+        1000원으로 회사를 삭제합니다!! 삭제할때마다 삭제비용이 올라갑니다. 
+
+        
+
+        \`/회사생성 이름:\`
+        1000원으로 회사를 생성합니다!! 
+
+        \`/매수 회사: 수량:\`
+        주식을 구입합니다!!
+
+        \`/매도 회사: 수량:\`
+        주식을 판매합니다!!
 
         \`/주식\`
         주식 목록 확인
@@ -727,7 +750,7 @@ client.on('interactionCreate', async interaction => {
 
                     embed = new EmbedBuilder()
                         .setTitle('📨 편지 도움말')
-                        .setColor('Pink')
+                        .setColor('Red')
                         .setDescription(`
         \`/편지\`
         유저에게 편지 보내기
