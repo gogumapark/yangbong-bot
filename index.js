@@ -427,7 +427,7 @@ setInterval(async () => {
             // +100% ~ +300%
 
             stock.news.unshift(
-                '🚀 미친 떡상 발생!!!'
+                '미친 개 떡상!!! ㅇㅇㅇ대표 신제품 발표 해승봇 mk200 출시...'
             );
         }
 
@@ -439,7 +439,7 @@ setInterval(async () => {
             // -30% ~ -100%
 
             stock.news.unshift(
-                '💀 대폭락 발생!!!'
+                '주가 대폭락!! ㅇㅇㅇ대표 직원에게 막말논란.. 불꽃 패드립 작렬.. 이대로 괜찮은가'
             );
         }
 
@@ -566,7 +566,7 @@ setInterval(async () => {
         await stock.save();
         }
 
-}, 600000);
+}, 60000);
 
 
 client.on('interactionCreate', async interaction => {
