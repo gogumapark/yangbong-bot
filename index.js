@@ -12,6 +12,8 @@ app.listen(PORT, () => {
 
 const mongoose = require('mongoose');
 
+let aiChannelId = null;
+
 mongoose.connect(process.env.MONGO_URI)
     .then(() => console.log('MongoDB 연결 성공!'))
     .catch(err => console.error('MongoDB 연결 실패:', err));
@@ -50,6 +52,12 @@ mongoose.connect(process.env.MONGO_URI)
             type: Number,
             default: 0
         },
+    });
+
+    const OpenAI = require('openai');
+
+    const openai = new OpenAI({
+        apiKey: process.env.OPENAI_API_KEY
     });
 
     const Stock = mongoose.model('Stock', stockSchema);
@@ -138,6 +146,16 @@ client.on('messageDelete', message => {
 const userFortunes = {};
 
 const commands = [
+
+    new SlashCommandBuilder()
+        .setName('ai설정')
+        .setDescription('AI 채널 설정')
+        .addChannelOption(option =>
+            option
+                .setName('채널')
+                .setDescription('AI가 대화할 채널')
+                .setRequired(true)
+        ),
 
     new SlashCommandBuilder()
         .setName('홀짝')
@@ -2102,7 +2120,31 @@ client.on('interactionCreate', async interaction => {
             });
         }
     }
-    
+
+    if (interaction.commandName === 'ai설정') {
+
+        // 관리자만 가능
+        if (!interaction.member.permissions.has('Administrator')) {
+
+            return interaction.reply({
+                content: '❌ 관리자만 사용 가능',
+                flags: 64
+            });
+        }
+
+        const channel =
+            interaction.options.getChannel('채널');
+
+        aiChannelId = channel.id;
+
+        return interaction.reply({
+            content:
+                `🤖 AI 채널 설정 완료!\n` +
+                `채널: ${channel}`,
+            flags: 64
+        });
+    }
+        
 
 
 });
@@ -2119,6 +2161,52 @@ process.on('uncaughtException', error => {
     console.error('Uncaught exception:', error);
 });
 
+// AI 대화 채널 ID
+client.on('messageCreate', async message => {
 
+    if (message.author.bot) return;
+
+    // 설정 안됐으면 종료
+    if (!aiChannelId) return;
+
+    // 지정 채널만 허용
+    if (message.channel.id !== aiChannelId) return;
+
+    try {
+
+        await message.channel.sendTyping();
+
+        const response =
+            await openai.chat.completions.create({
+
+                model: 'gpt-4.1-mini',
+
+                messages: [
+                    {
+                        role: 'system',
+                        content:
+                            '너는 인터넷에 절여진 디스코드 봇이다 (일베,패드립 금지), 반말 사용, 텐션 높음, 성희롱 관련에 쑥맥으로.'
+                    },
+                    {
+                        role: 'user',
+                        content: message.content
+                    }
+                ],
+
+                max_tokens: 200
+            });
+
+        const reply =
+            response.choices[0].message.content;
+
+        await message.reply(reply);
+
+    } catch (err) {
+
+        console.error(err);
+
+        await message.reply('❌ AI 오류');
+    }
+});
 
 client.login(token);
