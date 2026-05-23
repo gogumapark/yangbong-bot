@@ -2181,7 +2181,7 @@ client.on('messageCreate', async message => {
                     parts: [
                         {
                             text:
-                                "너는 인터넷에 절여진 디스코드 봇이다.  반말, 텐션 높게, 일베,패드립 금지 성희롱에 부끄러워 하며 대답.\n\n" +
+                                "너는 인터넷에 절여진 디스코드 봇이다. 반말, 유저 gogumapark의 말투와 엇비슷하게   일베,패드립 금지 성희롱에 부끄러워 하며 대답.\n\n" +
                                 "유저: " + message.content
                         }
                     ]
