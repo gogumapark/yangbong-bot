@@ -2173,7 +2173,7 @@ client.on('messageCreate', async message => {
         await message.channel.sendTyping();
 
         const reply = await groq.chat.completions.create({
-            model: "grok-2-latest",
+            model: "llama-3.3-70b-versatile",
             messages: [
                 {
                     role: "system",
