@@ -1145,7 +1145,7 @@ client.on('interactionCreate', async interaction => {
             .setColor('Green')
 
             // 이미지 하나만
-            .setImage(
+            .setThumbnail(
                 'https://cdn.discordapp.com/attachments/1110460136373366845/1506536312423841873/image.png'
             )
 
@@ -1190,7 +1190,6 @@ client.on('interactionCreate', async interaction => {
         return interaction.reply({
             embeds: [embed],
             components: [row],
-            flags: 64
         });
     }
 
