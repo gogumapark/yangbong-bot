@@ -542,21 +542,36 @@ setInterval(async () => {
             );
         }
 
+        // 대표 수수료 지급 (10분마다 30%)
+
+        if (stock.owner) {
+
+            const owner = await getUser(stock.owner);
+
+            const fee =
+                Math.floor(stock.price * 0.3);
+
+            owner.money += fee;
+
+            await owner.save();
+
+            stock.news.unshift(
+                `💰 대표 수수료 지급 (+${fee}원)`
+            );
+        }
+
         // 자동 상장폐지
 
         if (
             stock.listed &&
-            (
-                stock.downStreak >= 8 ||
-                stock.price <= 300
-            )
+            stock.downStreak >= 12
         ) {
 
             stock.listed = false;
             stock.price = 0;
 
             stock.news.unshift(
-                '💀 연속 하락/주가 폭락으로 상장폐지'
+                '💀 12연속 하락으로 상장폐지'
             );
         }
 
@@ -678,13 +693,8 @@ client.on('interactionCreate', async interaction => {
                 });
             }
 
-
-
-
-
-            // =========================
             // 편지 열기
-            // =========================
+
             if (interaction.customId.startsWith('letter_')) {
 
                 const id = interaction.customId.split('_')[1];
@@ -733,9 +743,8 @@ client.on('interactionCreate', async interaction => {
                 });
             }
 
-            // =========================
             // 편지 페이지 이동
-            // =========================
+
             if (
                 interaction.customId.startsWith('letters_prev_') ||
                 interaction.customId.startsWith('letters_next_')
@@ -808,9 +817,8 @@ client.on('interactionCreate', async interaction => {
                 });
             }
 
-            // =========================
             // 편지 삭제
-            // =========================
+
             if (interaction.customId.startsWith('deleteletter_')) {
 
                 const id = interaction.customId.split('_')[1];
@@ -834,9 +842,8 @@ client.on('interactionCreate', async interaction => {
                 });
             }
 
-            // =========================
             // 틱택토
-            // =========================
+
             if (interaction.customId.startsWith('ttt_')) {
 
                 const [, gameId, index] =
@@ -1802,14 +1809,6 @@ client.on('interactionCreate', async interaction => {
 
         let bet;
 
-        const user = await getUser(interaction.user.id);
-
-        let bet;
-
-        const user = await getUser(interaction.user.id);
-
-        let bet;
-
         if (input === '올인') {
             bet = user.money;
         } else {
@@ -1857,11 +1856,10 @@ client.on('interactionCreate', async interaction => {
 
         let bet;
 
-        const user = await getUser(interaction.user.id);
-
-        let bet;
-
-        if (input === '올인') {
+        if (
+            input === '올인' ||
+            input === 'allin'
+        ) {
             bet = user.money;
         } else {
             bet = parseInt(input);
@@ -1909,6 +1907,10 @@ client.on('interactionCreate', async interaction => {
 
         user.money += reward;
 
+        if (user.money < 0) {
+            user.money = 0;
+        }
+
         await user.save();
 
         return interaction.reply(
@@ -1930,11 +1932,10 @@ client.on('interactionCreate', async interaction => {
 
         let bet;
 
-       const user = await getUser(interaction.user.id);
-
-        let bet;
-
-        if (input === '올인') {
+        if (
+            input === '올인' ||
+            input === 'allin'
+        ) {
             bet = user.money;
         } else {
             bet = parseInt(input);
