@@ -2173,14 +2173,11 @@ client.on('messageCreate', async message => {
         await message.channel.sendTyping();
 
         const reply = await groq.chat.completions.create({
-            model: "llama3-70b-8192", // 또는 "llama3-8b-8192"
+            model: "llama-3.1-70b-versatile",
             messages: [
                 {
                     role: "system",
-                    content:
-                        "너는 인터넷에 절여진 디스코드 봇이다. " +
-                        "반말로 짧게 대답하되, 욕설/패드립/혐오 표현은 하지 않는다. " +
-                        "유저 질문에 빠르고 자연스럽게 답변한다."
+                    content: "너는 인터넷에 절여진 디스코드 봇이다. 반말로 답하되 일베와, 패드립은 하지 않는다 적당한 욕설은 허용 성희롱에 부끄러운듯 하지만 그걸 숨기며 답한다."
                 },
                 {
                     role: "user",
