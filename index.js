@@ -555,9 +555,9 @@ setInterval(async () => {
 
             await owner.save();
 
-            stock.news.unshift(
-                `💰 대표 수수료 지급 (+${fee}원)`
-            );
+            //stock.news.unshift(
+             //   `💰 대표 수수료 지급 (+${fee}원)`
+           // );
         }
 
         // 자동 상장폐지
@@ -1992,6 +1992,51 @@ client.on('interactionCreate', async interaction => {
             components: [row]
         });
     }
+
+    if (interaction.commandName === '청소') {
+
+        // 관리자 권한 체크
+        if (!interaction.member.permissions.has('ManageMessages')) {
+
+            return interaction.reply({
+                content: '❌ 메시지 관리 권한이 없습니다.',
+                flags: 64
+            });
+        }
+
+        const amount =
+            interaction.options.getInteger('개수');
+
+        // 1~100 제한
+        if (amount < 1 || amount > 100) {
+
+            return interaction.reply({
+                content: '❌ 1~100개만 삭제 가능',
+                flags: 64
+            });
+        }
+
+        try {
+
+            // 명령어 메시지 포함 삭제
+            await interaction.channel.bulkDelete(amount, true);
+
+            return interaction.reply({
+                content: `🧹 ${amount}개 메시지 삭제 완료`,
+                flags: 64
+            });
+
+        } catch (err) {
+
+            console.error(err);
+
+            return interaction.reply({
+                content: '❌ 삭제 실패',
+                flags: 64
+            });
+        }
+    }
+    
 
 
 });
