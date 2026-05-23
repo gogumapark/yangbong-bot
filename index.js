@@ -1464,8 +1464,11 @@ client.on('interactionCreate', async interaction => {
     if (interaction.commandName === '도박') {
 
         const userId = interaction.user.id;
+
         const amountInput =
             interaction.options.getString('금액');
+
+        const user = await getUser(userId);
 
         let bet;
 
@@ -1473,16 +1476,17 @@ client.on('interactionCreate', async interaction => {
             amountInput === '올인' ||
             amountInput === 'allin'
         ) {
+
             bet = user.money;
+
         } else {
+
             bet = parseInt(amountInput);
         }
 
-        const user = await getUser(userId);
-
         if (bet <= 0) {
             return interaction.reply({
-                content: '❌ 1원 이상 걸어라',
+                content: '❌ 1원 이상 걸어라.',
                 flags: 64
             });
         }
