@@ -566,7 +566,7 @@ setInterval(async () => {
         await stock.save();
         }
 
-}, 60000);
+}, 600000);
 
 
 client.on('interactionCreate', async interaction => {
