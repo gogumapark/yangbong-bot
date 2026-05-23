@@ -54,12 +54,10 @@ mongoose.connect(process.env.MONGO_URI)
         },
     });
 
-    const { GoogleGenerativeAI } = require("@google/generative-ai");
+    const Groq = require("groq-sdk");
 
-    const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-
-    const model = genAI.getGenerativeModel({
-    model: "gemini-2.5-flash"
+    const groq = new Groq({
+    apiKey: process.env.GROQ_API_KEY
     });
     
     const Stock = mongoose.model('Stock', stockSchema);
@@ -2174,29 +2172,31 @@ client.on('messageCreate', async message => {
 
         await message.channel.sendTyping();
 
-        const result = await model.generateContent({
-            contents: [
+        const reply = await groq.chat.completions.create({
+            model: "llama3-70b-8192", // 또는 "llama3-8b-8192"
+            messages: [
+                {
+                    role: "system",
+                    content:
+                        "너는 인터넷에 절여진 디스코드 봇이다. " +
+                        "반말로 짧게 대답하되, 욕설/패드립/혐오 표현은 하지 않는다. " +
+                        "유저 질문에 빠르고 자연스럽게 답변한다."
+                },
                 {
                     role: "user",
-                    parts: [
-                        {
-                            text:
-                                "너는 인터넷에 절여진 디스코드 봇이다. 반말, 유저 gogumapark의 말투와 엇비슷하게   일베,패드립 금지 성희롱에 부끄러워 하며 대답.\n\n" +
-                                "유저: " + message.content
-                        }
-                    ]
+                    content: message.content
                 }
-            ]
+            ],
+            temperature: 0.7,
+            max_tokens: 500
         });
 
-        const reply = result.response.text();
-
-        await message.reply(reply);
+        await message.reply(reply.choices[0].message.content);
 
     } catch (err) {
         console.error(err);
         await message.reply('❌ AI 오류');
     }
-});
+});;
 
 client.login(token);
