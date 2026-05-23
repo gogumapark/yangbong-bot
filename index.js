@@ -23,7 +23,7 @@ mongoose.connect(process.env.MONGO_URI)
         lastFortuneDate: { type: String, default: null },
         fortuneStreak: { type: Number, default: 0 },
 
-        lastBegTime: { type: Date, default: null },,
+        lastBegTime: { type: Date, default: null },
 
         deleteCost: { type: Number, default: 1000 },
 
