@@ -28,6 +28,9 @@ mongoose.connect(process.env.MONGO_URI)
 
         deleteCost: { type: Number, default: 1000 },
 
+        blackjackWins: { type: Number, default: 0 },
+        gambleWins: { type: Number, default: 0 },
+
         stocks: {
             type: Map,
             of: Number,
@@ -108,6 +111,7 @@ const client = new Client({
     ]
 });
 
+const blackjackGames = new Map();
 
 const tttGames = new Map();
 
@@ -131,6 +135,46 @@ client.on('messageDelete', message => {
 const userFortunes = {};
 
 const commands = [
+
+    new SlashCommandBuilder()
+        .setName('홀짝')
+        .setDescription('홀짝 도박')
+        .addStringOption(option =>
+            option
+                .setName('배팅')
+                .setDescription('배팅 금액 또는 올인')
+                .setRequired(true)
+        )
+        .addStringOption(option =>
+            option
+                .setName('선택')
+                .setDescription('홀 또는 짝')
+                .setRequired(true)
+                .addChoices(
+                    { name: '홀', value: '홀' },
+                    { name: '짝', value: '짝' }
+                )
+        ),
+
+    new SlashCommandBuilder()
+        .setName('슬롯')
+        .setDescription('슬롯머신')
+        .addStringOption(option =>
+            option
+                .setName('배팅')
+                .setDescription('배팅 금액 또는 올인')
+                .setRequired(true)
+        ),
+
+    new SlashCommandBuilder()
+        .setName('블랙잭')
+        .setDescription('블랙잭 시작')
+        .addStringOption(option =>
+            option
+                .setName('배팅')
+                .setDescription('배팅 금액 또는 올인')
+                .setRequired(true)
+        ),
 
 
     new SlashCommandBuilder()
@@ -287,13 +331,12 @@ const commands = [
     new SlashCommandBuilder()
         .setName('도박')
         .setDescription('인생은 한방!!!!')
-        .addIntegerOption(option =>
-            option
-                .setName('금액')
-                .setDescription('배팅할 금액')
-                .setRequired(true)
-        ),
-
+        .addStringOption(option =>
+        option
+            .setName('금액')
+            .setDescription('배팅 금액 또는 올인')
+            .setRequired(true)
+    ),
 
     new SlashCommandBuilder()
     .setName('구걸')
@@ -433,6 +476,112 @@ client.on('interactionCreate', async interaction => {
 
         // 버튼 처리
         if (interaction.isButton()) {
+
+            //블랙잭
+
+            if (
+                interaction.customId === 'blackjack_hit' ||
+                interaction.customId === 'blackjack_stand'
+            ) {
+
+                const game =
+                    blackjackGames.get(interaction.user.id);
+
+                if (!game) {
+                    return interaction.reply({
+                        content: '게임 없음',
+                        flags: 64
+                    });
+                }
+
+                const user =
+                    await getUser(interaction.user.id);
+
+                const drawCard = () =>
+                    Math.floor(Math.random() * 10) + 1;
+
+                const playerTotal = () =>
+                    game.playerCards.reduce((a,b)=>a+b,0);
+
+                const dealerTotal = () =>
+                    game.dealerCards.reduce((a,b)=>a+b,0);
+
+                // HIT
+                if (interaction.customId === 'blackjack_hit') {
+
+                    game.playerCards.push(drawCard());
+
+                    if (playerTotal() > 21) {
+
+                        user.money -= game.bet;
+
+                        await user.save();
+
+                        blackjackGames.delete(interaction.user.id);
+
+                        return interaction.update({
+                            content:
+                                `💀 버스트!\n` +
+                                `카드: ${game.playerCards.join(', ')}\n` +
+                                `현재 돈: ${user.money}원`,
+                            components: []
+                        });
+                    }
+
+                    return interaction.update({
+                        content:
+                            `🃏 카드: ${game.playerCards.join(', ')}\n` +
+                            `합계: ${playerTotal()}`,
+                        components: interaction.message.components
+                    });
+                }
+
+                // STAND
+                while (dealerTotal() < 17) {
+                    game.dealerCards.push(drawCard());
+                }
+
+                let result;
+
+                if (
+                    dealerTotal() > 21 ||
+                    playerTotal() > dealerTotal()
+                ) {
+
+                    user.money += game.bet;
+
+                    result = '🎉 승리!';
+
+                } else if (
+                    playerTotal() < dealerTotal()
+                ) {
+
+                    user.money -= game.bet;
+
+                    result = '💀 패배';
+
+                } else {
+
+                    result = '🤝 무승부';
+                }
+
+                await user.save();
+
+                blackjackGames.delete(interaction.user.id);
+
+                return interaction.update({
+                    content:
+                        `${result}\n\n` +
+                        `내 카드: ${game.playerCards.join(', ')} (${playerTotal()})\n` +
+                        `딜러 카드: ${game.dealerCards.join(', ')} (${dealerTotal()})\n\n` +
+                        `💰 현재 돈: ${user.money}원`,
+                    components: []
+                });
+            }
+
+
+
+
 
             // =========================
             // 편지 열기
@@ -729,8 +878,6 @@ client.on('interactionCreate', async interaction => {
 
         \`/회사삭제 회사:\`
         1000원으로 회사를 삭제합니다!! 삭제할때마다 삭제비용이 올라갑니다. 
-
-        
 
         \`/회사생성 이름:\`
         1000원으로 회사를 생성합니다!! 
@@ -1140,7 +1287,19 @@ client.on('interactionCreate', async interaction => {
     if (interaction.commandName === '도박') {
 
         const userId = interaction.user.id;
-        const bet = interaction.options.getInteger('금액');
+        const amountInput =
+            interaction.options.getString('금액');
+
+        let bet;
+
+        if (
+            amountInput === '올인' ||
+            amountInput === 'allin'
+        ) {
+            bet = user.money;
+        } else {
+            bet = parseInt(amountInput);
+        }
 
         const user = await getUser(userId);
 
@@ -1519,6 +1678,193 @@ client.on('interactionCreate', async interaction => {
             `💸 삭제 비용: ${currentCost}원\n` +
             `📈 다음 삭제 비용: ${user.deleteCost}원`
         );
+    }
+
+
+    if (interaction.commandName === '홀짝') {
+
+        const user = await getUser(interaction.user.id);
+
+        const input =
+            interaction.options.getString('배팅');
+
+        const choice =
+            interaction.options.getString('선택');
+
+        let bet;
+
+        if (input === '올인') {
+            bet = user.money;
+        } else {
+            bet = parseInt(input);
+        }
+
+        if (!bet || bet <= 0) {
+            return interaction.reply('❌ 배팅 오류');
+        }
+
+        if (user.money < bet) {
+            return interaction.reply('❌ 돈 부족');
+        }
+
+        const num =
+            Math.floor(Math.random() * 10) + 1;
+
+        const result =
+            num % 2 === 0 ? '짝' : '홀';
+
+        const win = choice === result;
+
+        if (win) {
+            user.money += bet;
+        } else {
+            user.money -= bet;
+        }
+
+        await user.save();
+
+        return interaction.reply(
+            `🎲 숫자: ${num}\n` +
+            `${win ? '🎉 승리!' : '💀 패배'}\n` +
+            `현재 돈: ${user.money}원`
+        );
+    }
+
+
+    if (interaction.commandName === '슬롯') {
+
+        const user = await getUser(interaction.user.id);
+
+        const input =
+            interaction.options.getString('배팅');
+
+        let bet;
+
+        if (input === '올인') {
+            bet = user.money;
+        } else {
+            bet = parseInt(input);
+        }
+
+        if (!bet || bet <= 0) {
+            return interaction.reply('❌ 배팅 오류');
+        }
+
+        if (user.money < bet) {
+            return interaction.reply('❌ 돈 부족');
+        }
+
+        const icons = ['🍒','🍋','💎','💀','🍀'];
+
+        const roll = [
+            icons[Math.floor(Math.random()*icons.length)],
+            icons[Math.floor(Math.random()*icons.length)],
+            icons[Math.floor(Math.random()*icons.length)]
+        ];
+
+        let reward = 0;
+
+        if (
+            roll[0] === roll[1] &&
+            roll[1] === roll[2]
+        ) {
+
+            if (roll[0] === '💎') {
+                reward = bet * 10;
+            }
+
+            else if (roll[0] === '💀') {
+                reward = -Math.floor(user.money / 2);
+            }
+
+            else {
+                reward = bet * 3;
+            }
+
+        } else {
+
+            reward = -bet;
+        }
+
+        user.money += reward;
+
+        await user.save();
+
+        return interaction.reply(
+            `🎰 ${roll.join(' | ')}\n\n` +
+            `${reward >= 0
+                ? `🎉 +${reward}원`
+                : `💀 ${reward}원`
+            }\n` +
+            `💰 현재 돈: ${user.money}원`
+        );
+    }
+
+    if (interaction.commandName === '블랙잭') {
+
+        const user = await getUser(interaction.user.id);
+
+        const input =
+            interaction.options.getString('배팅');
+
+        let bet;
+
+        if (input === '올인') {
+            bet = user.money;
+        } else {
+            bet = parseInt(input);
+        }
+
+        if (!bet || bet <= 0) {
+            return interaction.reply('❌ 배팅 오류');
+        }
+
+        if (user.money < bet) {
+            return interaction.reply('❌ 돈 부족');
+        }
+
+        const drawCard = () =>
+            Math.floor(Math.random() * 10) + 1;
+
+        const playerCards = [
+            drawCard(),
+            drawCard()
+        ];
+
+        const dealerCards = [
+            drawCard(),
+            drawCard()
+        ];
+
+        blackjackGames.set(interaction.user.id, {
+            bet,
+            playerCards,
+            dealerCards
+        });
+
+        const row =
+            new ActionRowBuilder().addComponents(
+
+                new ButtonBuilder()
+                    .setCustomId('blackjack_hit')
+                    .setLabel('🃏 더 뽑기')
+                    .setStyle(ButtonStyle.Primary),
+
+                new ButtonBuilder()
+                    .setCustomId('blackjack_stand')
+                    .setLabel('✋ 멈추기')
+                    .setStyle(ButtonStyle.Secondary)
+            );
+
+        return interaction.reply({
+            content:
+                `🃏 블랙잭 시작!\n\n` +
+                `내 카드: ${playerCards.join(', ')}\n` +
+                `합계: ${
+                    playerCards.reduce((a,b)=>a+b,0)
+                }`,
+            components: [row]
+        });
     }
 
 
