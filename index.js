@@ -23,8 +23,7 @@ mongoose.connect(process.env.MONGO_URI)
         lastFortuneDate: { type: String, default: null },
         fortuneStreak: { type: Number, default: 0 },
 
-        begCount: { type: Number, default: 0 },
-        lastBegDate: { type: String, default: null },
+        lastBegTime: { type: Date, default: null },,
 
         deleteCost: { type: Number, default: 1000 },
 
@@ -395,12 +394,27 @@ setInterval(async () => {
         '하늘에서 내려온 토끼가 하는말 바니바니 대박대박!!',
         '고굼박 최고!!, 대박소식!!',
         '매출 폭등!',
+        '꽁치그룹과의 협업!! 주가 상승!!',
+        '주가 상승을 위한 박모씨의 섹시댄스!!! 효과는 대단했다!!',
+        'ㅇㅇㅇ대표의 기부활동!! 마음이 따듯해진다!!',
+        '박모씨가 버튜버활동을 시작했다!! 의외의 수요!!',
+        '신제품 발표!!',
+        '양봉장 왕 당첨!!',
+        '부스트 후원!!! 레벨 업!!',
+        '드리미가 홍보를 하기 시작했다!!',
         '유저들의 관심 급상승!!, 대표가 맛있고 회사가 친절해요!',
         '해외 진출 성공!!! 세상으로 뻗어나가는 기술력!!'
     ];
 
     const badNews = [
         '맛없는 사내식당.., 1인 시위 발발',
+        '조폭 하모씨가 처들어왔다!! 비상!!',
+        '꽁치그룹의 방해공작!!',
+        '조모씨 감옥에 들어가다..',
+        '박모씨의 퇴사소식!! 팬들 등돌리다..',
+        '회장을 변기에 넣어버렸다..',
+        '조영재가 회장직을 맡아버렸다..',
+        '장민준이 회사 대표 가수로 취임해버렸다...',
         '대표 논란 발생!!, 직원 성추행, 음란한 대표,',
         '매출 폭락...',
         '산업스파이 등장!!! 급 떡락!!!',
@@ -419,16 +433,32 @@ setInterval(async () => {
 
         let percent;
 
+        const boomMessages = [
+
+            '신제품!! 해승봇 mk2005 출시!!! 주식 개 미친 폭등!!!',
+            '라이벌 꽁치그룹 파산!! 주식 개 미친 상승세!!!',
+            '산하그룹 꽁치방 창설!!! 주식 개 미친 폭등!!!'
+        ];
+
+        const crashMessages = [
+
+            '호달달달;; 상장폐지설 돌기 시작해.. 이대로 괜찮은가..',
+            'ㅇㅇㅇ대표 직원에게 막말논란.. 불꽃패드립 작렬해..',
+            'ㅇㅇㅇ대표 조폭 하모씨와의 친분과시 논란.. 이대로 진짜 괜찮은가',
+        ];
+
         // 🚀 폭등 5%
         if (random < 0.05) {
 
             percent =
                 Math.random() * 2 + 1;
-            // +100% ~ +300%
 
-            stock.news.unshift(
-                '미친 개 떡상!!! ㅇㅇㅇ대표 신제품 발표 해승봇 mk200 출시...'
-            );
+            const boom =
+                boomMessages[
+                    Math.floor(Math.random() * boomMessages.length)
+                ];
+
+            stock.news.unshift(boom);
         }
 
         // 💀 폭락 5%
@@ -436,11 +466,13 @@ setInterval(async () => {
 
             percent =
                 -(Math.random() * 0.7 + 0.3);
-            // -30% ~ -100%
 
-            stock.news.unshift(
-                '주가 대폭락!! ㅇㅇㅇ대표 직원에게 막말논란.. 불꽃 패드립 작렬.. 이대로 괜찮은가'
-            );
+            const crash =
+                crashMessages[
+                    Math.floor(Math.random() * crashMessages.length)
+                ];
+
+            stock.news.unshift(crash);
         }
 
         // 📈 일반 변동 90%
@@ -549,7 +581,7 @@ setInterval(async () => {
             const owner = await getUser(stock.owner);
 
             const fee =
-                Math.floor(stock.price * 0.3);
+                Math.floor(stock.price * 0.05);
 
             owner.money += fee;
 
@@ -1094,7 +1126,25 @@ client.on('interactionCreate', async interaction => {
 
         // ❌ 이미 오늘 했으면
         if (user.lastFortuneDate === today) {
-            return interaction.editReply('❌ 하루에 한번씩~.');
+
+            const now = new Date();
+
+            const tomorrow = new Date();
+
+            tomorrow.setHours(24, 0, 0, 0);
+
+            const diff = tomorrow - now;
+
+            const hours =
+                Math.floor(diff / 1000 / 60 / 60);
+
+            const minutes =
+                Math.floor((diff / 1000 / 60) % 60);
+
+            return interaction.editReply(
+                `❌ 하루에 한번만 가능!\n` +
+                `⏰ 남은 시간: ${hours}시간 ${minutes}분`
+            );
         }
 
         // 🔥 연속 체크
@@ -1672,31 +1722,47 @@ client.on('interactionCreate', async interaction => {
 
         const user = await getUser(interaction.user.id);
 
-        const today = new Date().toLocaleDateString('sv-SE', {
-            timeZone: 'Asia/Seoul'
-        });
+        const now = Date.now();
 
-        // 날짜 바뀌면 초기화
-        if (user.lastBegDate !== today) {
-            user.lastBegDate = today;
-            user.begCount = 0;
+        // 10분 쿨타임
+        if (user.lastBegTime) {
+
+            const diff =
+                now - new Date(user.lastBegTime).getTime();
+
+            const cooldown =
+                10 * 60 * 1000;
+
+            if (diff < cooldown) {
+
+                const remain =
+                    cooldown - diff;
+
+                const minutes =
+                    Math.floor(remain / 1000 / 60);
+
+                const seconds =
+                    Math.floor((remain / 1000) % 60);
+
+                return interaction.editReply(
+                    `❌ 아직 구걸 못함!\n` +
+                    `⏰ 남은 시간: ${minutes}분 ${seconds}초`
+                );
+            }
         }
 
-        // 하루 3번 제한
-        if (user.begCount >= 5) {
-            return interaction.editReply(
-                '❌ㅣ에라이 거지야 다섯번이상은 안된다!!'
-            );
-        }
+        // 100~300 랜덤 지급
+        const reward =
+            Math.floor(Math.random() * 201) + 100;
 
-        user.begCount += 1;
-        user.money += 500;
+        user.money += reward;
+
+        user.lastBegTime = new Date();
 
         await user.save();
 
         return interaction.editReply(
-            `🪙 500원을 구걸했다!\n` +
-            `📅 오늘 구걸 횟수: ${user.begCount}/5\n` +
+            `🪙 ${reward}원을 구걸했다!\n` +
             `💰 현재 돈: ${user.money}원`
         );
     }
