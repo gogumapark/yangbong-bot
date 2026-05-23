@@ -1802,6 +1802,14 @@ client.on('interactionCreate', async interaction => {
 
         let bet;
 
+        const user = await getUser(interaction.user.id);
+
+        let bet;
+
+        const user = await getUser(interaction.user.id);
+
+        let bet;
+
         if (input === '올인') {
             bet = user.money;
         } else {
@@ -1846,6 +1854,10 @@ client.on('interactionCreate', async interaction => {
 
         const input =
             interaction.options.getString('배팅');
+
+        let bet;
+
+        const user = await getUser(interaction.user.id);
 
         let bet;
 
@@ -1915,6 +1927,10 @@ client.on('interactionCreate', async interaction => {
 
         const input =
             interaction.options.getString('배팅');
+
+        let bet;
+
+       const user = await getUser(interaction.user.id);
 
         let bet;
 
