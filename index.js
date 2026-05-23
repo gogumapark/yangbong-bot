@@ -54,10 +54,12 @@ mongoose.connect(process.env.MONGO_URI)
         },
     });
 
-    const OpenAI = require('openai');
+    const { GoogleGenerativeAI } = require("@google/generative-ai");
 
-    const openai = new OpenAI({
-        apiKey: process.env.OPENAI_API_KEY
+    const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+
+    const model = genAI.getGenerativeModel({
+        model: "gemini-1.5-flash"
     });
 
     const Stock = mongoose.model('Stock', stockSchema);
@@ -2165,46 +2167,34 @@ process.on('uncaughtException', error => {
 client.on('messageCreate', async message => {
 
     if (message.author.bot) return;
-
-    // 설정 안됐으면 종료
     if (!aiChannelId) return;
-
-    // 지정 채널만 허용
     if (message.channel.id !== aiChannelId) return;
 
     try {
 
         await message.channel.sendTyping();
 
-        const response =
-            await openai.chat.completions.create({
+        const result = await model.generateContent({
+            contents: [
+                {
+                    role: "user",
+                    parts: [
+                        {
+                            text:
+                                "너는 인터넷에 절여진 디스코드 봇이다.  반말, 텐션 높게, 일베,패드립 금지 성희롱에 부끄러워 하며 대답.\n\n" +
+                                "유저: " + message.content
+                        }
+                    ]
+                }
+            ]
+        });
 
-                model: 'gpt-4.1-mini',
-
-                messages: [
-                    {
-                        role: 'system',
-                        content:
-                            '너는 인터넷에 절여진 디스코드 봇이다 (일베,패드립 금지), 반말 사용, 텐션 높음, 성희롱 관련에 쑥맥으로.'
-                    },
-                    {
-                        role: 'user',
-                        content: message.content
-                    }
-                ],
-
-                max_tokens: 200
-            });
-
-        const reply =
-            response.choices[0].message.content;
+        const reply = result.response.text();
 
         await message.reply(reply);
 
     } catch (err) {
-
         console.error(err);
-
         await message.reply('❌ AI 오류');
     }
 });
