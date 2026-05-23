@@ -59,7 +59,7 @@ mongoose.connect(process.env.MONGO_URI)
     const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
     const model = genAI.getGenerativeModel({
-        model: "gemini-1.5-flash"
+        model:gemini-1.5-flash
     });
 
     const Stock = mongoose.model('Stock', stockSchema);
