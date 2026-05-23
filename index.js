@@ -1680,9 +1680,9 @@ client.on('interactionCreate', async interaction => {
         }
 
         // 하루 3번 제한
-        if (user.begCount >= 3) {
+        if (user.begCount >= 5) {
             return interaction.editReply(
-                '❌ㅣ에라이 거지야 세번이상은 안된다!!'
+                '❌ㅣ에라이 거지야 다섯번이상은 안된다!!'
             );
         }
 
@@ -1693,7 +1693,7 @@ client.on('interactionCreate', async interaction => {
 
         return interaction.editReply(
             `🪙 500원을 구걸했다!\n` +
-            `📅 오늘 구걸 횟수: ${user.begCount}/3\n` +
+            `📅 오늘 구걸 횟수: ${user.begCount}/5\n` +
             `💰 현재 돈: ${user.money}원`
         );
     }
