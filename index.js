@@ -554,10 +554,6 @@ setInterval(async () => {
             owner.money += fee;
 
             await owner.save();
-
-            //stock.news.unshift(
-             //   `💰 대표 수수료 지급 (+${fee}원)`
-           // );
         }
 
         // 자동 상장폐지
