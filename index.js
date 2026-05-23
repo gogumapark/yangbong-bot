@@ -46,7 +46,11 @@ mongoose.connect(process.env.MONGO_URI)
         news: {
             type: [String],
             default: []
-        }
+        },
+        downStreak: {
+            type: Number,
+            default: 0
+        },
     });
 
     const Stock = mongoose.model('Stock', stockSchema);
@@ -242,16 +246,6 @@ const commands = [
         ),
 
     new SlashCommandBuilder()
-        .setName('상장폐지')
-        .setDescription('회사를 상장 폐지합니다')
-        .addStringOption(option =>
-            option
-                .setName('회사')
-                .setDescription('회사 이름')
-                .setRequired(true)
-        ),
-
-    new SlashCommandBuilder()
         .setName('도움말')
         .setDescription('양봉이의 도움말을 확인합니다.'),
 
@@ -417,10 +411,69 @@ setInterval(async () => {
 
         if (!stock.listed) continue;
 
-        let change =
-            Math.floor(Math.random() * 21) - 10;
+        // =========================
+        // 퍼센트 기반 변동
+        // =========================
 
-        // 뉴스 확률
+        const random = Math.random();
+
+        let percent;
+
+        // 🚀 폭등 5%
+        if (random < 0.05) {
+
+            percent =
+                Math.random() * 2 + 1;
+            // +100% ~ +300%
+
+            stock.news.unshift(
+                '🚀 미친 떡상 발생!!!'
+            );
+        }
+
+        // 💀 폭락 5%
+        else if (random < 0.10) {
+
+            percent =
+                -(Math.random() * 0.7 + 0.3);
+            // -30% ~ -100%
+
+            stock.news.unshift(
+                '💀 대폭락 발생!!!'
+            );
+        }
+
+        // 📈 일반 변동 90%
+        else {
+
+            percent =
+                (Math.random() * 40 - 20) / 100;
+            // -20% ~ +20%
+        }
+
+        // 실제 변동값 계산
+        let change =
+            Math.floor(stock.price * percent);
+
+        // 최소 변동 보정
+        if (change === 0) {
+
+            change =
+                Math.random() < 0.5
+                    ? -1
+                    : 1;
+        }
+
+        // 기존 가격 저장
+        const oldPrice = stock.price;
+
+        // 가격 반영
+        stock.price += change;
+
+        // =========================
+        // 뉴스 이벤트
+        // =========================
+
         const eventChance = Math.random();
 
         // 호재
@@ -431,11 +484,15 @@ setInterval(async () => {
                     Math.floor(Math.random() * goodNews.length)
                 ];
 
-            change +=
-                Math.floor(Math.random() * 40) + 20;
+            const bonus =
+                Math.floor(stock.price * (
+                    Math.random() * 0.3 + 0.1
+                ));
+
+            stock.price += bonus;
 
             stock.news.unshift(
-                `🟢 ${news}`
+                `🟢 ${news} (+${bonus}원)`
             );
         }
 
@@ -447,25 +504,67 @@ setInterval(async () => {
                     Math.floor(Math.random() * badNews.length)
                 ];
 
-            change -=
-                Math.floor(Math.random() * 40) + 20;
+            const minus =
+                Math.floor(stock.price * (
+                    Math.random() * 0.3 + 0.1
+                ));
+
+            stock.price -= minus;
 
             stock.news.unshift(
-                `🔴 ${news}`
+                `🔴 ${news} (-${minus}원)`
             );
         }
 
-        stock.price += change;
+        // 음수 방지
+        if (stock.price < 0) {
+            stock.price = 0;
+        }
 
-        if (stock.price < 1) {
-            stock.price = 1;
+        // =========================
+        // 연속 하락 체크
+        // =========================
+
+        if (stock.price < oldPrice) {
+
+            stock.downStreak += 1;
+
+        } else {
+
+            stock.downStreak = 0;
+        }
+
+        // 연속 하락 경고
+        if (stock.downStreak >= 5) {
+
+            stock.news.unshift(
+                `⚠ ${stock.downStreak}연속 하락중!!`
+            );
+        }
+
+        // 자동 상장폐지
+
+        if (
+            stock.listed &&
+            (
+                stock.downStreak >= 8 ||
+                stock.price <= 300
+            )
+        ) {
+
+            stock.listed = false;
+            stock.price = 0;
+
+            stock.news.unshift(
+                '💀 연속 하락/주가 폭락으로 상장폐지'
+            );
         }
 
         // 뉴스 최대 5개 유지
         stock.news = stock.news.slice(0, 5);
 
         await stock.save();
-    }
+        }
 
 }, 600000);
 
@@ -853,8 +952,17 @@ client.on('interactionCreate', async interaction => {
         \`/틱택토\`
         틱택토!!
 
+        \`//홀짝 배팅: 선택:\`
+        홀짝 도박을 합니다. 
+
+        \`/슬롯 배팅:\`
+        슬롯머신을 돌립니다. 
+
+        \`/블랙잭 배팅:\`
+        블랙잭을 시작합니다. 
+
         \`/도박 금액:\`
-        돈을 걸고 도박합니다.
+        돈을 걸고 도박합니다. %50!!
         `);
                 }
 
@@ -1028,6 +1136,23 @@ client.on('interactionCreate', async interaction => {
     
     if (interaction.commandName === '도움말') {
 
+        const embed = new EmbedBuilder()
+            .setTitle('🐝 양봉이')
+            .setDescription(
+                '안녕 날 소개하지 난 양봉장의 전용 봇 양봉이라고 하오\n\n' +
+                '아래 카테고리에서 명령어 확인'
+            )
+            .setColor('Green')
+
+            // 이미지 하나만
+            .setImage(
+                'https://cdn.discordapp.com/attachments/1110460136373366845/1506536312423841873/image.png'
+            )
+
+            .setFooter({
+                text: '양봉장의 전용 봇, 아이스크림을 좋아한다. '
+            });
+
         const menu = new StringSelectMenuBuilder()
             .setCustomId('help_menu')
             .setPlaceholder('카테고리 선택')
@@ -1063,7 +1188,7 @@ client.on('interactionCreate', async interaction => {
             .addComponents(menu);
 
         return interaction.reply({
-            content: '📚 도움말 카테고리를 선택하세요.',
+            embeds: [embed],
             components: [row],
             flags: 64
         });
@@ -1458,21 +1583,6 @@ client.on('interactionCreate', async interaction => {
 
         return interaction.editReply(`💰 ${name} ${qty}주 매도 완료`);
     }
-
-        if (interaction.commandName === '상장폐지') {
-            await interaction.deferReply();
-
-            const name = interaction.options.getString('회사');
-
-            const stock = await Stock.findOne({ name });
-            if (!stock) return interaction.editReply('없음');
-
-            stock.listed = false;
-            stock.price = 0;
-            await stock.save();
-
-            return interaction.editReply(`💀 ${name} 상장폐지되었습니다. 바이바이 휴지조각`);
-        }
 
     if (interaction.commandName === '주식') {
 
