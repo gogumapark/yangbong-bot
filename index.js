@@ -513,34 +513,27 @@ setInterval(async () => {
 
         const random = Math.random();
 
-        let percent;
-
-        const boomMessages = [
-
-            '신제품!! 해승봇 mk2005 출시!!! 주식 개 미친 폭등!!!',
-            '라이벌 꽁치그룹 파산!! 주식 개 미친 상승세!!!',
-            '산하그룹 꽁치방 창설!!! 주식 개 미친 폭등!!!'
-        ];
-
-        const crashMessages = [
-
-            '호달달달;; 상장폐지설 돌기 시작해.. 이대로 괜찮은가..',
-            'ㅇㅇㅇ대표 직원에게 막말논란.. 불꽃패드립 작렬해..',
-            'ㅇㅇㅇ대표 조폭 하모씨와의 친분과시 논란.. 이대로 진짜 괜찮은가',
-        ];
+        let percent = 0;
+        let newsText = '';
 
         // 🚀 폭등 5%
         if (random < 0.05) {
 
             percent =
                 Math.random() * 2 + 1;
+            // +100% ~ +300%
 
-            const boom =
+            const boomMessages = [
+
+                '초대형 투자 유치 예정!!!.. 떡상의 기회',
+                '꽁치기업과의 협업!!.. ㅇㅇ기업 빛을보다..',
+                '꽁치기업 주가 폭락... 라이벌 그룹 ㅇㅇ기업 폭등의 기회!!..',
+            ];
+
+            newsText =
                 boomMessages[
                     Math.floor(Math.random() * boomMessages.length)
                 ];
-
-            stock.news.unshift(boom);
         }
 
         // 💀 폭락 5%
@@ -548,21 +541,65 @@ setInterval(async () => {
 
             percent =
                 -(Math.random() * 0.7 + 0.3);
+            // -30% ~ -100%
 
-            const crash =
+            const crashMessages = [
+
+                '상장폐지 설 돌아... 과연 루머인가.. ',
+                'ㅇㅇ기업 사원 장ㅇㅇ 씨 "대표가 저에게 막말을 했어요.." 곧 밝혀질것',
+                'ㅇㅇ대표 조폭 하모씨와의 만남.. 둘의 친분 루머..',
+            ];
+
+            newsText =
                 crashMessages[
                     Math.floor(Math.random() * crashMessages.length)
                 ];
-
-            stock.news.unshift(crash);
         }
 
-        // 📈 일반 변동 90%
+        // 📈 호재 45%
+        else if (random < 0.55) {
+
+            percent =
+                Math.random() * 0.25 + 0.05;
+            // +5% ~ +30%
+
+            const goodNews = [
+
+                'ㅇㅇㅇ대표 선행 밝혀져.. "그저 도움이 되고 싶었다" ',
+                '꽁치기업과의 협업 루머.. 드디어 큰 거 오나..',
+                '매출 상승 기대.. ㅇㅇㅇ대표 입가에 큰 미소',
+                '박모씨의 사원 인터뷰.. 긍정적 평가..',
+                '드리미 홍보 담당으로 채택.. 사원평가 긍정적..',
+                '유저 평가 상승세.. ㅇㅇ기업의 긍정적 효과..'
+            ];
+
+            newsText =
+                goodNews[
+                    Math.floor(Math.random() * goodNews.length)
+                ];
+        }
+
+        // 📉 악재 45%
         else {
 
             percent =
-                (Math.random() * 40 - 20) / 100;
-            // -20% ~ +20%
+                -(Math.random() * 0.25 + 0.05);
+            // -5% ~ -30%
+
+            const badNews = [
+
+                'ㅇㅇ기업 사내식당 직원 대거 퇴사..',
+                '조폭 하모씨.. ㅇㅇ기업을 눈여겨보고있다.. 논란..',
+                '사원 박ㅇㅇ씨의 개인 인터뷰.. 불만 증가',
+                '장민준 회사 대표 가수로 취업해.. 사원들의 불만 증가',
+                '조모씨가 회장직을 맡아.. 루머',
+                '이ㅇㅇ 사원 충격고백!! 회장을 변기에...',
+            ];
+
+            newsText =
+                badNews[
+                    Math.floor(Math.random() * badNews.length)
+                ];
         }
 
         // 실제 변동값 계산
@@ -573,9 +610,9 @@ setInterval(async () => {
         if (change === 0) {
 
             change =
-                Math.random() < 0.5
-                    ? -1
-                    : 1;
+                percent > 0
+                    ? 1
+                    : -1;
         }
 
         // 기존 가격 저장
@@ -584,9 +621,20 @@ setInterval(async () => {
         // 가격 반영
         stock.price += change;
 
+        // 음수 방지
+        if (stock.price < 0) {
+            stock.price = 0;
+        }
+
+        // 뉴스 추가
+        stock.news.unshift(
+            `${newsText} (${change > 0 ? '+' : ''}${change}원)`
+        );
+
         // 변동 시간 기록
         stock.lastChangedAt = new Date();
-        stock.nextChangeAt = new Date(Date.now() + 600000);
+        stock.nextChangeAt =
+            new Date(Date.now() + 600000);
 
         // =========================
         // 뉴스 이벤트
@@ -668,17 +716,17 @@ setInterval(async () => {
             stock.listed &&
             (
                 stock.price <= 5 ||
-                stock.downStreak >= 9
+                stock.downStreak >= 12
             )
         ) {
 
             stock.listed = false;
             stock.price = 0;
 
-            if (stock.downStreak >= 9) {
+            if (stock.downStreak >= 12) {
 
                 stock.news.unshift(
-                    '💀 9연속 하락으로 상장폐지'
+                    '💀 12연속 하락으로 상장폐지'
                 );
 
             } else {
@@ -1865,7 +1913,9 @@ if (
 
         await interaction.deferReply();
 
-        const stocks = await Stock.find();
+        const stocks = await Stock.find({
+            deleted: { $ne: true }
+        });
 
         if (stocks.length === 0) {
             return interaction.editReply('주식 없음');
