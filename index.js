@@ -79,7 +79,23 @@ mongoose.connect(process.env.MONGO_URI)
         nextChangeAt: {
             type: Date,
             default: () => new Date(Date.now() + 600000)
-        }
+        },
+
+        pendingNews: {
+            type: String,
+            default: null
+        },
+
+        pendingPercent: {
+            type: Number,
+            default: null
+        },
+
+        pendingType: {
+            type: String,
+            default: null
+        },
+                
     });
 
     const Groq = require("groq-sdk");
@@ -511,8 +527,6 @@ setInterval(async () => {
         // 퍼센트 기반 변동
         // =========================
 
-        const random = Math.random();
-
         let percent;
 
         const boomMessages = [
@@ -529,40 +543,83 @@ setInterval(async () => {
             'ㅇㅇㅇ대표 조폭 하모씨와의 친분과시 논란.. 이대로 진짜 괜찮은가',
         ];
 
-        // 🚀 폭등 5%
-        if (random < 0.05) {
+        // 뉴스 예측 결과 사용
+        if (stock.pendingPercent !== null) {
 
-            percent =
-                Math.random() * 2 + 1;
+            percent = stock.pendingPercent;
 
-            const boom =
-                boomMessages[
-                    Math.floor(Math.random() * boomMessages.length)
-                ];
+            // 저장된 뉴스 출력
+            stock.news.unshift(
+                `📰 ${stock.pendingNews}`
+            );
 
-            stock.news.unshift(boom);
+            // 🚀 폭등 뉴스 실제 발동
+            if (stock.pendingType === 'boom') {
+
+                const boom =
+                    boomMessages[
+                        Math.floor(Math.random() * boomMessages.length)
+                    ];
+
+                stock.news.unshift(`🚀 ${boom}`);
+            }
+
+            // 💀 폭락 뉴스 실제 발동
+            else if (stock.pendingType === 'crash') {
+
+                const crash =
+                    crashMessages[
+                        Math.floor(Math.random() * crashMessages.length)
+                    ];
+
+                stock.news.unshift(`💀 ${crash}`);
+            }
+
+            // 초기화
+            stock.pendingPercent = null;
+            stock.pendingNews = null;
+            stock.pendingType = null;
         }
 
-        // 💀 폭락 5%
-        else if (random < 0.10) {
-
-            percent =
-                -(Math.random() * 0.7 + 0.3);
-
-            const crash =
-                crashMessages[
-                    Math.floor(Math.random() * crashMessages.length)
-                ];
-
-            stock.news.unshift(crash);
-        }
-
-        // 📈 일반 변동 90%
+        // 뉴스 없으면 랜덤
         else {
 
-            percent =
-                (Math.random() * 40 - 20) / 100;
-            // -20% ~ +20%
+            const random = Math.random();
+
+            // 🚀 폭등
+            if (random < 0.05) {
+
+                percent =
+                    Math.random() * 2 + 1;
+
+                const boom =
+                    boomMessages[
+                        Math.floor(Math.random() * boomMessages.length)
+                    ];
+
+                stock.news.unshift(`🚀 ${boom}`);
+            }
+
+            // 💀 폭락
+            else if (random < 0.10) {
+
+                percent =
+                    -(Math.random() * 0.7 + 0.3);
+
+                const crash =
+                    crashMessages[
+                        Math.floor(Math.random() * crashMessages.length)
+                    ];
+
+                stock.news.unshift(`💀 ${crash}`);
+            }
+
+            // 일반 변동
+            else {
+
+                percent =
+                    (Math.random() * 40 - 20) / 100;
+            }
         }
 
         // 실제 변동값 계산
@@ -1953,7 +2010,7 @@ if (
         }
 
         const goodPreview = [
-            'ㅇㅇㅇ대표 선행 밝혀져.. "그저 도움이 되고 싶었다" ',
+            'ㅇㅇㅇ대표 선행 밝혀져.. "그저 도움이 되고 싶었다"',
             '꽁치기업과의 협업 루머.. 드디어 큰 거 오나..',
             '매출 상승 기대.. ㅇㅇㅇ대표 입가에 큰 미소',
             '박모씨의 사원 인터뷰.. 긍정적 평가..',
@@ -1977,7 +2034,7 @@ if (
         ];
 
         const crashPreview = [
-            '상장폐지 설 돌아... 과연 루머인가.. ',
+            '상장폐지 설 돌아... 과연 루머인가..',
             'ㅇㅇ기업 사원 장ㅇㅇ 씨 "대표가 저에게 막말을 했어요.." 곧 밝혀질것',
             'ㅇㅇ대표 조폭 하모씨와의 만남.. 둘의 친분 루머..',
         ];
@@ -1986,12 +2043,14 @@ if (
 
         for (const stock of stocks) {
 
-            const random = Math.random();
-
             let type;
             let news;
             let chance;
+            let percent;
 
+            const random = Math.random();
+
+            // 🚀 폭등
             if (random < 0.05) {
 
                 type = '🚀 폭등 가능성';
@@ -2002,7 +2061,12 @@ if (
                         Math.floor(Math.random() * boomPreview.length)
                     ];
 
-            } else if (random < 0.10) {
+                percent =
+                    Math.random() * 2 + 1;
+            }
+
+            // 💀 폭락
+            else if (random < 0.10) {
 
                 type = '💀 폭락 가능성';
                 chance = '5%';
@@ -2012,7 +2076,12 @@ if (
                         Math.floor(Math.random() * crashPreview.length)
                     ];
 
-            } else if (random < 0.55) {
+                percent =
+                    -(Math.random() * 0.7 + 0.3);
+            }
+
+            // 📈 상승
+            else if (random < 0.55) {
 
                 type = '📈 상승 예상';
                 chance = '45%';
@@ -2022,7 +2091,12 @@ if (
                         Math.floor(Math.random() * goodPreview.length)
                     ];
 
-            } else {
+                percent =
+                    Math.random() * 0.2;
+            }
+
+            // 📉 하락
+            else {
 
                 type = '📉 하락 예상';
                 chance = '45%';
@@ -2031,7 +2105,16 @@ if (
                     badPreview[
                         Math.floor(Math.random() * badPreview.length)
                     ];
+
+                percent =
+                    -(Math.random() * 0.2);
             }
+
+            // 실제 다음 변동 저장
+            stock.pendingNews = news;
+            stock.pendingPercent = percent;
+
+            await stock.save();
 
             const lastTime =
                 stock.lastChangedAt
@@ -2099,7 +2182,7 @@ if (
                 pages[0],
             components: [row]
         });
-}
+    }
 
 
     if (interaction.commandName === '구걸') {
