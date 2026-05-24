@@ -606,18 +606,18 @@ setInterval(async () => {
             await owner.save();
         }
 
-        // 자동 상장폐지
+        // 자동 상장폐지 (5원 이하)
 
         if (
             stock.listed &&
-            stock.downStreak >= 12
+            stock.price <= 5
         ) {
 
             stock.listed = false;
             stock.price = 0;
 
             stock.news.unshift(
-                '💀 12연속 하락으로 상장폐지'
+                '💀 주가 5원 이하로 상장폐지'
             );
         }
 
