@@ -606,19 +606,31 @@ setInterval(async () => {
             await owner.save();
         }
 
-        // 자동 상장폐지 (5원 이하)
+        // 자동 상장폐지
+
+        const isPriceDelisted = stock.price <= 5;
+        const isDownDelisted = stock.downStreak >= 9;
 
         if (
             stock.listed &&
-            stock.price <= 5
+            (isPriceDelisted || isDownDelisted)
         ) {
+
+            if (isPriceDelisted) {
+
+                stock.news.unshift(
+                    '💀 주가 5원 이하로 상장폐지'
+                );
+
+            } else if (isDownDelisted) {
+
+                stock.news.unshift(
+                    '💀 9연속 하락으로 상장폐지'
+                );
+            }
 
             stock.listed = false;
             stock.price = 0;
-
-            stock.news.unshift(
-                '💀 주가 5원 이하로 상장폐지'
-            );
         }
 
         // 뉴스 최대 5개 유지
