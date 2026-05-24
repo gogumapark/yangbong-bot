@@ -42,16 +42,44 @@ mongoose.connect(process.env.MONGO_URI)
     const stockSchema = new mongoose.Schema({
         name: { type: String, unique: true },
         owner: String,
+
+        // 삭제 여부
+        deleted: {
+            type: Boolean,
+            default: false
+        },
+
+        // 삭제 시간
+        deletedAt: {
+            type: Date,
+            default: null
+        },
+
         price: { type: Number, default: 100 },
+
         listed: { type: Boolean, default: true },
+
         news: {
             type: [String],
             default: []
         },
+
         downStreak: {
             type: Number,
             default: 0
         },
+
+        // 마지막 변동 시간
+        lastChangedAt: {
+            type: Date,
+            default: Date.now
+        },
+
+        // 다음 변동 시간
+        nextChangeAt: {
+            type: Date,
+            default: () => new Date(Date.now() + 1200000)
+        }
     });
 
     const Groq = require("groq-sdk");
@@ -422,7 +450,9 @@ function createBoard(gameId) {
 
 setInterval(async () => {
 
-    const stocks = await Stock.find();
+    const stocks = await Stock.find({
+        deleted: { $ne: true }
+    });
 
     const goodNews = [
         '하늘에서 내려온 토끼가 하는말 바니바니 대박대박!!',
@@ -535,6 +565,10 @@ setInterval(async () => {
 
         // 가격 반영
         stock.price += change;
+
+        // 변동 시간 기록
+        stock.lastChangedAt = new Date();
+        stock.nextChangeAt = new Date(Date.now() + 1200000);
 
         // =========================
         // 뉴스 이벤트
@@ -1580,10 +1614,18 @@ client.on('interactionCreate', async interaction => {
         const name =
             interaction.options.getString('이름');
 
-        const exists =
-            await Stock.findOne({ name });
+        const exists = await Stock.findOne({ name });
 
         if (exists) {
+
+            // 삭제된 회사 포함
+            if (exists.deleted) {
+
+                return interaction.editReply(
+                    '❌ 삭제된 회사 이름은 다시 사용할 수 없습니다.'
+                );
+            }
+
             return interaction.editReply(
                 '이미 존재하는 회사입니다.'
             );
@@ -1782,7 +1824,10 @@ client.on('interactionCreate', async interaction => {
 
         await interaction.deferReply();
 
-        const stocks = await Stock.find({ listed: true });
+        const stocks = await Stock.find({
+            listed: true,
+            deleted: { $ne: true }
+        });
 
         if (stocks.length === 0) {
             return interaction.editReply('상장된 회사 없음');
@@ -1881,11 +1926,23 @@ client.on('interactionCreate', async interaction => {
                     ];
             }
 
+            const lastTime =
+                stock.lastChangedAt
+                    ? `<t:${Math.floor(stock.lastChangedAt.getTime() / 1000)}:R>`
+                    : '없음';
+
+            const nextTime =
+                stock.nextChangeAt
+                    ? `<t:${Math.floor(stock.nextChangeAt.getTime() / 1000)}:R>`
+                    : '없음';
+
             text +=
                 `🏢 ${stock.name}\n` +
                 `예상 변동: ${type}\n` +
                 `확률: ${chance}\n` +
-                `📰 ${news}\n\n`;
+                `📰 ${news}\n` +
+                `⏰ 최근 변동: ${lastTime}\n` +
+                `🕒 다음 변동: ${nextTime}\n\n`;
         }
 
         return interaction.editReply(
@@ -2027,7 +2084,17 @@ client.on('interactionCreate', async interaction => {
 
         await user.save();
 
-        await Stock.deleteOne({ name });
+        stock.deleted = true;
+        stock.deletedAt = new Date();
+
+        stock.listed = false;
+        stock.price = 0;
+
+        stock.news.unshift(
+            `💀 회사 삭제됨`
+        );
+
+        await stock.save();
 
         return interaction.editReply(
             `🗑 ${name} 회사 삭제 완료!\n` +
