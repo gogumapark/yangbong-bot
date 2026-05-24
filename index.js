@@ -150,6 +150,10 @@ const userFortunes = {};
 const commands = [
 
     new SlashCommandBuilder()
+        .setName('뉴스')
+        .setDescription('다음 주식 변동 예측 뉴스를 확인합니다'),
+
+    new SlashCommandBuilder()
         .setName('성격설정')
         .setDescription('AI 성격을 설정합니다')
         .addStringOption(option =>
@@ -664,7 +668,7 @@ setInterval(async () => {
         await stock.save();
         }
 
-}, 600000);
+}, 1200000);
 
 
 client.on('interactionCreate', async interaction => {
@@ -1772,6 +1776,121 @@ client.on('interactionCreate', async interaction => {
     ${myStockTable}
     \`\`\``
         });
+    }
+
+    if (interaction.commandName === '뉴스') {
+
+        await interaction.deferReply();
+
+        const stocks = await Stock.find({ listed: true });
+
+        if (stocks.length === 0) {
+            return interaction.editReply('상장된 회사 없음');
+        }
+
+        // 일반 호재
+        const goodPreview = [
+            'ㅇㅇ기업 신제품 발표 예정.. 투자자들의 관심 급 증!!',
+            'ㅇㅇㅇ대표 선행 밝혀져.. "그저 도움이 되고 싶었다" ',
+            '꽁치기업과의 협업 루머.. 드디어 큰 거 오나..',
+            '매출 상승 기대.. ㅇㅇㅇ대표 입가에 큰 미소',
+            '박모씨의 사원 인터뷰.. 긍정적 평가..',
+            '드리미 홍보 담당으로 채택.. 사원평가 긍정적..',
+            '유저 평가 상승세.. ㅇㅇ기업의 긍정적 효과..'
+        ];
+
+        // 일반 악재
+        const badPreview = [
+            'ㅇㅇ기업 사내식당 직원 대거 퇴사..',
+            '조폭 하모씨.. ㅇㅇ기업을 눈여겨보고있다.. 논란..',
+            '사원 박ㅇㅇ씨의 개인 인터뷰.. 불만 증가',
+            '장민준 회사 대표 가수로 취업해.. 사원들의 불만 증가',
+            '조모씨가 회장직을 맡아.. 루머',
+            '이ㅇㅇ 사원 충격고백!! 회장을 변기에...',
+        ];
+
+        // 폭등 예측 뉴스
+        const boomPreview = [
+            '초대형 투자 유치 예정!!!.. 떡상의 기회',
+            '꽁치기업과의 협업!!.. ㅇㅇ기업 빛을보다..',
+            '꽁치기업 주가 폭락... 라이벌 그룹 ㅇㅇ기업 폭등의 기회!!..',
+        ];
+
+        // 폭락 예측 뉴스
+        const crashPreview = [
+            '상장폐지 설 돌아... 과연 루머인가.. ',
+            'ㅇㅇ기업 사원 장ㅇㅇ 씨 "대표가 저에게 막말을 했어요.." 곧 밝혀질것',
+            'ㅇㅇ대표 조폭 하모씨와의 만남.. 둘의 친분 루머..',
+        ];
+
+        let text = '';
+
+        for (const stock of stocks) {
+
+            const random = Math.random();
+
+            let type;
+            let news;
+            let chance;
+
+            // 🚀 폭등 확률 5%
+            if (random < 0.05) {
+
+                type = '🚀 폭등 가능성';
+                chance = '5%';
+
+                news =
+                    boomPreview[
+                        Math.floor(Math.random() * boomPreview.length)
+                    ];
+            }
+
+            // 💀 폭락 확률 5%
+            else if (random < 0.10) {
+
+                type = '💀 폭락 가능성';
+                chance = '5%';
+
+                news =
+                    crashPreview[
+                        Math.floor(Math.random() * crashPreview.length)
+                    ];
+            }
+
+            // 📈 일반 상승 45%
+            else if (random < 0.55) {
+
+                type = '📈 상승 예상';
+                chance = '45%';
+
+                news =
+                    goodPreview[
+                        Math.floor(Math.random() * goodPreview.length)
+                    ];
+            }
+
+            // 📉 일반 하락 45%
+            else {
+
+                type = '📉 하락 예상';
+                chance = '45%';
+
+                news =
+                    badPreview[
+                        Math.floor(Math.random() * badPreview.length)
+                    ];
+            }
+
+            text +=
+                `🏢 ${stock.name}\n` +
+                `예상 변동: ${type}\n` +
+                `확률: ${chance}\n` +
+                `📰 ${news}\n\n`;
+        }
+
+        return interaction.editReply(
+            `🗞 다음 변동 예측 뉴스\n\n${text}`
+        );
     }
 
 
