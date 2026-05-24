@@ -152,6 +152,8 @@ const client = new Client({
     ]
 });
 
+const newsPages = new Map();
+
 const blackjackGames = new Map();
 
 const tttGames = new Map();
@@ -714,78 +716,93 @@ client.on('interactionCreate', async interaction => {
 
             // 뉴스 페이지
 
-            if (
-                interaction.customId.startsWith('news_prev_') ||
-                interaction.customId.startsWith('news_next_')
-            ) {
+            // 뉴스 페이지 버튼
+if (
+        interaction.customId.startsWith('news_prev_') ||
+        interaction.customId.startsWith('news_next_')
+    ) {
 
-                const pageId =
-                    interaction.customId.split('_')[2];
+        await interaction.deferUpdate();
 
-                const data =
-                    newsPages.get(pageId);
+        try {
 
-                if (!data) {
+            const pageId =
+                interaction.customId.split('_')[2];
 
-                    return interaction.reply({
-                        content: '❌ 뉴스가 만료됨',
-                        flags: 64
-                    });
-                }
+            const data =
+                newsPages.get(pageId);
 
-                if (
-                    interaction.user.id !== data.userId
-                ) {
+            if (!data) {
 
-                    return interaction.reply({
-                        content: '❌ 본인만 사용 가능',
-                        flags: 64
-                    });
-                }
-
-                if (
-                    interaction.customId.startsWith('news_prev_')
-                ) {
-
-                    data.page--;
-
-                } else {
-
-                    data.page++;
-                }
-
-                if (data.page < 0)
-                    data.page = 0;
-
-                if (data.page >= data.pages.length)
-                    data.page = data.pages.length - 1;
-
-                const row =
-                    new ActionRowBuilder()
-                        .addComponents(
-
-                            new ButtonBuilder()
-                                .setCustomId(`news_prev_${pageId}`)
-                                .setLabel('◀')
-                                .setStyle(ButtonStyle.Secondary)
-                                .setDisabled(data.page === 0),
-
-                            new ButtonBuilder()
-                                .setCustomId(`news_next_${pageId}`)
-                                .setLabel('▶')
-                                .setStyle(ButtonStyle.Secondary)
-                                .setDisabled(
-                                    data.page === data.pages.length - 1
-                                )
-                        );
-
-                return interaction.update({
-                    content:
-                        `🗞 주식 뉴스 (${data.page + 1}/${data.pages.length})\n\n` +
-                        data.pages[data.page],
-                    components: [row]
+                return interaction.editReply({
+                    content: '❌ 뉴스가 만료됨',
+                    components: []
                 });
             }
+
+            if (
+                interaction.user.id !== data.userId
+            ) {
+
+                return interaction.followUp({
+                    content: '❌ 본인만 사용 가능',
+                    flags: 64
+                });
+            }
+
+            if (
+                interaction.customId.startsWith('news_prev_')
+            ) {
+
+                data.page--;
+
+            } else {
+
+                data.page++;
+            }
+
+            if (data.page < 0)
+                data.page = 0;
+
+            if (data.page >= data.pages.length)
+                data.page = data.pages.length - 1;
+
+            const row =
+                new ActionRowBuilder()
+                    .addComponents(
+
+                        new ButtonBuilder()
+                            .setCustomId(`news_prev_${pageId}`)
+                            .setLabel('◀')
+                            .setStyle(ButtonStyle.Secondary)
+                            .setDisabled(data.page === 0),
+
+                        new ButtonBuilder()
+                            .setCustomId(`news_next_${pageId}`)
+                            .setLabel('▶')
+                            .setStyle(ButtonStyle.Secondary)
+                            .setDisabled(
+                                data.page === data.pages.length - 1
+                            )
+                    );
+
+            return interaction.editReply({
+                content:
+                    `🗞 주식 뉴스 (${data.page + 1}/${data.pages.length})\n\n` +
+                    data.pages[data.page],
+                components: [row]
+            });
+
+        } catch (err) {
+
+            console.error(err);
+
+            return interaction.followUp({
+                content: '❌ 오류 발생',
+                flags: 64
+            });
+        }
+    }
 
             //블랙잭
 
