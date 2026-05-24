@@ -722,7 +722,8 @@ client.on('interactionCreate', async interaction => {
                 const pageId =
                     interaction.customId.split('_')[2];
 
-                const data = newsPages.get(pageId);
+                const data =
+                    newsPages.get(pageId);
 
                 if (!data) {
 
@@ -732,7 +733,9 @@ client.on('interactionCreate', async interaction => {
                     });
                 }
 
-                if (interaction.user.id !== data.userId) {
+                if (
+                    interaction.user.id !== data.userId
+                ) {
 
                     return interaction.reply({
                         content: '❌ 본인만 사용 가능',
@@ -757,32 +760,34 @@ client.on('interactionCreate', async interaction => {
                 if (data.page >= data.pages.length)
                     data.page = data.pages.length - 1;
 
-                const row = new ActionRowBuilder()
-                    .addComponents(
+                const row =
+                    new ActionRowBuilder()
+                        .addComponents(
 
-                        new ButtonBuilder()
-                            .setCustomId(`news_prev_${pageId}`)
-                            .setLabel('◀')
-                            .setStyle(ButtonStyle.Secondary)
-                            .setDisabled(data.page === 0),
+                            new ButtonBuilder()
+                                .setCustomId(`news_prev_${pageId}`)
+                                .setLabel('◀')
+                                .setStyle(ButtonStyle.Secondary)
+                                .setDisabled(data.page === 0),
 
-                        new ButtonBuilder()
-                            .setCustomId(`news_next_${pageId}`)
-                            .setLabel('▶')
-                            .setStyle(ButtonStyle.Secondary)
-                            .setDisabled(
-                                data.page === data.pages.length - 1
-                            )
-                    );
+                            new ButtonBuilder()
+                                .setCustomId(`news_next_${pageId}`)
+                                .setLabel('▶')
+                                .setStyle(ButtonStyle.Secondary)
+                                .setDisabled(
+                                    data.page === data.pages.length - 1
+                                )
+                        );
 
-                return interaction.update({
+                await interaction.deferUpdate();
+
+                return interaction.editReply({
                     content:
                         `🗞 주식 뉴스 (${data.page + 1}/${data.pages.length})\n\n` +
                         data.pages[data.page],
                     components: [row]
                 });
             }
-
 
             //블랙잭
 
@@ -1915,7 +1920,7 @@ client.on('interactionCreate', async interaction => {
         }
 
         const goodPreview = [
-             'ㅇㅇㅇ대표 선행 밝혀져.. "그저 도움이 되고 싶었다" ',
+            'ㅇㅇㅇ대표 선행 밝혀져.. "그저 도움이 되고 싶었다" ',
             '꽁치기업과의 협업 루머.. 드디어 큰 거 오나..',
             '매출 상승 기대.. ㅇㅇㅇ대표 입가에 큰 미소',
             '박모씨의 사원 인터뷰.. 긍정적 평가..',
@@ -2006,17 +2011,25 @@ client.on('interactionCreate', async interaction => {
                     : '없음';
 
             pages.push(
-                `🏢 ${stock.name}
 
-    📊 현재 가격: ${stock.price}원
-    📈 예상 변동: ${type}
-    🎲 확률: ${chance}
+    `🏢 ${stock.name}
 
-    📰 뉴스
+    💰 현재 가격: ${stock.price}원
+
+    📊 예상 변동:
+    ${type}
+
+    🎲 확률:
+    ${chance}
+
+    📰 뉴스:
     ${news}
 
-    ⏰ 최근 변동: ${lastTime}
-    🕒 다음 변동: ${nextTime}`
+    ⏰ 최근 변동:
+    ${lastTime}
+
+    🕒 다음 변동:
+    ${nextTime}`
             );
         }
 
@@ -2028,21 +2041,24 @@ client.on('interactionCreate', async interaction => {
             page: 0
         });
 
-        const row = new ActionRowBuilder()
-            .addComponents(
+        const row =
+            new ActionRowBuilder()
+                .addComponents(
 
-                new ButtonBuilder()
-                    .setCustomId(`news_prev_${pageId}`)
-                    .setLabel('◀')
-                    .setStyle(ButtonStyle.Secondary)
-                    .setDisabled(true),
+                    new ButtonBuilder()
+                        .setCustomId(`news_prev_${pageId}`)
+                        .setLabel('◀')
+                        .setStyle(ButtonStyle.Secondary)
+                        .setDisabled(true),
 
-                new ButtonBuilder()
-                    .setCustomId(`news_next_${pageId}`)
-                    .setLabel('▶')
-                    .setStyle(ButtonStyle.Secondary)
-                    .setDisabled(pages.length <= 1)
-            );
+                    new ButtonBuilder()
+                        .setCustomId(`news_next_${pageId}`)
+                        .setLabel('▶')
+                        .setStyle(ButtonStyle.Secondary)
+                        .setDisabled(
+                            pages.length <= 1
+                        )
+                );
 
         return interaction.editReply({
             content:
@@ -2050,7 +2066,7 @@ client.on('interactionCreate', async interaction => {
                 pages[0],
             components: [row]
         });
-    }
+}
 
 
     if (interaction.commandName === '구걸') {
