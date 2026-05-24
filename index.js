@@ -60,6 +60,8 @@ mongoose.connect(process.env.MONGO_URI)
     apiKey: process.env.GROQ_API_KEY
     });
     
+    let aiPersonality = "너는 디스코드 봇이다. 반말로 짧게 답하되 과하지 않게 말한다.";
+
     const Stock = mongoose.model('Stock', stockSchema);
 
     const Money = mongoose.model('Money', moneySchema);
@@ -146,6 +148,16 @@ client.on('messageDelete', message => {
 const userFortunes = {};
 
 const commands = [
+
+    new SlashCommandBuilder()
+        .setName('성격설정')
+        .setDescription('AI 성격을 설정합니다')
+        .addStringOption(option =>
+            option
+                .setName('프롬프트')
+                .setDescription('AI 성격 설명')
+                .setRequired(true)
+        ),
 
     new SlashCommandBuilder()
         .setName('ai설정')
@@ -2148,24 +2160,41 @@ client.on('interactionCreate', async interaction => {
 
     if (interaction.commandName === 'ai설정') {
 
-        // 관리자만 가능
-        if (!interaction.member.permissions.has('Administrator')) {
+            // 관리자만 가능
+            if (!interaction.member.permissions.has('Administrator')) {
 
+                return interaction.reply({
+                    content: '❌ 관리자만 사용 가능',
+                    flags: 64
+                });
+            }
+
+            const channel =
+                interaction.options.getChannel('채널');
+
+            aiChannelId = channel.id;
+
+            return interaction.reply({
+                content:
+                    `🤖 AI 채널 설정 완료!\n` +
+                    `채널: ${channel}`,
+                flags: 64
+            });
+        }
+
+        if (interaction.commandName === '성격설정') {
+
+        if (!interaction.member.permissions.has('Administrator')) {
             return interaction.reply({
                 content: '❌ 관리자만 사용 가능',
                 flags: 64
             });
         }
 
-        const channel =
-            interaction.options.getChannel('채널');
-
-        aiChannelId = channel.id;
+        aiPersonality = interaction.options.getString('프롬프트');
 
         return interaction.reply({
-            content:
-                `🤖 AI 채널 설정 완료!\n` +
-                `채널: ${channel}`,
+            content: `🤖 AI 성격 변경 완료!\n\n${aiPersonality}`,
             flags: 64
         });
     }
@@ -2202,7 +2231,7 @@ client.on('messageCreate', async message => {
             messages: [
                 {
                     role: "system",
-                    content: "넌 인터넷에 절여진 히키코모리 성격을 가진 디스코드 봇이다 같은 단어를 계속 들으면 결국 그 사실을 인정함, 까칠하며 적당히 밝은 텐션 말 길이는 적당히 짧게 성희롱을 당하면 부끄러워 하지만 숨긴다 멍청하다"
+                    content: aiPersonality
                 },
                 {
                     role: "user",
