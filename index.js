@@ -592,45 +592,58 @@ setInterval(async () => {
             );
         }
 
-        // 대표 수수료 지급 (10분마다 30%)
-
-        if (stock.owner) {
-
-            const owner = await getUser(stock.owner);
-
-            const fee =
-                Math.floor(stock.price * 0.05);
-
-            owner.money += fee;
-
-            await owner.save();
-        }
-
+        // =========================
         // 자동 상장폐지
-
-        const isPriceDelisted = stock.price <= 5;
-        const isDownDelisted = stock.downStreak >= 9;
+        // =========================
 
         if (
             stock.listed &&
-            (isPriceDelisted || isDownDelisted)
+            (
+                stock.price <= 5 ||
+                stock.downStreak >= 9
+            )
         ) {
 
-            if (isPriceDelisted) {
+            stock.listed = false;
+            stock.price = 0;
 
-                stock.news.unshift(
-                    '💀 주가 5원 이하로 상장폐지'
-                );
-
-            } else if (isDownDelisted) {
+            if (stock.downStreak >= 9) {
 
                 stock.news.unshift(
                     '💀 9연속 하락으로 상장폐지'
                 );
+
+            } else {
+
+                stock.news.unshift(
+                    '💀 주가 5원 이하로 상장폐지'
+                );
             }
 
-            stock.listed = false;
-            stock.price = 0;
+            // 뉴스 최대 5개 유지
+            stock.news = stock.news.slice(0, 5);
+
+            // 즉시 저장
+            await stock.save();
+
+            // 다음 회사 처리
+            continue;
+        }
+
+        // =========================
+        // 대표 수수료 지급
+        // =========================
+
+        if (stock.owner && stock.listed) {
+
+            const owner = await getUser(stock.owner);
+
+            const fee =
+                Math.floor(stock.price * 0.1);
+
+            owner.money += fee;
+
+            await owner.save();
         }
 
         // 뉴스 최대 5개 유지
