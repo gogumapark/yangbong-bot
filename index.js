@@ -78,7 +78,7 @@ mongoose.connect(process.env.MONGO_URI)
         // 다음 변동 시간
         nextChangeAt: {
             type: Date,
-            default: () => new Date(Date.now() + 1200000)
+            default: () => new Date(Date.now() + 600000)
         }
     });
 
@@ -178,6 +178,22 @@ client.on('messageDelete', message => {
 const userFortunes = {};
 
 const commands = [
+
+    new SlashCommandBuilder()
+    .setName('송금')
+    .setDescription('다른 유저에게 돈을 송금합니다')
+    .addUserOption(option =>
+        option
+            .setName('유저')
+            .setDescription('송금 받을 유저')
+            .setRequired(true)
+    )
+    .addIntegerOption(option =>
+        option
+            .setName('금액')
+            .setDescription('송금 금액')
+            .setRequired(true)
+    ),
 
     new SlashCommandBuilder()
         .setName('뉴스')
@@ -570,7 +586,7 @@ setInterval(async () => {
 
         // 변동 시간 기록
         stock.lastChangedAt = new Date();
-        stock.nextChangeAt = new Date(Date.now() + 1200000);
+        stock.nextChangeAt = new Date(Date.now() + 600000);
 
         // =========================
         // 뉴스 이벤트
@@ -704,7 +720,7 @@ setInterval(async () => {
         await stock.save();
         }
 
-}, 1200000);
+}, 600000);
 
 
 client.on('interactionCreate', async interaction => {
@@ -1200,6 +1216,9 @@ if (
 
         \`/구걸\`
         하루 다섯번 500원을 획득합니다!!
+
+        \`/송금 유저: 금액:\`
+        다른 유저에게 돈을 송금합니다!
 
         \`/운세\`
         오늘의 운세를 확인합니다!! (출석체크!! 1000원 씩 흭득!!)
@@ -2516,6 +2535,71 @@ if (
             content: `🤖 AI 성격 변경 완료!\n\n${aiPersonality}`,
             flags: 64
         });
+    }
+
+
+    if (interaction.commandName === '송금') {
+
+        await interaction.deferReply();
+
+        const target =
+            interaction.options.getUser('유저');
+
+        const amount =
+            interaction.options.getInteger('금액');
+
+        // 자기 자신 송금 방지
+        if (target.id === interaction.user.id) {
+
+            return interaction.editReply(
+                '❌ 자기 자신에게는 송금 불가'
+            );
+        }
+
+        // 봇 송금 방지
+        if (target.bot) {
+
+            return interaction.editReply(
+                '❌ 봇에게는 송금 불가'
+            );
+        }
+
+        // 금액 체크
+        if (amount <= 0) {
+
+            return interaction.editReply(
+                '❌ 1원 이상 송금 가능'
+            );
+        }
+
+        const sender =
+            await getUser(interaction.user.id);
+
+        // 돈 부족
+        if (sender.money < amount) {
+
+            return interaction.editReply(
+                `❌ 돈 부족\n현재 돈: ${sender.money}원`
+            );
+        }
+
+        const receiver =
+            await getUser(target.id);
+
+        // 송금
+        sender.money -= amount;
+        receiver.money += amount;
+
+        await sender.save();
+        await receiver.save();
+
+        return interaction.editReply(
+            `💸 송금 완료!\n\n` +
+            `보낸 사람: ${interaction.user.username}\n` +
+            `받는 사람: ${target.username}\n` +
+            `송금 금액: ${amount}원\n\n` +
+            `💰 현재 돈: ${sender.money}원`
+        );
     }
         
 
