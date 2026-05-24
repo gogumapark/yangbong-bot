@@ -39,6 +39,39 @@ mongoose.connect(process.env.MONGO_URI)
         }
     });
 
+    // 뉴스용 문구
+
+    const goodPreview = [
+        'ㅇㅇㅇ대표 선행 밝혀져.. "그저 도움이 되고 싶었다" ',
+        '꽁치기업과의 협업 루머.. 드디어 큰 거 오나..',
+        '매출 상승 기대.. ㅇㅇㅇ대표 입가에 큰 미소',
+        '박모씨의 사원 인터뷰.. 긍정적 평가..',
+        '드리미 홍보 담당으로 채택.. 사원평가 긍정적..',
+        '유저 평가 상승세.. ㅇㅇ기업의 긍정적 효과..'
+    ];
+
+    const badPreview = [
+        'ㅇㅇ기업 사내식당 직원 대거 퇴사..',
+        '조폭 하모씨.. ㅇㅇ기업을 눈여겨보고있다.. 논란..',
+        '사원 박ㅇㅇ씨의 개인 인터뷰.. 불만 증가',
+        '장민준 회사 대표 가수로 취업해.. 사원들의 불만 증가',
+        '조모씨가 회장직을 맡아.. 루머',
+        '이ㅇㅇ 사원 충격고백!! 회장을 변기에...',
+    ];
+
+    const boomPreview = [
+        '초대형 투자 유치 예정!!!.. 떡상의 기회',
+        '꽁치기업과의 협업!!.. ㅇㅇ기업 빛을보다..',
+        '꽁치기업 주가 폭락... 라이벌 그룹 ㅇㅇ기업 폭등의 기회!!..',
+    ];
+
+    const crashPreview = [
+        '상장폐지 설 돌아... 과연 루머인가.. ',
+        'ㅇㅇ기업 사원 장ㅇㅇ 씨 "대표가 저에게 막말을 했어요.." 곧 밝혀질것',
+        'ㅇㅇ대표 조폭 하모씨와의 만남.. 둘의 친분 루머..',
+    ];
+
+
     const stockSchema = new mongoose.Schema({
         name: { type: String, unique: true },
         owner: String,
@@ -79,6 +112,21 @@ mongoose.connect(process.env.MONGO_URI)
         nextChangeAt: {
             type: Date,
             default: () => new Date(Date.now() + 600000)
+        },
+
+        nextPrediction: {
+            type: String,
+            default: '보합'
+        },
+
+        nextPercent: {
+            type: Number,
+            default: 0
+        },
+
+        nextNews: {
+            type: String,
+            default: ''
         }
     });
 
@@ -503,189 +551,143 @@ setInterval(async () => {
         '대표에게 막말 논란.. 결국 못참은 대표, 분노의 오줌 갈기기 '
     ];
 
+    const boomMessages = [
+        '신제품!! 해승봇 mk2005 출시!!! 주식 개 미친 폭등!!!',
+        '라이벌 꽁치그룹 파산!! 주식 개 미친 상승세!!!',
+        '산하그룹 꽁치방 창설!!! 주식 개 미친 폭등!!!'
+    ];
+
+    const crashMessages = [
+        '호달달달;; 상장폐지설 돌기 시작해.. 이대로 괜찮은가..',
+        'ㅇㅇㅇ대표 직원에게 막말논란.. 불꽃패드립 작렬해..',
+        'ㅇㅇㅇ대표 조폭 하모씨와의 친분과시 논란.. 이대로 진짜 괜찮은가',
+    ];
+
     for (let stock of stocks) {
 
         if (!stock.listed) continue;
 
         // =========================
-        // 퍼센트 기반 변동
+        // 예측 데이터 없으면 생성
         // =========================
 
-        const random = Math.random();
+        if (
+            stock.nextPrediction === '보합' &&
+            stock.nextPercent === 0
+        ) {
 
-        let percent = 0;
-        let newsText = '';
+            const random = Math.random();
 
-        // 🚀 폭등 5%
-        if (random < 0.05) {
+            let percent;
+            let prediction;
+            let predictionNews;
 
-            percent =
-                Math.random() * 2 + 1;
-            // +100% ~ +300%
+            // 🚀 폭등
+            if (random < 0.05) {
 
-            const boomMessages = [
+                percent =
+                    Math.random() * 2 + 1;
 
-                '신제품!! 해승봇 mk2005 출시!!! 주식 개 미친 폭등!!!',
-                '라이벌 꽁치그룹 파산!! 주식 개 미친 상승세!!!',
-                '산하그룹 꽁치방 창설!!! 주식 개 미친 폭등!!!'
-            ];
+                prediction = '🚀 폭등 예정';
 
-            newsText =
-                boomMessages[
-                    Math.floor(Math.random() * boomMessages.length)
-                ];
+                predictionNews =
+                    boomMessages[
+                        Math.floor(Math.random() * boomMessages.length)
+                    ];
+            }
+
+            // 💀 폭락
+            else if (random < 0.10) {
+
+                percent =
+                    -(Math.random() * 0.7 + 0.3);
+
+                prediction = '💀 폭락 예정';
+
+                predictionNews =
+                    crashMessages[
+                        Math.floor(Math.random() * crashMessages.length)
+                    ];
+            }
+
+            // 📈 상승
+            else if (random < 0.55) {
+
+                percent =
+                    Math.random() * 0.2;
+
+                prediction = '📈 상승 예상';
+
+                predictionNews =
+                    goodNews[
+                        Math.floor(Math.random() * goodNews.length)
+                    ];
+            }
+
+            // 📉 하락
+            else {
+
+                percent =
+                    -(Math.random() * 0.2);
+
+                prediction = '📉 하락 예상';
+
+                predictionNews =
+                    badNews[
+                        Math.floor(Math.random() * badNews.length)
+                    ];
+            }
+
+            stock.nextPrediction = prediction;
+            stock.nextPercent =
+                Math.floor(percent * 100);
+
+            stock.nextNews = predictionNews;
+
+            await stock.save();
+
+            continue;
         }
 
-        // 💀 폭락 5%
-        else if (random < 0.10) {
+        // =========================
+        // 실제 변동 적용
+        // =========================
 
-            percent =
-                -(Math.random() * 0.7 + 0.3);
-            // -30% ~ -100%
+        const oldPrice = stock.price;
 
-            const crashMessages = [
+        const percent =
+            stock.nextPercent / 100;
 
-                '호달달달;; 상장폐지설 돌기 시작해.. 이대로 괜찮은가..',
-                'ㅇㅇㅇ대표 직원에게 막말논란.. 불꽃패드립 작렬해..',
-                'ㅇㅇㅇ대표 조폭 하모씨와의 친분과시 논란.. 이대로 진짜 괜찮은가',
-            ];
-
-            newsText =
-                crashMessages[
-                    Math.floor(Math.random() * crashMessages.length)
-                ];
-        }
-
-        // 📈 호재 45%
-        else if (random < 0.55) {
-
-            percent =
-                Math.random() * 0.25 + 0.05;
-            // +5% ~ +30%
-
-            const goodNews = [
-
-                'ㅇㅇㅇ대표 선행 밝혀져.. "그저 도움이 되고 싶었다" ',
-                '꽁치기업과의 협업 루머.. 드디어 큰 거 오나..',
-                '매출 상승 기대.. ㅇㅇㅇ대표 입가에 큰 미소',
-                '박모씨의 사원 인터뷰.. 긍정적 평가..',
-                '드리미 홍보 담당으로 채택.. 사원평가 긍정적..',
-                '유저 평가 상승세.. ㅇㅇ기업의 긍정적 효과..'
-            ];
-
-            newsText =
-                goodNews[
-                    Math.floor(Math.random() * goodNews.length)
-                ];
-        }
-
-        // 📉 악재 45%
-        else {
-
-            percent =
-                -(Math.random() * 0.25 + 0.05);
-            // -5% ~ -30%
-
-            const badNews = [
-
-                'ㅇㅇ기업 사내식당 직원 대거 퇴사..',
-                '조폭 하모씨.. ㅇㅇ기업을 눈여겨보고있다.. 논란..',
-                '사원 박ㅇㅇ씨의 개인 인터뷰.. 불만 증가',
-                '장민준 회사 대표 가수로 취업해.. 사원들의 불만 증가',
-                '조모씨가 회장직을 맡아.. 루머',
-                '이ㅇㅇ 사원 충격고백!! 회장을 변기에...',
-            ];
-
-            newsText =
-                badNews[
-                    Math.floor(Math.random() * badNews.length)
-                ];
-        }
-
-        // 실제 변동값 계산
         let change =
             Math.floor(stock.price * percent);
 
-        // 최소 변동 보정
         if (change === 0) {
 
             change =
-                percent > 0
+                percent >= 0
                     ? 1
                     : -1;
         }
 
-        // 기존 가격 저장
-        const oldPrice = stock.price;
-
-        // 가격 반영
         stock.price += change;
 
-        // 음수 방지
         if (stock.price < 0) {
             stock.price = 0;
         }
 
-        // 뉴스 추가
+        // 뉴스 기록
         stock.news.unshift(
-            `${newsText} (${change > 0 ? '+' : ''}${change}원)`
+            `${stock.nextPrediction} (${stock.nextPercent}%)`
         );
 
-        // 변동 시간 기록
+        stock.news.unshift(
+            `📰 ${stock.nextNews}`
+        );
+
+        // 변동 시간
         stock.lastChangedAt = new Date();
         stock.nextChangeAt =
             new Date(Date.now() + 600000);
-
-        // =========================
-        // 뉴스 이벤트
-        // =========================
-
-        const eventChance = Math.random();
-
-        // 호재
-        if (eventChance < 0.1) {
-
-            const news =
-                goodNews[
-                    Math.floor(Math.random() * goodNews.length)
-                ];
-
-            const bonus =
-                Math.floor(stock.price * (
-                    Math.random() * 0.3 + 0.1
-                ));
-
-            stock.price += bonus;
-
-            stock.news.unshift(
-                `🟢 ${news} (+${bonus}원)`
-            );
-        }
-
-        // 악재
-        else if (eventChance < 0.2) {
-
-            const news =
-                badNews[
-                    Math.floor(Math.random() * badNews.length)
-                ];
-
-            const minus =
-                Math.floor(stock.price * (
-                    Math.random() * 0.3 + 0.1
-                ));
-
-            stock.price -= minus;
-
-            stock.news.unshift(
-                `🔴 ${news} (-${minus}원)`
-            );
-        }
-
-        // 음수 방지
-        if (stock.price < 0) {
-            stock.price = 0;
-        }
 
         // =========================
         // 연속 하락 체크
@@ -700,7 +702,6 @@ setInterval(async () => {
             stock.downStreak = 0;
         }
 
-        // 연속 하락 경고
         if (stock.downStreak >= 5) {
 
             stock.news.unshift(
@@ -709,24 +710,24 @@ setInterval(async () => {
         }
 
         // =========================
-        // 자동 상장폐지
+        // 상장폐지
         // =========================
 
         if (
             stock.listed &&
             (
                 stock.price <= 5 ||
-                stock.downStreak >= 12
+                stock.downStreak >= 9
             )
         ) {
 
             stock.listed = false;
             stock.price = 0;
 
-            if (stock.downStreak >= 12) {
+            if (stock.downStreak >= 9) {
 
                 stock.news.unshift(
-                    '💀 12연속 하락으로 상장폐지'
+                    '💀 9연속 하락으로 상장폐지'
                 );
 
             } else {
@@ -736,23 +737,21 @@ setInterval(async () => {
                 );
             }
 
-            // 뉴스 최대 5개 유지
             stock.news = stock.news.slice(0, 5);
 
-            // 즉시 저장
             await stock.save();
 
-            // 다음 회사 처리
             continue;
         }
 
         // =========================
-        // 대표 수수료 지급
+        // 대표 수수료
         // =========================
 
         if (stock.owner && stock.listed) {
 
-            const owner = await getUser(stock.owner);
+            const owner =
+                await getUser(stock.owner);
 
             const fee =
                 Math.floor(stock.price * 0.1);
@@ -762,11 +761,97 @@ setInterval(async () => {
             await owner.save();
         }
 
-        // 뉴스 최대 5개 유지
+        // =========================
+        // 다음 예측 생성
+        // =========================
+
+        const nextRandom = Math.random();
+
+        let nextPercent;
+        let nextPrediction;
+        let nextNews;
+
+        // 🚀 폭등
+        if (nextRandom < 0.05) {
+
+            nextPercent =
+                Math.floor(
+                    (Math.random() * 2 + 1) * 100
+                );
+
+            nextPrediction =
+                '🚀 폭등 예정';
+
+            nextNews =
+                boomMessages[
+                    Math.floor(Math.random() * boomMessages.length)
+                ];
+        }
+
+        // 💀 폭락
+        else if (nextRandom < 0.10) {
+
+            nextPercent =
+                -Math.floor(
+                    (Math.random() * 0.7 + 0.3) * 100
+                );
+
+            nextPrediction =
+                '💀 폭락 예정';
+
+            nextNews =
+                crashMessages[
+                    Math.floor(Math.random() * crashMessages.length)
+                ];
+        }
+
+        // 📈 상승
+        else if (nextRandom < 0.55) {
+
+            nextPercent =
+                Math.floor(
+                    Math.random() * 20
+                );
+
+            nextPrediction =
+                '📈 상승 예상';
+
+            nextNews =
+                goodNews[
+                    Math.floor(Math.random() * goodNews.length)
+                ];
+        }
+
+        // 📉 하락
+        else {
+
+            nextPercent =
+                -Math.floor(
+                    Math.random() * 20
+                );
+
+            nextPrediction =
+                '📉 하락 예상';
+
+            nextNews =
+                badNews[
+                    Math.floor(Math.random() * badNews.length)
+                ];
+        }
+
+        stock.nextPrediction =
+            nextPrediction;
+
+        stock.nextPercent =
+            nextPercent;
+
+        stock.nextNews =
+            nextNews;
+
         stock.news = stock.news.slice(0, 5);
 
         await stock.save();
-        }
+    }
 
 }, 600000);
 
@@ -1264,9 +1349,6 @@ if (
 
         \`/구걸\`
         하루 다섯번 500원을 획득합니다!!
-
-        \`/송금 유저: 금액:\`
-        다른 유저에게 돈을 송금합니다!
 
         \`/운세\`
         오늘의 운세를 확인합니다!! (출석체크!! 1000원 씩 흭득!!)
@@ -1990,7 +2072,7 @@ if (
         });
     }
 
-    if (interaction.commandName === '뉴스') {
+   if (interaction.commandName === '뉴스') {
 
         await interaction.deferReply();
 
@@ -2000,15 +2082,14 @@ if (
         });
 
         if (stocks.length === 0) {
-            return interaction.editReply('상장된 회사 없음');
+            return interaction.editReply(
+                '상장된 회사 없음'
+            );
         }
 
         const pages = [];
 
         for (const stock of stocks) {
-
-            const lastNews =
-                stock.news?.[0] || '최근 뉴스 없음';
 
             const lastTime =
                 stock.lastChangedAt
@@ -2020,24 +2101,10 @@ if (
                     ? `<t:${Math.floor(stock.nextChangeAt.getTime() / 1000)}:R>`
                     : '없음';
 
-            // 변동 방향 표시
-            let trend = '➖ 변동 없음';
-
-            if (lastNews.includes('🚀')) {
-                trend = '🚀 폭등';
-            }
-
-            else if (lastNews.includes('💀')) {
-                trend = '💀 폭락';
-            }
-
-            else if (lastNews.includes('📈')) {
-                trend = '📈 상승';
-            }
-
-            else if (lastNews.includes('📉')) {
-                trend = '📉 하락';
-            }
+            const sign =
+                stock.nextPercent >= 0
+                    ? '+'
+                    : '';
 
             pages.push(
 
@@ -2045,11 +2112,14 @@ if (
 
     💰 현재 가격: ${stock.price}원
 
-    📊 현재 흐름:
-    ${trend}
+    📊 예상 변동:
+    ${stock.nextPrediction}
 
-    📰 최근 뉴스:
-    ${lastNews}
+    🎲 예상 변동률:
+    ${sign}${stock.nextPercent}%
+
+    📰 뉴스:
+    ${stock.nextNews}
 
     ⏰ 최근 변동:
     ${lastTime}
@@ -2059,7 +2129,8 @@ if (
             );
         }
 
-        const pageId = interaction.id;
+        const pageId =
+            interaction.id;
 
         newsPages.set(pageId, {
             userId: interaction.user.id,
@@ -2088,7 +2159,7 @@ if (
 
         return interaction.editReply({
             content:
-                `🗞 실시간 주식 뉴스 (1/${pages.length})\n\n` +
+                `🗞 주식 뉴스 (1/${pages.length})\n\n` +
                 pages[0],
             components: [row]
         });
@@ -2528,7 +2599,6 @@ if (
             flags: 64
         });
     }
-
 
     if (interaction.commandName === '송금') {
 
