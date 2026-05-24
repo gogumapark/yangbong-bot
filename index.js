@@ -779,9 +779,7 @@ client.on('interactionCreate', async interaction => {
                                 )
                         );
 
-                await interaction.deferUpdate();
-
-                return interaction.editReply({
+                return interaction.update({
                     content:
                         `🗞 주식 뉴스 (${data.page + 1}/${data.pages.length})\n\n` +
                         data.pages[data.page],
