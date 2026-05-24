@@ -548,11 +548,6 @@ setInterval(async () => {
 
             percent = stock.pendingPercent;
 
-            // 저장된 뉴스 출력
-            stock.news.unshift(
-                `📰 ${stock.pendingNews}`
-            );
-
             // 🚀 폭등 뉴스 실제 발동
             if (stock.pendingType === 'boom') {
 
