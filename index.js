@@ -712,6 +712,78 @@ client.on('interactionCreate', async interaction => {
         // 버튼 처리
         if (interaction.isButton()) {
 
+            // 뉴스 페이지
+
+            if (
+                interaction.customId.startsWith('news_prev_') ||
+                interaction.customId.startsWith('news_next_')
+            ) {
+
+                const pageId =
+                    interaction.customId.split('_')[2];
+
+                const data = newsPages.get(pageId);
+
+                if (!data) {
+
+                    return interaction.reply({
+                        content: '❌ 뉴스가 만료됨',
+                        flags: 64
+                    });
+                }
+
+                if (interaction.user.id !== data.userId) {
+
+                    return interaction.reply({
+                        content: '❌ 본인만 사용 가능',
+                        flags: 64
+                    });
+                }
+
+                if (
+                    interaction.customId.startsWith('news_prev_')
+                ) {
+
+                    data.page--;
+
+                } else {
+
+                    data.page++;
+                }
+
+                if (data.page < 0)
+                    data.page = 0;
+
+                if (data.page >= data.pages.length)
+                    data.page = data.pages.length - 1;
+
+                const row = new ActionRowBuilder()
+                    .addComponents(
+
+                        new ButtonBuilder()
+                            .setCustomId(`news_prev_${pageId}`)
+                            .setLabel('◀')
+                            .setStyle(ButtonStyle.Secondary)
+                            .setDisabled(data.page === 0),
+
+                        new ButtonBuilder()
+                            .setCustomId(`news_next_${pageId}`)
+                            .setLabel('▶')
+                            .setStyle(ButtonStyle.Secondary)
+                            .setDisabled(
+                                data.page === data.pages.length - 1
+                            )
+                    );
+
+                return interaction.update({
+                    content:
+                        `🗞 주식 뉴스 (${data.page + 1}/${data.pages.length})\n\n` +
+                        data.pages[data.page],
+                    components: [row]
+                });
+            }
+
+
             //블랙잭
 
             if (
@@ -1124,6 +1196,9 @@ client.on('interactionCreate', async interaction => {
         \`/매도 회사: 수량:\`
         주식을 판매합니다!!
 
+        \`/뉴스\`
+        주식 변동률을 미리 확인합니다.
+
         \`/주식\`
         주식 목록 확인
         `);
@@ -1151,6 +1226,12 @@ client.on('interactionCreate', async interaction => {
                         .setDescription(`
         \`/청소\`
         메시지 삭제
+
+        \`/ai설정 채널:\`
+        ai대화 채널을 설정합니다.
+
+        \`/성격설정 프롬프트:\`
+        ai의 성격혹은 말투, 등 을 설정합니다.
 
         \`/삭제로그\`
         삭제 메시지 확인
@@ -1833,10 +1914,8 @@ client.on('interactionCreate', async interaction => {
             return interaction.editReply('상장된 회사 없음');
         }
 
-        // 일반 호재
         const goodPreview = [
-            'ㅇㅇ기업 신제품 발표 예정.. 투자자들의 관심 급 증!!',
-            'ㅇㅇㅇ대표 선행 밝혀져.. "그저 도움이 되고 싶었다" ',
+             'ㅇㅇㅇ대표 선행 밝혀져.. "그저 도움이 되고 싶었다" ',
             '꽁치기업과의 협업 루머.. 드디어 큰 거 오나..',
             '매출 상승 기대.. ㅇㅇㅇ대표 입가에 큰 미소',
             '박모씨의 사원 인터뷰.. 긍정적 평가..',
@@ -1844,7 +1923,6 @@ client.on('interactionCreate', async interaction => {
             '유저 평가 상승세.. ㅇㅇ기업의 긍정적 효과..'
         ];
 
-        // 일반 악재
         const badPreview = [
             'ㅇㅇ기업 사내식당 직원 대거 퇴사..',
             '조폭 하모씨.. ㅇㅇ기업을 눈여겨보고있다.. 논란..',
@@ -1854,21 +1932,19 @@ client.on('interactionCreate', async interaction => {
             '이ㅇㅇ 사원 충격고백!! 회장을 변기에...',
         ];
 
-        // 폭등 예측 뉴스
         const boomPreview = [
             '초대형 투자 유치 예정!!!.. 떡상의 기회',
             '꽁치기업과의 협업!!.. ㅇㅇ기업 빛을보다..',
             '꽁치기업 주가 폭락... 라이벌 그룹 ㅇㅇ기업 폭등의 기회!!..',
         ];
 
-        // 폭락 예측 뉴스
         const crashPreview = [
             '상장폐지 설 돌아... 과연 루머인가.. ',
             'ㅇㅇ기업 사원 장ㅇㅇ 씨 "대표가 저에게 막말을 했어요.." 곧 밝혀질것',
             'ㅇㅇ대표 조폭 하모씨와의 만남.. 둘의 친분 루머..',
         ];
 
-        let text = '';
+        const pages = [];
 
         for (const stock of stocks) {
 
@@ -1878,7 +1954,6 @@ client.on('interactionCreate', async interaction => {
             let news;
             let chance;
 
-            // 🚀 폭등 확률 5%
             if (random < 0.05) {
 
                 type = '🚀 폭등 가능성';
@@ -1888,10 +1963,8 @@ client.on('interactionCreate', async interaction => {
                     boomPreview[
                         Math.floor(Math.random() * boomPreview.length)
                     ];
-            }
 
-            // 💀 폭락 확률 5%
-            else if (random < 0.10) {
+            } else if (random < 0.10) {
 
                 type = '💀 폭락 가능성';
                 chance = '5%';
@@ -1900,10 +1973,8 @@ client.on('interactionCreate', async interaction => {
                     crashPreview[
                         Math.floor(Math.random() * crashPreview.length)
                     ];
-            }
 
-            // 📈 일반 상승 45%
-            else if (random < 0.55) {
+            } else if (random < 0.55) {
 
                 type = '📈 상승 예상';
                 chance = '45%';
@@ -1912,10 +1983,8 @@ client.on('interactionCreate', async interaction => {
                     goodPreview[
                         Math.floor(Math.random() * goodPreview.length)
                     ];
-            }
 
-            // 📉 일반 하락 45%
-            else {
+            } else {
 
                 type = '📉 하락 예상';
                 chance = '45%';
@@ -1936,18 +2005,51 @@ client.on('interactionCreate', async interaction => {
                     ? `<t:${Math.floor(stock.nextChangeAt.getTime() / 1000)}:R>`
                     : '없음';
 
-            text +=
-                `🏢 ${stock.name}\n` +
-                `예상 변동: ${type}\n` +
-                `확률: ${chance}\n` +
-                `📰 ${news}\n` +
-                `⏰ 최근 변동: ${lastTime}\n` +
-                `🕒 다음 변동: ${nextTime}\n\n`;
+            pages.push(
+                `🏢 ${stock.name}
+
+    📊 현재 가격: ${stock.price}원
+    📈 예상 변동: ${type}
+    🎲 확률: ${chance}
+
+    📰 뉴스
+    ${news}
+
+    ⏰ 최근 변동: ${lastTime}
+    🕒 다음 변동: ${nextTime}`
+            );
         }
 
-        return interaction.editReply(
-            `🗞 다음 변동 예측 뉴스\n\n${text}`
-        );
+        const pageId = interaction.id;
+
+        newsPages.set(pageId, {
+            userId: interaction.user.id,
+            pages,
+            page: 0
+        });
+
+        const row = new ActionRowBuilder()
+            .addComponents(
+
+                new ButtonBuilder()
+                    .setCustomId(`news_prev_${pageId}`)
+                    .setLabel('◀')
+                    .setStyle(ButtonStyle.Secondary)
+                    .setDisabled(true),
+
+                new ButtonBuilder()
+                    .setCustomId(`news_next_${pageId}`)
+                    .setLabel('▶')
+                    .setStyle(ButtonStyle.Secondary)
+                    .setDisabled(pages.length <= 1)
+            );
+
+        return interaction.editReply({
+            content:
+                `🗞 주식 뉴스 (1/${pages.length})\n\n` +
+                pages[0],
+            components: [row]
+        });
     }
 
 
