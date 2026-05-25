@@ -18,157 +18,115 @@ mongoose.connect(process.env.MONGO_URI)
     .then(() => console.log('MongoDB 연결 성공!'))
     .catch(err => console.error('MongoDB 연결 실패:', err));
 
-    const moneySchema = new mongoose.Schema({
-        userId: { type: String, unique: true },
-        money: { type: Number, default: 1000 },
+const moneySchema = new mongoose.Schema({
+    userId: { type: String, unique: true },
+    money: { type: Number, default: 1000 },
 
-        lastFortuneDate: { type: String, default: null },
-        fortuneStreak: { type: Number, default: 0 },
+    lastFortuneDate: { type: String, default: null },
+    fortuneStreak: { type: Number, default: 0 },
 
-        lastBegTime: { type: Date, default: null },
+    lastBegTime: { type: Date, default: null },
 
-        deleteCost: { type: Number, default: 1000 },
+    deleteCost: { type: Number, default: 1000 },
 
-        blackjackWins: { type: Number, default: 0 },
-        gambleWins: { type: Number, default: 0 },
+    blackjackWins: { type: Number, default: 0 },
+    gambleWins: { type: Number, default: 0 },
 
-        stocks: {
-            type: Map,
-            of: Number,
-            default: {}
-        }
-    });
+    stocks: {
+        type: Map,
+        of: Number,
+        default: {}
+    },
 
-    const stockSchema = new mongoose.Schema({
-        name: { type: String, unique: true },
-        owner: String,
-
-        // 삭제 여부
-        deleted: {
-            type: Boolean,
-            default: false
-        },
-
-        // 삭제 시간
-        deletedAt: {
-            type: Date,
-            default: null
-        },
-
-        price: { type: Number, default: 100 },
-
-        listed: { type: Boolean, default: true },
-
-        news: {
-            type: [String],
-            default: []
-        },
-
-        downStreak: {
-            type: Number,
-            default: 0
-        },
-
-        promotionLevel: {
-            type: Number,
-            default: 0
-        },
-
-        // 마지막 변동 시간
-        lastChangedAt: {
-            type: Date,
-            default: Date.now
-        },
-
-        // 다음 변동 시간
-        nextChangeAt: {
-            type: Date,
-            default: () => new Date(Date.now() + 600000)
-        },
-
-        pendingNews: {
-            type: String,
-            default: null
-        },
-
-        pendingPercent: {
-            type: Number,
-            default: null
-        },
-
-        pendingType: {
-            type: String,
-            default: null
-        },
-                
-    });
-
-    function formatMoney(num) {
-
-        return num.toLocaleString('ko-KR') + '원';
+    // 대량 매수 쿨타임: { 회사명: 마지막매수시간 }
+    buyCooldowns: {
+        type: Map,
+        of: Date,
+        default: {}
     }
+});
 
-    const Groq = require("groq-sdk");
+const stockSchema = new mongoose.Schema({
+    name: { type: String, unique: true },
+    owner: String,
 
-    const groq = new Groq({
+    deleted: { type: Boolean, default: false },
+    deletedAt: { type: Date, default: null },
+
+    price: { type: Number, default: 100 },
+
+    // 총 발행 주식 수 (매수/매도로 변동)
+    totalShares: { type: Number, default: 0 },
+
+    listed: { type: Boolean, default: true },
+
+    news: { type: [String], default: [] },
+
+    downStreak: { type: Number, default: 0 },
+
+    // 하락장 여부
+    bearMarket: { type: Boolean, default: false },
+    bearMarketCount: { type: Number, default: 0 },
+
+    promotionLevel: { type: Number, default: 0 },
+
+    lastChangedAt: { type: Date, default: Date.now },
+    nextChangeAt: { type: Date, default: () => new Date(Date.now() + 600000) },
+
+    pendingNews: { type: String, default: null },
+    pendingPercent: { type: Number, default: null },
+    pendingType: { type: String, default: null },
+});
+
+function formatMoney(num) {
+    return num.toLocaleString('ko-KR') + '원';
+}
+
+const Groq = require("groq-sdk");
+
+const groq = new Groq({
     apiKey: process.env.GROQ_API_KEY
-    });
-    
-    let aiPersonality = "너는 디스코드 봇이다. 반말로 짧게 답하되 과하지 않게 말한다.";
+});
 
-    const Stock = mongoose.model('Stock', stockSchema);
+let aiPersonality = "너는 디스코드 봇이다. 반말로 짧게 답하되 과하지 않게 말한다.";
 
-    const Money = mongoose.model('Money', moneySchema);
+const Stock = mongoose.model('Stock', stockSchema);
+const Money = mongoose.model('Money', moneySchema);
 
-    async function getUser(userId) {
+async function getUser(userId) {
+    return await Money.findOneAndUpdate(
+        { userId },
+        { $setOnInsert: { userId, money: 1000 } },
+        { returnDocument: 'after', upsert: true }
+    );
+}
 
-        return await Money.findOneAndUpdate(
-            { userId },
-            {
-                $setOnInsert: {
-                    userId,
-                    money: 1000
-                }
-            },
-            {
-                returnDocument: 'after',
-                upsert: true
-            }
-        );
-    }
+const letterSchema = new mongoose.Schema({
+    from: String,
+    to: String,
+    type: String,
+    content: String,
+    createdAt: { type: Date, default: Date.now }
+});
 
+const Letter = mongoose.model('Letter', letterSchema);
 
-    const letterSchema = new mongoose.Schema({
-        from: String,
-        to: String,
-        type: String,
-        content: String,
-        createdAt: { type: Date, default: Date.now }
-    });
-
-    const Letter = mongoose.model('Letter', letterSchema);
-
-
-
-    const {
-        Client,
-        GatewayIntentBits,
-        SlashCommandBuilder,
-        REST,
-        Routes,
-        EmbedBuilder,
-        ActionRowBuilder,
-        ButtonBuilder,
-        ButtonStyle,
-        StringSelectMenuBuilder
-    } = require('discord.js');
-
-
+const {
+    Client,
+    GatewayIntentBits,
+    SlashCommandBuilder,
+    REST,
+    Routes,
+    EmbedBuilder,
+    ActionRowBuilder,
+    ButtonBuilder,
+    ButtonStyle,
+    StringSelectMenuBuilder
+} = require('discord.js');
 
 const token = process.env.TOKEN;
 const clientId = '1506507365560877156';
 const guildId = '1172129810861015131';
-
 
 const client = new Client({
     intents: [
@@ -179,26 +137,17 @@ const client = new Client({
 });
 
 const newsPages = new Map();
-
 const blackjackGames = new Map();
-
 const tttGames = new Map();
-
 const deletedMessages = new Map();
 
 client.on('messageDelete', message => {
-
-    // 봇 메시지 무시
     if (message.author?.bot) return;
-
     deletedMessages.set(message.channel.id, {
-
         author: message.author.tag,
         content: message.content || '(내용 없음)',
         createdAt: new Date()
-
     });
-
 });
 
 const userFortunes = {};
@@ -209,16 +158,10 @@ const commands = [
         .setName('회사홍보')
         .setDescription('회사를 홍보합니다')
         .addStringOption(option =>
-            option
-                .setName('회사')
-                .setDescription('홍보할 회사')
-                .setRequired(true)
+            option.setName('회사').setDescription('홍보할 회사').setRequired(true)
         )
         .addStringOption(option =>
-            option
-                .setName('방법')
-                .setDescription('홍보 방식')
-                .setRequired(true)
+            option.setName('방법').setDescription('홍보 방식').setRequired(true)
                 .addChoices(
                     { name: '📄 홍보용 전단지', value: 'flyer' },
                     { name: '📢 확성기 홍보', value: 'speaker' },
@@ -229,20 +172,14 @@ const commands = [
         ),
 
     new SlashCommandBuilder()
-    .setName('송금')
-    .setDescription('다른 유저에게 돈을 송금합니다')
-    .addUserOption(option =>
-        option
-            .setName('유저')
-            .setDescription('송금 받을 유저')
-            .setRequired(true)
-    )
-    .addIntegerOption(option =>
-        option
-            .setName('금액')
-            .setDescription('송금 금액')
-            .setRequired(true)
-    ),
+        .setName('송금')
+        .setDescription('다른 유저에게 돈을 송금합니다')
+        .addUserOption(option =>
+            option.setName('유저').setDescription('송금 받을 유저').setRequired(true)
+        )
+        .addIntegerOption(option =>
+            option.setName('금액').setDescription('송금 금액').setRequired(true)
+        ),
 
     new SlashCommandBuilder()
         .setName('뉴스')
@@ -252,36 +189,24 @@ const commands = [
         .setName('성격설정')
         .setDescription('AI 성격을 설정합니다')
         .addStringOption(option =>
-            option
-                .setName('프롬프트')
-                .setDescription('AI 성격 설명')
-                .setRequired(true)
+            option.setName('프롬프트').setDescription('AI 성격 설명').setRequired(true)
         ),
 
     new SlashCommandBuilder()
         .setName('ai설정')
         .setDescription('AI 채널 설정')
         .addChannelOption(option =>
-            option
-                .setName('채널')
-                .setDescription('AI가 대화할 채널')
-                .setRequired(true)
+            option.setName('채널').setDescription('AI가 대화할 채널').setRequired(true)
         ),
 
     new SlashCommandBuilder()
         .setName('홀짝')
         .setDescription('홀짝 도박')
         .addStringOption(option =>
-            option
-                .setName('배팅')
-                .setDescription('배팅 금액 또는 올인')
-                .setRequired(true)
+            option.setName('배팅').setDescription('배팅 금액 또는 올인').setRequired(true)
         )
         .addStringOption(option =>
-            option
-                .setName('선택')
-                .setDescription('홀 또는 짝')
-                .setRequired(true)
+            option.setName('선택').setDescription('홀 또는 짝').setRequired(true)
                 .addChoices(
                     { name: '홀', value: '홀' },
                     { name: '짝', value: '짝' }
@@ -292,85 +217,63 @@ const commands = [
         .setName('슬롯')
         .setDescription('슬롯머신')
         .addStringOption(option =>
-            option
-                .setName('배팅')
-                .setDescription('배팅 금액 또는 올인')
-                .setRequired(true)
+            option.setName('배팅').setDescription('배팅 금액 또는 올인').setRequired(true)
         ),
 
     new SlashCommandBuilder()
         .setName('블랙잭')
         .setDescription('블랙잭 시작')
         .addStringOption(option =>
-            option
-                .setName('배팅')
-                .setDescription('배팅 금액 또는 올인')
-                .setRequired(true)
+            option.setName('배팅').setDescription('배팅 금액 또는 올인').setRequired(true)
         ),
-
 
     new SlashCommandBuilder()
         .setName('돈순위')
         .setDescription('플레이어 돈 순위를 확인합니다'),
 
-
-
     new SlashCommandBuilder()
         .setName('회사삭제')
         .setDescription('회사를 삭제합니다')
         .addStringOption(option =>
-            option
-                .setName('회사')
-                .setDescription('삭제할 회사 이름')
-                .setRequired(true)
+            option.setName('회사').setDescription('삭제할 회사 이름').setRequired(true)
         ),
 
-
-
     new SlashCommandBuilder()
-    .setName('주식')
-    .setDescription('주식 정보 확인합니다.'),
+        .setName('주식')
+        .setDescription('주식 정보 확인합니다.'),
 
     new SlashCommandBuilder()
         .setName('회사생성')
         .setDescription('주식 회사를 만듭니다')
         .addStringOption(option =>
-            option
-                .setName('이름')
-                .setDescription('회사 이름')
-                .setRequired(true)
+            option.setName('이름').setDescription('회사 이름').setRequired(true)
         ),
 
     new SlashCommandBuilder()
         .setName('매수')
-        .setDescription('주식을 구매합니다')
+        .setDescription('주식을 구매합니다 (수수료 1.5%, 100주마다 10분 쿨타임)')
         .addStringOption(option =>
-            option
-                .setName('회사')
-                .setDescription('회사 이름')
-                .setRequired(true)
+            option.setName('회사').setDescription('회사 이름').setRequired(true)
         )
         .addIntegerOption(option =>
-            option
-                .setName('수량')
-                .setDescription('구매 수량')
-                .setRequired(true)
+            option.setName('수량').setDescription('구매 수량').setRequired(true)
         ),
 
     new SlashCommandBuilder()
         .setName('매도')
-        .setDescription('주식을 판매합니다')
+        .setDescription('주식을 판매합니다 (수수료 1.5%)')
         .addStringOption(option =>
-            option
-                .setName('회사')
-                .setDescription('회사 이름')
-                .setRequired(true)
+            option.setName('회사').setDescription('회사 이름').setRequired(true)
         )
         .addIntegerOption(option =>
-            option
-                .setName('수량')
-                .setDescription('판매 수량')
-                .setRequired(true)
+            option.setName('수량').setDescription('판매 수량').setRequired(true)
+        ),
+
+    new SlashCommandBuilder()
+        .setName('시가총액')
+        .setDescription('회사의 시가총액을 확인합니다')
+        .addStringOption(option =>
+            option.setName('회사').setDescription('회사 이름').setRequired(true)
         ),
 
     new SlashCommandBuilder()
@@ -393,10 +296,7 @@ const commands = [
         .setName('청소')
         .setDescription('메시지를 삭제합니다')
         .addIntegerOption(option =>
-            option
-                .setName('개수')
-                .setDescription('삭제할 메시지 개수')
-                .setRequired(true)
+            option.setName('개수').setDescription('삭제할 메시지 개수').setRequired(true)
         ),
 
     new SlashCommandBuilder()
@@ -407,10 +307,7 @@ const commands = [
         .setName('유저정보')
         .setDescription('유저정보를 확인합니다')
         .addUserOption(option =>
-            option
-                .setName('유저')
-                .setDescription('정보를 볼 유저')
-                .setRequired(false)
+            option.setName('유저').setDescription('정보를 볼 유저').setRequired(false)
         ),
 
     new SlashCommandBuilder()
@@ -421,14 +318,10 @@ const commands = [
         .setName('편지')
         .setDescription('유저에게 편지를 보냅니다')
         .addUserOption(option =>
-            option.setName('유저')
-                .setDescription('받는 사람')
-                .setRequired(true)
+            option.setName('유저').setDescription('받는 사람').setRequired(true)
         )
         .addStringOption(option =>
-            option.setName('종류')
-                .setDescription('편지 종류')
-                .setRequired(true)
+            option.setName('종류').setDescription('편지 종류').setRequired(true)
                 .addChoices(
                     { name: '우정의 편지', value: 'friend' },
                     { name: '러브레터', value: 'love' },
@@ -436,48 +329,36 @@ const commands = [
                 )
         )
         .addStringOption(option =>
-            option.setName('내용')
-                .setDescription('편지 내용')
-                .setRequired(true)
+            option.setName('내용').setDescription('편지 내용').setRequired(true)
         ),
 
     new SlashCommandBuilder()
         .setName('편지함')
         .setDescription('받은 편지를 확인합니다'),
 
-
     new SlashCommandBuilder()
-    .setName('돈')
-    .setDescription('현재 돈을 확인합니다'),
+        .setName('돈')
+        .setDescription('현재 돈을 확인합니다'),
 
     new SlashCommandBuilder()
         .setName('도박')
         .setDescription('인생은 한방!!!!')
         .addStringOption(option =>
-        option
-            .setName('금액')
-            .setDescription('배팅 금액 또는 올인')
-            .setRequired(true)
-    ),
+            option.setName('금액').setDescription('배팅 금액 또는 올인').setRequired(true)
+        ),
 
     new SlashCommandBuilder()
-    .setName('구걸')
-    .setDescription('옛다 거지야'),
+        .setName('구걸')
+        .setDescription('옛다 거지야'),
 
-]
-    .map(command => command.toJSON());
+].map(command => command.toJSON());
 
 const rest = new REST({ version: '10' }).setToken(token);
 
 (async () => {
     try {
         console.log('슬래시 명령어 등록중...');
-
-        await rest.put(
-            Routes.applicationGuildCommands(clientId, guildId),
-            { body: commands }
-        );
-
+        await rest.put(Routes.applicationGuildCommands(clientId, guildId), { body: commands });
         console.log('슬래시 명령어 등록 완료!');
     } catch (error) {
         console.error(error);
@@ -485,21 +366,17 @@ const rest = new REST({ version: '10' }).setToken(token);
 })();
 
 client.once('clientReady', () => {
-
     console.log(`${client.user.tag} 로그인 완료!`);
 });
 
 function createBoard(gameId) {
     const game = tttGames.get(gameId);
-
     const rows = [];
 
     for (let i = 0; i < 3; i++) {
         const row = new ActionRowBuilder();
-
         for (let j = 0; j < 3; j++) {
             const index = i * 3 + j;
-
             row.addComponents(
                 new ButtonBuilder()
                     .setCustomId(`ttt_${gameId}_${index}`)
@@ -508,18 +385,19 @@ function createBoard(gameId) {
                     .setDisabled(!!game.board[index])
             );
         }
-
         rows.push(row);
     }
 
     return rows;
 }
 
+// =========================
+// setInterval - 주식 변동
+// =========================
+
 setInterval(async () => {
 
-    const stocks = await Stock.find({
-        deleted: { $ne: true }
-    });
+    const stocks = await Stock.find({ deleted: { $ne: true } });
 
     const goodNews = [
         '하늘에서 내려온 토끼가 하는말 바니바니 대박대박!!',
@@ -549,556 +427,367 @@ setInterval(async () => {
         '대표 논란 발생!!, 직원 성추행, 음란한 대표,',
         '매출 폭락...',
         '산업스파이 등장!!! 급 떡락!!!',
-        '대표에게 막말 논란.. 결국 못참은 대표, 분노의 오줌 갈기기 '
+        '대표에게 막말 논란.. 결국 못참은 대표, 분노의 오줌 갈기기'
     ];
 
     for (let stock of stocks) {
 
         if (!stock.listed) continue;
 
-        // =========================
-        // 퍼센트 기반 변동
-        // =========================
-
         let percent;
 
         const boomMessages = [
-
             '신제품!! 해승봇 mk2005 출시!!! 주식 개 미친 폭등!!!',
             '라이벌 꽁치그룹 파산!! 주식 개 미친 상승세!!!',
             '산하그룹 꽁치방 창설!!! 주식 개 미친 폭등!!!'
         ];
 
         const crashMessages = [
-
             '호달달달;; 상장폐지설 돌기 시작해.. 이대로 괜찮은가..',
             'ㅇㅇㅇ대표 직원에게 막말논란.. 불꽃패드립 작렬해..',
             'ㅇㅇㅇ대표 조폭 하모씨와의 친분과시 논란.. 이대로 진짜 괜찮은가',
         ];
 
-        // 뉴스 예측 결과 사용
-        if (stock.pendingPercent !== null) {
+        // pending 여부 저장
+        const hadPending = stock.pendingPercent !== null && stock.pendingPercent !== undefined;
+
+        if (hadPending) {
 
             percent = stock.pendingPercent;
 
-            // 🚀 폭등 뉴스 실제 발동
-            if (stock.pendingType === 'boom') {
-
-                const boom =
-                    boomMessages[
-                        Math.floor(Math.random() * boomMessages.length)
-                    ];
-
-                stock.news.unshift(`🚀 ${boom}`);
+            // 10% 확률로 예측 반전 (뉴스 90% 적중률)
+            if (Math.random() < 0.1) {
+                percent = -percent;
             }
 
-            // 💀 폭락 뉴스 실제 발동
-            else if (stock.pendingType === 'crash') {
-
-                const crash =
-                    crashMessages[
-                        Math.floor(Math.random() * crashMessages.length)
-                    ];
-
+            if (stock.pendingType === 'boom') {
+                const boom = boomMessages[Math.floor(Math.random() * boomMessages.length)];
+                stock.news.unshift(`🚀 ${boom}`);
+            } else if (stock.pendingType === 'crash') {
+                const crash = crashMessages[Math.floor(Math.random() * crashMessages.length)];
                 stock.news.unshift(`💀 ${crash}`);
             }
 
-            // 초기화
             stock.pendingPercent = null;
             stock.pendingNews = null;
             stock.pendingType = null;
-        }
 
-        // 뉴스 없으면 랜덤
-        else {
+        } else {
 
             const random = Math.random();
 
-            // 🚀 폭등
+            // =========================
+            // 하락장 보정
+            // =========================
+            const bearBoost = stock.bearMarket ? 0.15 : 0;
+
+            // 🚀 폭등 (5%)
             if (random < 0.05) {
-
-                percent =
-                    Math.random() * 0.5 + 0.3;
-
-                const boom =
-                    boomMessages[
-                        Math.floor(Math.random() * boomMessages.length)
-                    ];
-
+                percent = Math.random() * 0.5 + 0.3;
+                const boom = boomMessages[Math.floor(Math.random() * boomMessages.length)];
                 stock.news.unshift(`🚀 ${boom}`);
             }
-
-            // 💀 폭락
-            else if (random < 0.10) {
-
-                percent =
-                    -(Math.random() * 0.4 + 0.2);
-
-                const crash =
-                    crashMessages[
-                        Math.floor(Math.random() * crashMessages.length)
-                    ];
-
+            // 💀 폭락 (5% + 하락장 보너스)
+            else if (random < 0.10 + bearBoost) {
+                percent = -(Math.random() * 0.4 + 0.2);
+                const crash = crashMessages[Math.floor(Math.random() * crashMessages.length)];
                 stock.news.unshift(`💀 ${crash}`);
             }
-
             // 일반 변동
             else {
+                percent = (Math.random() * 40 - 20) / 100;
 
-                percent =
-                    (Math.random() * 40 - 20) / 100;
+                // 하락장이면 추가 하락 압력
+                if (stock.bearMarket) {
+                    percent -= 0.05;
+                }
 
-                // =========================
                 // 홍보 효과
-                // =========================
-
-                const promoBonus =
-                    stock.promotionLevel * 0.03;
-
-                // 상승 확률 증가
+                const promoBonus = stock.promotionLevel * 0.03;
                 if (Math.random() < promoBonus) {
-
-                    percent +=
-                        Math.random() * (
-                            stock.promotionLevel * 0.05
-                        );
+                    percent += Math.random() * (stock.promotionLevel * 0.05);
                 }
             }
         }
 
-        // 실제 변동값 계산
-        let change =
-            Math.floor(stock.price * percent);
+        // =========================
+        // 주가 100만원 이상 악재 위험 증가
+        // =========================
+        let eventChance = Math.random();
+        let badEventThreshold = 0.2; // 기본 악재 20%
 
-        // 최소 변동 보정
-        if (change === 0) {
-
-            change =
-                Math.random() < 0.5
-                    ? -1
-                    : 1;
+        if (stock.price >= 1000000) {
+            // 100만원 이상이면 악재 확률 40%로 증가
+            badEventThreshold = 0.4;
         }
 
-        // 기존 가격 저장
-        const oldPrice = stock.price;
+        // 실제 변동값 계산
+        let change = Math.floor(stock.price * percent);
+        if (change === 0) change = Math.random() < 0.5 ? -1 : 1;
 
-        // 가격 반영
+        const oldPrice = stock.price;
         stock.price += change;
 
-        // 변동 시간 기록
         stock.lastChangedAt = new Date();
         stock.nextChangeAt = new Date(Date.now() + 600000);
 
         // =========================
-        // 뉴스 이벤트
+        // 뉴스 이벤트 (pending 없을 때만)
         // =========================
+        if (!hadPending) {
 
-        const eventChance = Math.random();
-
-        // 호재
-        if (eventChance < 0.1) {
-
-            const news =
-                goodNews[
-                    Math.floor(Math.random() * goodNews.length)
-                ];
-
-            const bonus =
-                Math.floor(stock.price * (
-                    Math.random() * 0.3 + 0.1
-                ));
-
-            stock.price += bonus;
-
-            stock.news.unshift(
-                `🟢 ${news} (+${bonus}원)`
-            );
-        }
-
-        // 악재
-        else if (eventChance < 0.2) {
-
-            const news =
-                badNews[
-                    Math.floor(Math.random() * badNews.length)
-                ];
-
-            const minus =
-                Math.floor(stock.price * (
-                    Math.random() * 0.3 + 0.1
-                ));
-
-            stock.price -= minus;
-
-            stock.news.unshift(
-                `🔴 ${news} (-${minus}원)`
-            );
+            // 호재 10%
+            if (eventChance < 0.1) {
+                const news = goodNews[Math.floor(Math.random() * goodNews.length)];
+                const bonus = Math.floor(stock.price * (Math.random() * 0.3 + 0.1));
+                stock.price += bonus;
+                stock.news.unshift(`🟢 ${news} (+${bonus}원)`);
+            }
+            // 악재 (기본 20%, 100만원 이상 40%)
+            else if (eventChance < badEventThreshold) {
+                const news = badNews[Math.floor(Math.random() * badNews.length)];
+                const minus = Math.floor(stock.price * (Math.random() * 0.3 + 0.1));
+                stock.price -= minus;
+                stock.news.unshift(`🔴 ${news} (-${minus}원)`);
+            }
         }
 
         // 음수 방지
-        if (stock.price < 0) {
-            stock.price = 0;
-        }
+        if (stock.price < 0) stock.price = 0;
 
         // =========================
         // 연속 하락 체크
         // =========================
-
         if (stock.price < oldPrice) {
-
             stock.downStreak += 1;
-
         } else {
-
             stock.downStreak = 0;
         }
 
-        // 연속 하락 경고
         if (stock.downStreak >= 5) {
+            stock.news.unshift(`⚠ ${stock.downStreak}연속 하락중!!`);
+        }
 
-            stock.news.unshift(
-                `⚠ ${stock.downStreak}연속 하락중!!`
-            );
+        // =========================
+        // 하락장 진입/해제
+        // =========================
+        if (stock.downStreak >= 3) {
+            if (!stock.bearMarket) {
+                stock.bearMarket = true;
+                stock.bearMarketCount = 0;
+                stock.news.unshift('📉 하락장 진입!! 악재 위험 증가!!');
+            }
+            stock.bearMarketCount += 1;
+        } else if (stock.bearMarket && stock.downStreak === 0) {
+            stock.bearMarketCount += 1;
+            // 2번 연속 상승하면 하락장 해제
+            if (stock.bearMarketCount >= 2) {
+                stock.bearMarket = false;
+                stock.bearMarketCount = 0;
+                stock.news.unshift('📈 하락장 탈출!!');
+            }
         }
 
         // =========================
         // 자동 상장폐지
         // =========================
-
-        if (
-            stock.listed &&
-            (
-                stock.price <= 5 ||
-                stock.downStreak >= 9
-            )
-        ) {
+        if (stock.listed && (stock.price <= 5 || stock.downStreak >= 9)) {
 
             stock.listed = false;
             stock.price = 0;
 
             if (stock.downStreak >= 9) {
-
-                stock.news.unshift(
-                    '💀 9연속 하락으로 상장폐지'
-                );
-
+                stock.news.unshift('💀 9연속 하락으로 상장폐지');
             } else {
-
-                stock.news.unshift(
-                    '💀 주가 5원 이하로 상장폐지'
-                );
+                stock.news.unshift('💀 주가 5원 이하로 상장폐지');
             }
 
-            // 뉴스 최대 5개 유지
+            stock.bearMarket = false;
             stock.news = stock.news.slice(0, 5);
 
-            // =========================
-            // 홍보 효과 감소
-            // =========================
+            if (stock.promotionLevel > 0) stock.promotionLevel -= 1;
 
-            if (stock.promotionLevel > 0) {
-
-                stock.promotionLevel -= 1;
-            }
-
-            // 즉시 저장
             await stock.save();
-
-            // 다음 회사 처리
             continue;
         }
 
         // =========================
         // 대표 수수료 지급
         // =========================
-
         if (stock.owner && stock.listed) {
-
             const owner = await getUser(stock.owner);
-
-            const fee =
-                Math.floor(stock.price * 0.05);
-
+            const fee = Math.floor(stock.price * 0.05);
             owner.money += fee;
-
             await owner.save();
         }
 
-        // 뉴스 최대 5개 유지
         stock.news = stock.news.slice(0, 5);
-
         await stock.save();
+    }
+
+    // =========================
+    // 세금 시스템
+    // =========================
+    const users = await Money.find();
+
+    for (const user of users) {
+        if (user.money < 50000) continue;
+
+        let tax = 0;
+
+        if (user.money >= 1000000) {
+            tax = Math.floor(user.money * 0.08);
+        } else if (user.money >= 500000) {
+            tax = Math.floor(user.money * 0.05);
+        } else if (user.money >= 100000) {
+            tax = Math.floor(user.money * 0.03);
+        } else {
+            tax = Math.floor(user.money * 0.01);
         }
 
-        // =========================
-        // 세금 시스템
-        // =========================
+        if (tax < 1000) tax = 1000;
 
-        const users = await Money.find();
+        user.money -= tax;
+        if (user.money < 0) user.money = 0;
 
-        for (const user of users) {
-
-            // 5만원 이상부터 세금
-            if (user.money < 50000) continue;
-
-            let tax = 0;
-
-            // 구간별 세금
-            if (user.money >= 1000000) {
-
-                tax =
-                    Math.floor(user.money * 0.08);
-
-            } else if (user.money >= 500000) {
-
-                tax =
-                    Math.floor(user.money * 0.05);
-
-            } else if (user.money >= 100000) {
-
-                tax =
-                    Math.floor(user.money * 0.03);
-
-            } else {
-
-                tax =
-                    Math.floor(user.money * 0.01);
-            }
-
-            // 최소 세금
-            if (tax < 1000) {
-                tax = 1000;
-            }
-
-            user.money -= tax;
-
-            // 음수 방지
-            if (user.money < 0) {
-                user.money = 0;
-            }
-
-            await user.save();
-
-            console.log(
-                `[세금] ${user.userId} -${tax}원`
-            );
-        }
+        await user.save();
+        console.log(`[세금] ${user.userId} -${tax}원`);
+    }
 
 }, 600000);
 
 
+// =========================
+// interactionCreate
+// =========================
+
 client.on('interactionCreate', async interaction => {
 
-   try {
+    try {
 
         // 버튼 처리
         if (interaction.isButton()) {
 
-            // 뉴스 페이지
-
             // 뉴스 페이지 버튼
-if (
-        interaction.customId.startsWith('news_prev_') ||
-        interaction.customId.startsWith('news_next_')
-    ) {
-
-        await interaction.deferUpdate();
-
-        try {
-
-            const pageId =
-                interaction.customId.split('_')[2];
-
-            const data =
-                newsPages.get(pageId);
-
-            if (!data) {
-
-                return interaction.editReply({
-                    content: '❌ 뉴스가 만료됨',
-                    components: []
-                });
-            }
-
             if (
-                interaction.user.id !== data.userId
+                interaction.customId.startsWith('news_prev_') ||
+                interaction.customId.startsWith('news_next_')
             ) {
+                await interaction.deferUpdate();
 
-                return interaction.followUp({
-                    content: '❌ 본인만 사용 가능',
-                    flags: 64
-                });
-            }
+                try {
+                    const pageId = interaction.customId.split('_')[2];
+                    const data = newsPages.get(pageId);
 
-            if (
-                interaction.customId.startsWith('news_prev_')
-            ) {
+                    if (!data) {
+                        return interaction.editReply({ content: '❌ 뉴스가 만료됨', components: [] });
+                    }
 
-                data.page--;
+                    if (interaction.user.id !== data.userId) {
+                        return interaction.followUp({ content: '❌ 본인만 사용 가능', flags: 64 });
+                    }
 
-            } else {
+                    if (interaction.customId.startsWith('news_prev_')) {
+                        data.page--;
+                    } else {
+                        data.page++;
+                    }
 
-                data.page++;
-            }
+                    if (data.page < 0) data.page = 0;
+                    if (data.page >= data.pages.length) data.page = data.pages.length - 1;
 
-            if (data.page < 0)
-                data.page = 0;
-
-            if (data.page >= data.pages.length)
-                data.page = data.pages.length - 1;
-
-            const row =
-                new ActionRowBuilder()
-                    .addComponents(
-
+                    const row = new ActionRowBuilder().addComponents(
                         new ButtonBuilder()
                             .setCustomId(`news_prev_${pageId}`)
                             .setLabel('◀')
                             .setStyle(ButtonStyle.Secondary)
                             .setDisabled(data.page === 0),
-
                         new ButtonBuilder()
                             .setCustomId(`news_next_${pageId}`)
                             .setLabel('▶')
                             .setStyle(ButtonStyle.Secondary)
-                            .setDisabled(
-                                data.page === data.pages.length - 1
-                            )
+                            .setDisabled(data.page === data.pages.length - 1)
                     );
 
-            return interaction.editReply({
-                content:
-                    `🗞 주식 뉴스 (${data.page + 1}/${data.pages.length})\n\n` +
-                    data.pages[data.page],
-                components: [row]
-            });
+                    return interaction.editReply({
+                        content: `🗞 주식 뉴스 (${data.page + 1}/${data.pages.length})\n\n` + data.pages[data.page],
+                        components: [row]
+                    });
 
-        } catch (err) {
+                } catch (err) {
+                    console.error(err);
+                    return interaction.followUp({ content: '❌ 오류 발생', flags: 64 });
+                }
+            }
 
-            console.error(err);
-
-            return interaction.followUp({
-                content: '❌ 오류 발생',
-                flags: 64
-            });
-        }
-    }
-
-            //블랙잭
-
+            // 블랙잭
             if (
                 interaction.customId === 'blackjack_hit' ||
                 interaction.customId === 'blackjack_stand'
             ) {
-
-                const game =
-                    blackjackGames.get(interaction.user.id);
+                const game = blackjackGames.get(interaction.user.id);
 
                 if (!game) {
-                    return interaction.reply({
-                        content: '게임 없음',
-                        flags: 64
-                    });
+                    return interaction.reply({ content: '게임 없음', flags: 64 });
                 }
 
-                const user =
-                    await getUser(interaction.user.id);
+                const user = await getUser(interaction.user.id);
+                const drawCard = () => Math.floor(Math.random() * 10) + 1;
+                const playerTotal = () => game.playerCards.reduce((a, b) => a + b, 0);
+                const dealerTotal = () => game.dealerCards.reduce((a, b) => a + b, 0);
 
-                const drawCard = () =>
-                    Math.floor(Math.random() * 10) + 1;
-
-                const playerTotal = () =>
-                    game.playerCards.reduce((a,b)=>a+b,0);
-
-                const dealerTotal = () =>
-                    game.dealerCards.reduce((a,b)=>a+b,0);
-
-                // HIT
                 if (interaction.customId === 'blackjack_hit') {
-
                     game.playerCards.push(drawCard());
 
                     if (playerTotal() > 21) {
-
                         user.money -= game.bet;
-
                         await user.save();
-
                         blackjackGames.delete(interaction.user.id);
 
                         return interaction.update({
-                            content:
-                                `💀 버스트!\n` +
-                                `카드: ${game.playerCards.join(', ')}\n` +
-                                `현재 돈: ${formatMoney(user.money)}`,
+                            content: `💀 버스트!\n카드: ${game.playerCards.join(', ')}\n현재 돈: ${formatMoney(user.money)}`,
                             components: []
                         });
                     }
 
                     return interaction.update({
-                        content:
-                            `🃏 카드: ${game.playerCards.join(', ')}\n` +
-                            `합계: ${playerTotal()}`,
+                        content: `🃏 카드: ${game.playerCards.join(', ')}\n합계: ${playerTotal()}`,
                         components: interaction.message.components
                     });
                 }
 
-                // STAND
                 while (dealerTotal() < 17) {
                     game.dealerCards.push(drawCard());
                 }
 
                 let result;
 
-                if (
-                    dealerTotal() > 21 ||
-                    playerTotal() > dealerTotal()
-                ) {
-
+                if (dealerTotal() > 21 || playerTotal() > dealerTotal()) {
                     user.money += game.bet;
-
                     result = '🎉 승리!';
-
-                } else if (
-                    playerTotal() < dealerTotal()
-                ) {
-
+                } else if (playerTotal() < dealerTotal()) {
                     user.money -= game.bet;
-
                     result = '💀 패배';
-
                 } else {
-
                     result = '🤝 무승부';
                 }
 
                 await user.save();
-
                 blackjackGames.delete(interaction.user.id);
 
                 return interaction.update({
-                    content:
-                        `${result}\n\n` +
-                        `내 카드: ${game.playerCards.join(', ')} (${playerTotal()})\n` +
-                        `딜러 카드: ${game.dealerCards.join(', ')} (${dealerTotal()})\n\n` +
-                        `💰 현재 돈: ${formatMoney(user.money)}`,
+                    content: `${result}\n\n내 카드: ${game.playerCards.join(', ')} (${playerTotal()})\n딜러 카드: ${game.dealerCards.join(', ')} (${dealerTotal()})\n\n💰 현재 돈: ${formatMoney(user.money)}`,
                     components: []
                 });
             }
 
             // 편지 열기
-
             if (interaction.customId.startsWith('letter_')) {
-
                 const id = interaction.customId.split('_')[1];
-
                 const letter = await Letter.findById(id);
 
                 if (!letter) {
-                    return interaction.reply({
-                        content: '편지를 찾을 수 없음',
-                        flags: 64
-                    });
+                    return interaction.reply({ content: '편지를 찾을 수 없음', flags: 64 });
                 }
 
                 const fromUser = await client.users.fetch(letter.from);
@@ -1113,415 +802,279 @@ if (
                     .setTitle(typeEmoji[letter.type])
                     .setDescription(letter.content)
                     .addFields(
-                        {
-                            name: '보낸 사람',
-                            value: fromUser.username
-                        },
-                        {
-                            name: '날짜',
-                            value: `<t:${Math.floor(letter.createdAt / 1000)}:R>`
-                        }
+                        { name: '보낸 사람', value: fromUser.username },
+                        { name: '날짜', value: `<t:${Math.floor(letter.createdAt / 1000)}:R>` }
                     )
                     .setColor(
-                        letter.type === 'love'
-                            ? 'Red'
-                            : letter.type === 'duel'
-                            ? 'DarkRed'
-                            : 'Green'
+                        letter.type === 'love' ? 'Red' : letter.type === 'duel' ? 'DarkRed' : 'Green'
                     );
 
-                return interaction.reply({
-                    embeds: [embed],
-                    flags: 64
-                });
+                return interaction.reply({ embeds: [embed], flags: 64 });
             }
 
             // 편지 페이지 이동
-
             if (
                 interaction.customId.startsWith('letters_prev_') ||
                 interaction.customId.startsWith('letters_next_')
             ) {
-
                 const perPage = 5;
-
-                let page =
-                    Number(interaction.customId.split('_')[2]) || 0;
-
-                const direction =
-                    interaction.customId.startsWith('letters_next_')
-                        ? 1
-                        : -1;
-
+                let page = Number(interaction.customId.split('_')[2]) || 0;
+                const direction = interaction.customId.startsWith('letters_next_') ? 1 : -1;
                 page = Math.max(0, page + direction);
 
-                const allLetters = await Letter.find({
-                    to: interaction.user.id
-                }).sort({ createdAt: -1 });
-
+                const allLetters = await Letter.find({ to: interaction.user.id }).sort({ createdAt: -1 });
                 const start = page * perPage;
-
-                const currentLetters =
-                    allLetters.slice(start, start + perPage);
+                const currentLetters = allLetters.slice(start, start + perPage);
 
                 const buttons = currentLetters.map((l, index) =>
                     new ButtonBuilder()
                         .setCustomId(`letter_${l._id}`)
                         .setLabel(
-                            `${l.type === 'love'
-                                ? '💌 러브'
-                                : l.type === 'duel'
-                                ? '⚔ 결투'
-                                : '🤝 우정'} #${start + index + 1}`
+                            `${l.type === 'love' ? '💌 러브' : l.type === 'duel' ? '⚔ 결투' : '🤝 우정'} #${start + index + 1}`
                         )
                         .setStyle(ButtonStyle.Primary)
                 );
 
                 const rows = [];
-
-                if (buttons.length > 0) {
-                    rows.push(
-                        new ActionRowBuilder().addComponents(buttons)
-                    );
-                }
+                if (buttons.length > 0) rows.push(new ActionRowBuilder().addComponents(buttons));
 
                 rows.push(
                     new ActionRowBuilder().addComponents(
-
                         new ButtonBuilder()
                             .setCustomId(`letters_prev_${page}`)
                             .setLabel('◀ 이전')
                             .setStyle(ButtonStyle.Secondary)
                             .setDisabled(page === 0),
-
                         new ButtonBuilder()
                             .setCustomId(`letters_next_${page}`)
                             .setLabel('다음 ▶')
                             .setStyle(ButtonStyle.Secondary)
-                            .setDisabled(
-                                start + perPage >= allLetters.length
-                            )
+                            .setDisabled(start + perPage >= allLetters.length)
                     )
                 );
 
-                return interaction.update({
-                    content: `📬 편지함 (${allLetters.length}개)`,
-                    components: rows
-                });
+                return interaction.update({ content: `📬 편지함 (${allLetters.length}개)`, components: rows });
             }
 
             // 편지 삭제
-
             if (interaction.customId.startsWith('deleteletter_')) {
-
                 const id = interaction.customId.split('_')[1];
-
                 const letter = await Letter.findById(id);
 
                 if (!letter) {
-
-                    return interaction.reply({
-                        content: '이미 삭제된 편지입니다.',
-                        flags: 64
-                    });
+                    return interaction.reply({ content: '이미 삭제된 편지입니다.', flags: 64 });
                 }
 
                 await Letter.findByIdAndDelete(id);
-
-                return interaction.update({
-                    content: '🗑 편지가 삭제되었습니다.',
-                    embeds: [],
-                    components: []
-                });
+                return interaction.update({ content: '🗑 편지가 삭제되었습니다.', embeds: [], components: [] });
             }
 
             // 틱택토
-
             if (interaction.customId.startsWith('ttt_')) {
-
-                const [, gameId, index] =
-                    interaction.customId.split('_');
-
+                const [, gameId, index] = interaction.customId.split('_');
                 const game = tttGames.get(gameId);
 
-                if (!game) {
-
-                    return interaction.reply({
-                        content: '게임이 종료됨',
-                        flags: 64
-                    });
-                }
-
-                if (game.board[index]) {
-
-                    return interaction.reply({
-                        content: '이미 선택된 칸임',
-                        flags: 64
-                    });
-                }
+                if (!game) return interaction.reply({ content: '게임이 종료됨', flags: 64 });
+                if (game.board[index]) return interaction.reply({ content: '이미 선택된 칸임', flags: 64 });
 
                 game.board[index] = game.turn;
 
                 const winPatterns = [
-                    [0,1,2],
-                    [3,4,5],
-                    [6,7,8],
-                    [0,3,6],
-                    [1,4,7],
-                    [2,5,8],
-                    [0,4,8],
-                    [2,4,6]
+                    [0,1,2],[3,4,5],[6,7,8],
+                    [0,3,6],[1,4,7],[2,5,8],
+                    [0,4,8],[2,4,6]
                 ];
 
-                const checkWin = (symbol) =>
-                    winPatterns.some(p =>
-                        p.every(i => game.board[i] === symbol)
-                    );
+                const checkWin = (symbol) => winPatterns.some(p => p.every(i => game.board[i] === symbol));
 
                 if (checkWin(game.turn)) {
-
                     tttGames.delete(gameId);
-
-                    return interaction.update({
-                        content: `🏆 ${game.turn} 승리!`,
-                        components: []
-                    });
+                    return interaction.update({ content: `🏆 ${game.turn} 승리!`, components: [] });
                 }
 
-                const isDraw =
-                    game.board.every(cell => cell !== null);
-
+                const isDraw = game.board.every(cell => cell !== null);
                 if (isDraw) {
-
                     tttGames.delete(gameId);
-
-                    return interaction.update({
-                        content: `🤝 무승부!`,
-                        components: []
-                    });
+                    return interaction.update({ content: `🤝 무승부!`, components: [] });
                 }
 
-                game.turn =
-                    game.turn === '❌'
-                        ? '⭕'
-                        : '❌';
-
-                return interaction.update({
-                    content: `현재 턴: ${game.turn}`,
-                    components: createBoard(gameId)
-                });
+                game.turn = game.turn === '❌' ? '⭕' : '❌';
+                return interaction.update({ content: `현재 턴: ${game.turn}`, components: createBoard(gameId) });
             }
 
             return;
         }
 
-        // =========================
         // 도움말 드롭다운
-        // =========================
         if (interaction.isStringSelectMenu()) {
-
             if (interaction.customId === 'help_menu') {
-
                 const value = interaction.values[0];
-
                 let embed;
 
                 if (value === 'greet') {
-
                     embed = new EmbedBuilder()
-                        .setTitle('👋 인삿말 도움말')
-                        .setColor('Green')
+                        .setTitle('👋 인삿말 도움말').setColor('Green')
                         .setDescription(`
-        \`/안녕\`
-        양봉이에게 인사합니다. 
+\`/안녕\`
+양봉이에게 인사합니다. 
 
-        \`/유저정보 유저:\`
-        유저 정보를 확인합니다!
+\`/유저정보 유저:\`
+유저 정보를 확인합니다!
 
-        \`/도움말\`
-        양봉이의 도움말을 확인합니다! 
-        `);
+\`/도움말\`
+양봉이의 도움말을 확인합니다! 
+`);
                 }
 
                 if (value === 'game') {
-
                     embed = new EmbedBuilder()
-                        .setTitle('🎮 게임 도움말')
-                        .setColor('Blue')
+                        .setTitle('🎮 게임 도움말').setColor('Blue')
                         .setDescription(`
-        \`/틱택토\`
-        틱택토!!
+\`/틱택토\`
+틱택토!!
 
-        \`//홀짝 배팅: 선택:\`
-        홀짝 도박을 합니다. 
+\`/홀짝 배팅: 선택:\`
+홀짝 도박을 합니다. 
 
-        \`/슬롯 배팅:\`
-        슬롯머신을 돌립니다. 
+\`/슬롯 배팅:\`
+슬롯머신을 돌립니다. 
 
-        \`/블랙잭 배팅:\`
-        블랙잭을 시작합니다. 
+\`/블랙잭 배팅:\`
+블랙잭을 시작합니다. 
 
-        \`/도박 금액:\`
-        돈을 걸고 도박합니다. %50!!
-        `);
+\`/도박 금액:\`
+돈을 걸고 도박합니다. 50%!!
+`);
                 }
 
                 if (value === 'economy') {
-
                     embed = new EmbedBuilder()
-                        .setTitle('💰 경제 도움말')
-                        .setColor('Gold')
+                        .setTitle('💰 경제 도움말').setColor('Gold')
                         .setDescription(`
-        \`/돈\`
-        현재 돈을 확인합니다!!
+\`/돈\`
+현재 돈을 확인합니다!!
 
-        \`/돈순위\`
-        현재 돈 순위를 확인합니다!!
+\`/돈순위\`
+현재 돈 순위를 확인합니다!!
 
-        \`/구걸\`
-        하루 다섯번 500원을 획득합니다!!
+\`/구걸\`
+10분마다 100~300원을 획득합니다!!
 
-        \`/운세\`
-        오늘의 운세를 확인합니다!! (출석체크!! 1000원 씩 흭득!!)
+\`/운세\`
+오늘의 운세를 확인합니다!! (출석체크!! 1000원 씩 획득!!)
 
-        \`/회사삭제 회사:\`
-        1000원으로 회사를 삭제합니다!! 삭제할때마다 삭제비용이 올라갑니다. 
+\`/회사삭제 회사:\`
+1000원으로 회사를 삭제합니다!! 삭제할때마다 삭제비용이 올라갑니다. 
 
-        \`/회사생성 이름:\`
-        1000원으로 회사를 생성합니다!! 
+\`/회사생성 이름:\`
+1000원으로 회사를 생성합니다!! (최대 2개)
 
-        \`/매수 회사: 수량:\`
-        주식을 구입합니다!!
+\`/매수 회사: 수량:\`
+주식을 구입합니다!! (수수료 1.5%, 100주마다 10분 쿨타임)
 
-        \`/매도 회사: 수량:\`
-        주식을 판매합니다!!
+\`/매도 회사: 수량:\`
+주식을 판매합니다!! (수수료 1.5%, 대주주 100주 이상 매도 시 폭락 위험)
 
-        \`/뉴스\`
-        주식 변동률을 미리 확인합니다.
+\`/시가총액 회사:\`
+회사 시가총액을 확인합니다!!
 
-        \`/주식\`
-        주식 목록 확인
-        `);
+\`/뉴스\`
+주식 변동률을 미리 확인합니다.
+
+\`/주식\`
+주식 목록 확인
+`);
                 }
 
                 if (value === 'letter') {
-
                     embed = new EmbedBuilder()
-                        .setTitle('📨 편지 도움말')
-                        .setColor('Red')
+                        .setTitle('📨 편지 도움말').setColor('Red')
                         .setDescription(`
-        \`/편지\`
-        유저에게 편지 보내기
+\`/편지\`
+유저에게 편지 보내기
 
-        \`/편지함\`
-        받은 편지 확인
-        `);
+\`/편지함\`
+받은 편지 확인
+`);
                 }
 
                 if (value === 'manage') {
-
                     embed = new EmbedBuilder()
-                        .setTitle('🛠 관리 도움말')
-                        .setColor('Red')
+                        .setTitle('🛠 관리 도움말').setColor('Red')
                         .setDescription(`
-        \`/청소\`
-        메시지 삭제
+\`/청소\`
+메시지 삭제
 
-        \`/ai설정 채널:\`
-        ai대화 채널을 설정합니다.
+\`/ai설정 채널:\`
+ai대화 채널을 설정합니다.
 
-        \`/성격설정 프롬프트:\`
-        ai의 성격혹은 말투, 등 을 설정합니다.
+\`/성격설정 프롬프트:\`
+ai의 성격혹은 말투, 등 을 설정합니다.
 
-        \`/삭제로그\`
-        삭제 메시지 확인
-        `);
+\`/삭제로그\`
+삭제 메시지 확인
+`);
                 }
 
-                return interaction.update({
-                    embeds: [embed],
-                    components: []
-                });
+                return interaction.update({ embeds: [embed], components: [] });
             }
         }
 
     } catch (error) {
-
         console.error(error);
-
         try {
-
             if (interaction.deferred || interaction.replied) {
-
-                await interaction.editReply({
-                    content: '❌ 오류 발생'
-                });
-
+                await interaction.editReply({ content: '❌ 오류 발생' });
             } else {
-
-                await interaction.reply({
-                    content: '❌ 오류 발생',
-                    flags: 64
-                });
+                await interaction.reply({ content: '❌ 오류 발생', flags: 64 });
             }
-
         } catch (e) {
             console.error(e);
         }
     }
 
-
     if (!interaction.isChatInputCommand()) return;
 
+    // =========================
+    // 안녕
+    // =========================
     if (interaction.commandName === '안녕') {
         return interaction.reply('인사 똑바로해라.');
     }
 
+    // =========================
+    // 주사위
+    // =========================
     if (interaction.commandName === '주사위') {
-
         const dice = Math.floor(Math.random() * 6) + 1;
-
         await interaction.reply(`🎲 금나와라 뚝딱!! : ${dice}`);
     }
 
+    // =========================
+    // 운세
+    // =========================
     if (interaction.commandName === '운세') {
-
         await interaction.deferReply({ flags: 64 });
 
         const userId = interaction.user.id;
         const user = await getUser(userId);
 
-        const today = new Date().toLocaleDateString('sv-SE', {
-            timeZone: 'Asia/Seoul'
-        });
+        const today = new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Seoul' });
+        const yesterday = new Date(Date.now() - 86400000).toLocaleDateString('sv-SE', { timeZone: 'Asia/Seoul' });
 
-        const yesterday = new Date(Date.now() - 86400000)
-            .toLocaleDateString('sv-SE', { timeZone: 'Asia/Seoul' });
-
-        // ❌ 이미 오늘 했으면
         if (user.lastFortuneDate === today) {
-
             const now = new Date();
-
             const tomorrow = new Date();
-
             tomorrow.setHours(24, 0, 0, 0);
-
             const diff = tomorrow - now;
-
-            const hours =
-                Math.floor(diff / 1000 / 60 / 60);
-
-            const minutes =
-                Math.floor((diff / 1000 / 60) % 60);
+            const hours = Math.floor(diff / 1000 / 60 / 60);
+            const minutes = Math.floor((diff / 1000 / 60) % 60);
 
             return interaction.editReply(
-                `❌ 하루에 한번만 가능!\n` +
-                `⏰ 남은 시간: ${hours}시간 ${minutes}분`
+                `❌ 하루에 한번만 가능!\n⏰ 남은 시간: ${hours}시간 ${minutes}분`
             );
         }
 
-        // 🔥 연속 체크
         if (user.lastFortuneDate === yesterday) {
             user.fortuneStreak += 1;
         } else {
@@ -1531,13 +1084,11 @@ if (
         user.lastFortuneDate = today;
 
         let reward = 1000;
-
         if (user.fortuneStreak >= 3) reward += 500;
         if (user.fortuneStreak >= 7) reward += 1500;
         if (user.fortuneStreak >= 14) reward += 3000;
 
         user.money += reward;
-
         await user.save();
 
         const fortunes = [
@@ -1554,117 +1105,66 @@ if (
         const random = fortunes[Math.floor(Math.random() * fortunes.length)];
 
         return interaction.editReply(
-            `🔮 ${interaction.user.username}님의 오늘 운세\n\n` +
-            `${random}\n\n` +
-            `🔥 연속 출석: ${user.fortuneStreak}일\n` +
-            `💰 보상: +${reward}원`
+            `🔮 ${interaction.user.username}님의 오늘 운세\n\n${random}\n\n🔥 연속 출석: ${user.fortuneStreak}일\n💰 보상: +${reward}원`
         );
     }
-    
-    if (interaction.commandName === '도움말') {
 
+    // =========================
+    // 도움말
+    // =========================
+    if (interaction.commandName === '도움말') {
         const embed = new EmbedBuilder()
             .setTitle('🐝 양봉이')
-            .setDescription(
-                '안녕 날 소개하지 난 양봉장의 전용 봇 양봉이라고 하오\n\n' +
-                '아래 카테고리에서 명령어 확인'
-            )
+            .setDescription('안녕 날 소개하지 난 양봉장의 전용 봇 양봉이라고 하오\n\n아래 카테고리에서 명령어 확인')
             .setColor('Green')
-
-            // 이미지 하나만
-            .setThumbnail(
-                'https://cdn.discordapp.com/attachments/1110460136373366845/1506536312423841873/image.png'
-            )
-
-            .setFooter({
-                text: '양봉장의 전용 봇, 아이스크림을 좋아한다. '
-            });
+            .setThumbnail('https://cdn.discordapp.com/attachments/1110460136373366845/1506536312423841873/image.png')
+            .setFooter({ text: '양봉장의 전용 봇, 아이스크림을 좋아한다. ' });
 
         const menu = new StringSelectMenuBuilder()
             .setCustomId('help_menu')
             .setPlaceholder('카테고리 선택')
             .addOptions(
-                {
-                    label: '👋 인삿말',
-                    description: '기본 인삿말 명령어',
-                    value: 'greet'
-                },
-                {
-                    label: '🎮 게임',
-                    description: '게임 명령어',
-                    value: 'game'
-                },
-                {
-                    label: '💰 경제',
-                    description: '돈/주식 명령어',
-                    value: 'economy'
-                },
-                {
-                    label: '📨 편지',
-                    description: '편지 기능',
-                    value: 'letter'
-                },
-                {
-                    label: '🛠 관리',
-                    description: '관리 명령어',
-                    value: 'manage'
-                }
+                { label: '👋 인삿말', description: '기본 인삿말 명령어', value: 'greet' },
+                { label: '🎮 게임', description: '게임 명령어', value: 'game' },
+                { label: '💰 경제', description: '돈/주식 명령어', value: 'economy' },
+                { label: '📨 편지', description: '편지 기능', value: 'letter' },
+                { label: '🛠 관리', description: '관리 명령어', value: 'manage' }
             );
 
-        const row = new ActionRowBuilder()
-            .addComponents(menu);
-
-        return interaction.reply({
-            embeds: [embed],
-            components: [row],
-        });
+        const row = new ActionRowBuilder().addComponents(menu);
+        return interaction.reply({ embeds: [embed], components: [row] });
     }
 
-        if (interaction.commandName === '삭제로그') {
+    // =========================
+    // 삭제로그
+    // =========================
+    if (interaction.commandName === '삭제로그') {
+        const data = deletedMessages.get(interaction.channel.id);
 
-            const data =
-                deletedMessages.get(interaction.channel.id);
-
-            if (!data) {
-
-                return interaction.reply({
-                    content: '❌ 최근 삭제된 메시지가 없다!',
-                    flags: 64
-                });
-
-            }
-
-            const embed = new EmbedBuilder()
-                .setTitle('🗑 최근 삭제된 메시지')
-                .addFields(
-                    {
-                        name: '작성자',
-                        value: data.author
-                    },
-                    {
-                        name: '내용',
-                        value: data.content
-                    }
-                )
-                .setColor('Red');
-
-            await interaction.reply({
-                embeds: [embed]
-            });
-
+        if (!data) {
+            return interaction.reply({ content: '❌ 최근 삭제된 메시지가 없다!', flags: 64 });
         }
 
-    if (interaction.commandName === '유저정보') {
+        const embed = new EmbedBuilder()
+            .setTitle('🗑 최근 삭제된 메시지')
+            .addFields(
+                { name: '작성자', value: data.author },
+                { name: '내용', value: data.content }
+            )
+            .setColor('Red');
 
+        await interaction.reply({ embeds: [embed] });
+    }
+
+    // =========================
+    // 유저정보
+    // =========================
+    if (interaction.commandName === '유저정보') {
         await interaction.deferReply();
 
-        const targetUser =
-            interaction.options.getUser('유저') || interaction.user;
-
-        // 기본 유저 정보
+        const targetUser = interaction.options.getUser('유저') || interaction.user;
         const user = await client.users.fetch(targetUser.id);
 
-        // 서버 멤버 정보 (없을 수도 있음 → 안전 처리)
         let member = null;
         try {
             member = await interaction.guild.members.fetch(targetUser.id);
@@ -1672,10 +1172,8 @@ if (
             member = null;
         }
 
-        // 추가 정보
         const fullUser = await user.fetch();
-
-        const roles = member.roles.cache
+        const roles = member?.roles.cache
             .filter(r => r.id !== interaction.guild.id)
             .map(r => `<@&${r.id}>`)
             .join(' ') || '없음';
@@ -1686,47 +1184,24 @@ if (
             .setImage(fullUser.bannerURL({ size: 1024 }) || null)
             .setColor('Blue')
             .addFields(
-                {
-                    name: '유저 닉네임',
-                    value: member?.nickname || user.username,
-                    inline: true
-                },
-                {
-                    name: '유저 ID',
-                    value: user.id,
-                    inline: true
-                },
-                {
-                    name: '디스코드 가입일',
-                    value: `<t:${Math.floor(user.createdTimestamp / 1000)}:R>`,
-                    inline: true
-                },
-                {
-                    name: '서버 가입일',
-                    value: member
-                        ? `<t:${Math.floor(member.joinedTimestamp / 1000)}:R>`
-                        : '서버 없음',
-                    inline: true
-                },
-                {
-                    name: '서버 역할',
-                    value: roles
-                }
+                { name: '유저 닉네임', value: member?.nickname || user.username, inline: true },
+                { name: '유저 ID', value: user.id, inline: true },
+                { name: '디스코드 가입일', value: `<t:${Math.floor(user.createdTimestamp / 1000)}:R>`, inline: true },
+                { name: '서버 가입일', value: member ? `<t:${Math.floor(member.joinedTimestamp / 1000)}:R>` : '서버 없음', inline: true },
+                { name: '서버 역할', value: roles }
             );
 
         return interaction.editReply({ embeds: [embed] });
     }
 
+    // =========================
+    // 틱택토
+    // =========================
     if (interaction.commandName === '틱택토') {
-
         await interaction.deferReply();
 
         const gameId = interaction.id;
-
-        tttGames.set(gameId, {
-            board: Array(9).fill(null),
-            turn: '❌'
-        });
+        tttGames.set(gameId, { board: Array(9).fill(null), turn: '❌' });
 
         return interaction.editReply({
             content: '🎮 틱택토 시작! ❌ 먼저',
@@ -1734,48 +1209,34 @@ if (
         });
     }
 
+    // =========================
+    // 편지
+    // =========================
     if (interaction.commandName === '편지') {
-
         const to = interaction.options.getUser('유저');
         const type = interaction.options.getString('종류');
         const content = interaction.options.getString('내용');
 
-        const id = Date.now().toString();
+        await Letter.create({ from: interaction.user.id, to: to.id, type, content });
 
-        const newLetter = await Letter.create({
-            from: interaction.user.id,
-            to: to.id,
-            type,
-            content
-        });
+        await interaction.reply({ content: `📨 편지를 보냈습니다! (${to.username})`, flags: 64 });
 
-        await interaction.reply({
-            content: `📨 편지를 보냈습니다! (${to.username})`,
-            flags: 64
-        });
-
-        // 받은 사람 DM
         try {
             await to.send(`📬 새로운 편지가 도착했습니다! 양봉장에서 **/편지함** 으로 확인하세요.`);
         } catch { }
     }
 
-
+    // =========================
+    // 편지함
+    // =========================
     if (interaction.commandName === '편지함') {
-
         const perPage = 5;
         const page = 0;
 
-        // 🔥 DB에서 가져오기
-        const allLetters = await Letter.find({
-            to: interaction.user.id
-        }).sort({ createdAt: -1 });
+        const allLetters = await Letter.find({ to: interaction.user.id }).sort({ createdAt: -1 });
 
         if (allLetters.length === 0) {
-            return interaction.reply({
-                content: '📭 받은 편지가 없습니다.',
-                flags: 64
-            });
+            return interaction.reply({ content: '📭 받은 편지가 없습니다.', flags: 64 });
         }
 
         const start = page * perPage;
@@ -1784,148 +1245,88 @@ if (
         const buttons = currentLetters.map((l, index) =>
             new ButtonBuilder()
                 .setCustomId(`letter_${l._id}`)
-                .setLabel(
-                    `${l.type === 'love'
-                        ? '💌 러브'
-                        : l.type === 'duel'
-                            ? '⚔ 결투'
-                            : '🤝 우정'} #${start + index + 1}`
-                )
+                .setLabel(`${l.type === 'love' ? '💌 러브' : l.type === 'duel' ? '⚔ 결투' : '🤝 우정'} #${start + index + 1}`)
                 .setStyle(ButtonStyle.Primary)
         );
 
         const rows = [];
+        if (buttons.length > 0) rows.push(new ActionRowBuilder().addComponents(buttons));
 
-        if (buttons.length > 0) {
-            rows.push(
-                new ActionRowBuilder().addComponents(buttons)
-            );
-        }
-
-        const navButtons = new ActionRowBuilder().addComponents(
-            new ButtonBuilder()
-                .setCustomId(`letters_prev_${page}`)
-                .setLabel('◀ 이전')
-                .setStyle(ButtonStyle.Secondary)
-                .setDisabled(page === 0),
-
-            new ButtonBuilder()
-                .setCustomId(`letters_next_${page}`)
-                .setLabel('다음 ▶')
-                .setStyle(ButtonStyle.Secondary)
-                .setDisabled(allLetters.length <= perPage)
+        rows.push(
+            new ActionRowBuilder().addComponents(
+                new ButtonBuilder()
+                    .setCustomId(`letters_prev_${page}`)
+                    .setLabel('◀ 이전')
+                    .setStyle(ButtonStyle.Secondary)
+                    .setDisabled(page === 0),
+                new ButtonBuilder()
+                    .setCustomId(`letters_next_${page}`)
+                    .setLabel('다음 ▶')
+                    .setStyle(ButtonStyle.Secondary)
+                    .setDisabled(allLetters.length <= perPage)
+            )
         );
 
-        rows.push(navButtons);
-
-        await interaction.reply({
-            content: `📬 편지함 (${allLetters.length}개)`,
-            components: rows,
-            flags: 64
-        });
+        await interaction.reply({ content: `📬 편지함 (${allLetters.length}개)`, components: rows, flags: 64 });
     }
 
+    // =========================
+    // 돈
+    // =========================
     if (interaction.commandName === '돈') {
-
         const user = await getUser(interaction.user.id);
-
-        return interaction.reply({
-            content: `💰 현재 돈: ${formatMoney(user.money)}`,
-            flags: 64
-        });
+        return interaction.reply({ content: `💰 현재 돈: ${formatMoney(user.money)}`, flags: 64 });
     }
 
+    // =========================
+    // 도박
+    // =========================
     if (interaction.commandName === '도박') {
-
         const userId = interaction.user.id;
-
-        const amountInput =
-            interaction.options.getString('금액');
-
+        const amountInput = interaction.options.getString('금액');
         const user = await getUser(userId);
 
         let bet;
-
-        if (
-            amountInput === '올인' ||
-            amountInput === 'allin'
-        ) {
-
+        if (amountInput === '올인' || amountInput === 'allin') {
             bet = user.money;
-
         } else {
-
             bet = parseInt(amountInput);
         }
 
-        if (bet <= 0) {
-            return interaction.reply({
-                content: '❌ 1원 이상 걸어라.',
-                flags: 64
-            });
-        }
-
-        if (user.money < bet) {
-            return interaction.reply({
-                content: '❌ 돈 부족',
-                flags: 64
-            });
-        }
+        if (bet <= 0) return interaction.reply({ content: '❌ 1원 이상 걸어라.', flags: 64 });
+        if (user.money < bet) return interaction.reply({ content: '❌ 돈 부족', flags: 64 });
 
         const win = Math.random() < 0.5;
-
-        if (win) {
-            user.money += bet;
-        } else {
-            user.money -= bet;
-        }
+        if (win) { user.money += bet; } else { user.money -= bet; }
 
         await user.save();
 
         return interaction.reply(
-            `${win ? '🎉 승리!' : '💀 패배...'}\n` +
-            `${win ? '+' : '-'}${bet}원\n현재 돈: ${formatMoney(user.money)}`
+            `${win ? '🎉 승리!' : '💀 패배...'}\n${win ? '+' : '-'}${formatMoney(bet)}\n현재 돈: ${formatMoney(user.money)}`
         );
     }
 
+    // =========================
+    // 회사생성
+    // =========================
     if (interaction.commandName === '회사생성') {
-
         await interaction.deferReply();
 
-        const name =
-            interaction.options.getString('이름');
-
+        const name = interaction.options.getString('이름');
         const exists = await Stock.findOne({ name });
 
         if (exists) {
-
-            // 삭제된 회사 포함
-            if (exists.deleted) {
-
-                return interaction.editReply(
-                    '❌ 삭제된 회사 이름은 다시 사용할 수 없습니다.'
-                );
-            }
-
-            return interaction.editReply(
-                '이미 존재하는 회사입니다.'
-            );
+            if (exists.deleted) return interaction.editReply('❌ 삭제된 회사 이름은 다시 사용할 수 없습니다.');
+            return interaction.editReply('이미 존재하는 회사입니다.');
         }
 
-        const user =
-            await getUser(interaction.user.id);
-
-        // 회사 생성 비용
+        const user = await getUser(interaction.user.id);
         const createCost = 1000;
 
         if (user.money < createCost) {
-
-            return interaction.editReply(
-                `❌ 회사 생성 비용 부족 (${createCost}원 필요)`
-            );
+            return interaction.editReply(`❌ 회사 생성 비용 부족 (${createCost}원 필요)`);
         }
 
-        // 최대 2개 제한
         const myCompanies = await Stock.countDocuments({
             owner: interaction.user.id,
             deleted: { $ne: true },
@@ -1933,10 +1334,7 @@ if (
         });
 
         if (myCompanies >= 2) {
-
-            return interaction.editReply(
-                '❌ 회사는 최대 2개까지 생성 가능'
-            );
+            return interaction.editReply('❌ 회사는 최대 2개까지 생성 가능');
         }
 
         user.money -= createCost;
@@ -1946,128 +1344,216 @@ if (
             name,
             owner: interaction.user.id,
             price: 1000,
-            news: [
-                `📰 ${name} 회사 창립! 투자자 관심 집중`
-            ]
+            totalShares: 0,
+            news: []
         });
 
-        return interaction.editReply(
-            `🏢 ${name} 회사 생성 완료!\n` +
-            `💸 생성 비용: ${createCost}원`
-        );
+        return interaction.editReply(`🏢 ${name} 회사 생성 완료!\n💸 생성 비용: ${formatMoney(createCost)}`);
     }
 
+    // =========================
+    // 매수 (수수료 1.5% + 쿨타임 100주)
+    // =========================
     if (interaction.commandName === '매수') {
         await interaction.deferReply();
 
         const name = interaction.options.getString('회사');
         const qty = interaction.options.getInteger('수량');
 
+        if (qty <= 0) return interaction.editReply('❌ 1주 이상 매수 가능');
+
         const stock = await Stock.findOne({ name, listed: true });
-        if (!stock) return interaction.editReply('회사 없음');
+        if (!stock) return interaction.editReply('❌ 회사 없음');
 
         const user = await getUser(interaction.user.id);
 
-        const cost = stock.price * qty;
+        // =========================
+        // 대량 매수 쿨타임 체크 (100주마다 10분)
+        // =========================
+        if (qty >= 100) {
+            const lastBuy = user.buyCooldowns?.get(name);
+            if (lastBuy) {
+                const diff = Date.now() - new Date(lastBuy).getTime();
+                const cooldown = 10 * 60 * 1000;
 
-        if (user.money < cost) {
-            return interaction.editReply('돈이 부족합니다');
+                if (diff < cooldown) {
+                    const remain = cooldown - diff;
+                    const minutes = Math.floor(remain / 1000 / 60);
+                    const seconds = Math.floor((remain / 1000) % 60);
+
+                    return interaction.editReply(
+                        `❌ 대량 매수 쿨타임!\n⏰ 남은 시간: ${minutes}분 ${seconds}초\n(100주 이상 매수는 10분 쿨타임)`
+                    );
+                }
+            }
         }
 
-        user.money -= cost;
+        // 수수료 1.5%
+        const rawCost = stock.price * qty;
+        const fee = Math.floor(rawCost * 0.015);
+        const totalCost = rawCost + fee;
+
+        if (user.money < totalCost) {
+            return interaction.editReply(
+                `❌ 돈 부족\n필요 금액: ${formatMoney(totalCost)} (수수료 ${formatMoney(fee)} 포함)`
+            );
+        }
+
+        user.money -= totalCost;
         user.stocks.set(name, (user.stocks.get(name) || 0) + qty);
+
+        // 쿨타임 저장
+        if (qty >= 100) {
+            if (!user.buyCooldowns) user.buyCooldowns = new Map();
+            user.buyCooldowns.set(name, new Date());
+        }
 
         await user.save();
 
-        stock.news.unshift(
-            `📈 ${interaction.user.username}님이 ${qty}주 매수`
-        );
-
+        // 총 발행 주식 수 증가
+        stock.totalShares = (stock.totalShares || 0) + qty;
         stock.news = stock.news.slice(0, 5);
-
         await stock.save();
 
-        return interaction.editReply(`📈 ${name} ${qty}주 매수 완료!`);
+        return interaction.editReply(
+            `📈 ${name} ${qty}주 매수 완료!\n💸 수수료: ${formatMoney(fee)}\n💰 총 지불: ${formatMoney(totalCost)}`
+        );
     }
 
+    // =========================
+    // 매도 (수수료 1.5% + 대주주 폭락)
+    // =========================
     if (interaction.commandName === '매도') {
         await interaction.deferReply();
 
         const name = interaction.options.getString('회사');
         const qty = interaction.options.getInteger('수량');
 
+        if (qty <= 0) return interaction.editReply('❌ 1주 이상 매도 가능');
+
         const stock = await Stock.findOne({ name, listed: true });
-        if (!stock) return interaction.editReply('회사 없음');
+        if (!stock) return interaction.editReply('❌ 회사 없음');
 
         const user = await getUser(interaction.user.id);
-
         const owned = user.stocks.get(name) || 0;
 
-        if (owned < qty) {
-            return interaction.editReply('주식이 부족합니다.');
-        }
+        if (owned < qty) return interaction.editReply('❌ 주식이 부족합니다.');
+
+        // 수수료 1.5%
+        const rawRevenue = stock.price * qty;
+        const fee = Math.floor(rawRevenue * 0.015);
+        const netRevenue = rawRevenue - fee;
 
         user.stocks.set(name, owned - qty);
-        user.money += stock.price * qty;
+        user.money += netRevenue;
 
         await user.save();
 
-        stock.news.unshift(
-            `📉 ${interaction.user.username}님이 ${qty}주 매도`
-        );
+        // 총 발행 주식 수 감소
+        stock.totalShares = Math.max(0, (stock.totalShares || 0) - qty);
+
+        // =========================
+        // 대주주 매도 폭락 (100주 이상 매도)
+        // =========================
+        let crashMsg = '';
+
+        if (qty >= 100) {
+            // 100주마다 5% 추가 폭락 확률 (최대 50%)
+            const crashChance = Math.min(qty / 100 * 0.05, 0.5);
+
+            if (Math.random() < crashChance) {
+                const crashPercent = Math.random() * 0.2 + 0.1; // 10~30% 폭락
+                const crashAmount = Math.floor(stock.price * crashPercent);
+                stock.price = Math.max(0, stock.price - crashAmount);
+                stock.news.unshift(`💀 대주주 대량매도!! 주가 폭락!! (-${formatMoney(crashAmount)})`);
+                crashMsg = `\n⚠ 대량 매도로 주가 폭락 발생!`;
+            }
+        }
 
         stock.news = stock.news.slice(0, 5);
-
         await stock.save();
 
-        return interaction.editReply(`💰 ${name} ${qty}주 매도 완료`);
+        return interaction.editReply(
+            `💰 ${name} ${qty}주 매도 완료!\n` +
+            `💸 수수료: ${formatMoney(fee)}\n` +
+            `💵 실수령: ${formatMoney(netRevenue)}` +
+            crashMsg
+        );
     }
 
-    if (interaction.commandName === '주식') {
-
+    // =========================
+    // 시가총액
+    // =========================
+    if (interaction.commandName === '시가총액') {
         await interaction.deferReply();
 
-        const stocks = await Stock.find({
-            deleted: { $ne: true }
-        });
+        const name = interaction.options.getString('회사');
+        const stock = await Stock.findOne({ name, deleted: { $ne: true } });
 
-        if (stocks.length === 0) {
-            return interaction.editReply('주식 없음');
+        if (!stock) return interaction.editReply('❌ 회사 없음');
+
+        const marketCap = stock.price * (stock.totalShares || 0);
+
+        let ownerName = '알 수 없음';
+        try {
+            const ownerUser = await client.users.fetch(stock.owner);
+            ownerName = ownerUser.username;
+        } catch { }
+
+        const statusEmoji = stock.listed ? '🟢 상장중' : '🔴 상장폐지';
+        const bearEmoji = stock.bearMarket ? '📉 하락장' : '📈 정상';
+
+        const embed = new EmbedBuilder()
+            .setTitle(`🏢 ${stock.name}`)
+            .setColor(stock.listed ? 'Green' : 'Red')
+            .addFields(
+                { name: '💰 현재 주가', value: formatMoney(stock.price), inline: true },
+                { name: '📊 총 발행 주식', value: `${(stock.totalShares || 0).toLocaleString()}주`, inline: true },
+                { name: '🏦 시가총액', value: formatMoney(marketCap), inline: true },
+                { name: '📈 상태', value: statusEmoji, inline: true },
+                { name: '🌡 시장 상황', value: bearEmoji, inline: true },
+                { name: '👔 대표', value: ownerName, inline: true },
+                { name: '📉 연속 하락', value: `${stock.downStreak}연속`, inline: true },
+                { name: '🔥 홍보력', value: `${stock.promotionLevel}`, inline: true }
+            );
+
+        if (stock.news && stock.news.length > 0) {
+            embed.addFields({ name: '📰 최근 소식', value: stock.news.slice(0, 3).join('\n') });
         }
+
+        return interaction.editReply({ embeds: [embed] });
+    }
+
+    // =========================
+    // 주식
+    // =========================
+    if (interaction.commandName === '주식') {
+        await interaction.deferReply();
+
+        const stocks = await Stock.find({ deleted: { $ne: true } });
+
+        if (stocks.length === 0) return interaction.editReply('주식 없음');
 
         const user = await getUser(interaction.user.id);
 
-        // 회사 목록 표
         let companyTable =
             '회사명           가격        상태\n' +
             '────────────────────────────\n';
 
         for (const s of stocks) {
+            const name = s.name.padEnd(15, ' ');
+            const price = `${s.price}원`.padEnd(10, ' ');
+            const status = s.listed ? (s.bearMarket ? '📉하락장' : '상장중') : '상장폐지';
 
-            const name =
-                s.name.padEnd(15, ' ');
+            companyTable += `${name}${price}${status}\n`;
 
-            const price =
-                `${s.price}원`.padEnd(10, ' ');
-
-            const status =
-                s.listed ? '상장중' : '상장폐지';
-
-            companyTable +=
-                `${name}${price}${status}\n`;
-
-            // 최근 뉴스 표시
             if (s.news && s.news.length > 0) {
-
-                companyTable +=
-                    `📰 ${s.news[0]}\n`;
+                companyTable += `📰 ${s.news[0]}\n`;
             }
 
-            companyTable +=
-                '────────────────────────────\n';
+            companyTable += '────────────────────────────\n';
         }
 
-        // 내 주식 표
         let myStockTable =
             '회사명           보유수량\n' +
             '────────────────────\n';
@@ -2075,47 +1561,38 @@ if (
         let hasStock = false;
 
         for (const [name, qty] of user.stocks) {
-
             if (qty <= 0) continue;
-
             hasStock = true;
-
-            myStockTable +=
-                `${name.padEnd(15, ' ')}${qty}주\n`;
+            myStockTable += `${name.padEnd(15, ' ')}${qty}주\n`;
         }
 
-        if (!hasStock) {
-            myStockTable += '보유 주식 없음';
-        }
+        if (!hasStock) myStockTable += '보유 주식 없음';
 
         return interaction.editReply({
             content:
-    `🏢 현재 생성된 회사 목록
+`🏢 현재 생성된 회사 목록
 
-    \`\`\`
-    ${companyTable}
-    \`\`\`
+\`\`\`
+${companyTable}
+\`\`\`
 
-    📈 ${interaction.user.username}님의 주식 현황
+📈 ${interaction.user.username}님의 주식 현황
 
-    \`\`\`
-    ${myStockTable}
-    \`\`\``
+\`\`\`
+${myStockTable}
+\`\`\``
         });
     }
 
+    // =========================
+    // 뉴스
+    // =========================
     if (interaction.commandName === '뉴스') {
-
         await interaction.deferReply();
 
-        const stocks = await Stock.find({
-            listed: true,
-            deleted: { $ne: true }
-        });
+        const stocks = await Stock.find({ listed: true, deleted: { $ne: true } });
 
-        if (stocks.length === 0) {
-            return interaction.editReply('상장된 회사 없음');
-        }
+        if (stocks.length === 0) return interaction.editReply('상장된 회사 없음');
 
         const goodPreview = [
             'ㅇㅇㅇ대표 선행 밝혀져.. "그저 도움이 되고 싶었다" ',
@@ -2150,15 +1627,9 @@ if (
         const pages = [];
 
         for (const stock of stocks) {
+            let type, news, chance, percent;
 
-            let type;
-            let news;
-            let chance;
-            let percent;
-
-            // ✅ 이미 예측이 저장된 경우 그대로 표시
             if (stock.pendingPercent !== null && stock.pendingPercent !== undefined && stock.pendingNews) {
-
                 percent = stock.pendingPercent;
                 news = stock.pendingNews;
 
@@ -2177,36 +1648,31 @@ if (
                 }
 
             } else {
-
-                // 새로 랜덤 생성 후 저장
                 const random = Math.random();
 
                 if (random < 0.05) {
                     type = '🚀 폭등 가능성';
                     chance = '5%';
                     news = boomPreview[Math.floor(Math.random() * boomPreview.length)];
-                    percent = Math.random() * 0.5 + 0.3;  // 30~80% 상승
+                    percent = Math.random() * 0.5 + 0.3;
                     stock.pendingType = 'boom';
-
                 } else if (random < 0.10) {
                     type = '💀 폭락 가능성';
                     chance = '5%';
                     news = crashPreview[Math.floor(Math.random() * crashPreview.length)];
-                    percent = -(Math.random() * 0.4 + 0.2);  // 20~60% 하락
+                    percent = -(Math.random() * 0.4 + 0.2);
                     stock.pendingType = 'crash';
-
                 } else if (random < 0.55) {
                     type = '📈 상승 예상';
                     chance = '45%';
                     news = goodPreview[Math.floor(Math.random() * goodPreview.length)];
-                    percent = Math.random() * 0.2;  // 0~20% 상승
+                    percent = Math.random() * 0.2;
                     stock.pendingType = null;
-
                 } else {
                     type = '📉 하락 예상';
                     chance = '45%';
                     news = badPreview[Math.floor(Math.random() * badPreview.length)];
-                    percent = -(Math.random() * 0.2);  // 0~20% 하락
+                    percent = -(Math.random() * 0.2);
                     stock.pendingType = null;
                 }
 
@@ -2223,50 +1689,46 @@ if (
                 ? `<t:${Math.floor(stock.nextChangeAt.getTime() / 1000)}:R>`
                 : '없음';
 
+            const bearWarning = stock.bearMarket ? '\n⚠ 현재 하락장!!' : '';
+
             pages.push(
-    `🏢 ${stock.name}
+`🏢 ${stock.name}
 
-    💰 현재 가격: ${stock.price}원
+💰 현재 가격: ${formatMoney(stock.price)}
+🏦 시가총액: ${formatMoney(stock.price * (stock.totalShares || 0))}
 
-    📊 예상 변동:
-    ${type}
+📊 예상 변동:
+${type}${bearWarning}
 
-    🎲 확률:
-    ${chance}
+🎲 적중 확률: 90%
+📈 변동 확률: ${chance}
 
-    📰 뉴스:
-    ${news}
+📰 뉴스:
+${news}
 
-    ⏰ 최근 변동:
-    ${lastTime}
+⏰ 최근 변동:
+${lastTime}
 
-    🕒 다음 변동:
-    ${nextTime}`
+🕒 다음 변동:
+${nextTime}`
             );
         }
 
         const pageId = interaction.id;
+        newsPages.set(pageId, { userId: interaction.user.id, pages, page: 0 });
 
-        newsPages.set(pageId, {
-            userId: interaction.user.id,
-            pages,
-            page: 0
-        });
-
-        const row = new ActionRowBuilder()
-            .addComponents(
-                new ButtonBuilder()
-                    .setCustomId(`news_prev_${pageId}`)
-                    .setLabel('◀')
-                    .setStyle(ButtonStyle.Secondary)
-                    .setDisabled(true),
-
-                new ButtonBuilder()
-                    .setCustomId(`news_next_${pageId}`)
-                    .setLabel('▶')
-                    .setStyle(ButtonStyle.Secondary)
-                    .setDisabled(pages.length <= 1)
-            );
+        const row = new ActionRowBuilder().addComponents(
+            new ButtonBuilder()
+                .setCustomId(`news_prev_${pageId}`)
+                .setLabel('◀')
+                .setStyle(ButtonStyle.Secondary)
+                .setDisabled(true),
+            new ButtonBuilder()
+                .setCustomId(`news_next_${pageId}`)
+                .setLabel('▶')
+                .setStyle(ButtonStyle.Secondary)
+                .setDisabled(pages.length <= 1)
+        );
 
         return interaction.editReply({
             content: `🗞 주식 뉴스 (1/${pages.length})\n\n` + pages[0],
@@ -2274,490 +1736,274 @@ if (
         });
     }
 
-
+    // =========================
+    // 구걸
+    // =========================
     if (interaction.commandName === '구걸') {
-
         await interaction.deferReply({ flags: 64 });
 
         const user = await getUser(interaction.user.id);
-
         const now = Date.now();
 
-        // 10분 쿨타임
         if (user.lastBegTime) {
-
-            const diff =
-                now - new Date(user.lastBegTime).getTime();
-
-            const cooldown =
-                10 * 60 * 1000;
+            const diff = now - new Date(user.lastBegTime).getTime();
+            const cooldown = 10 * 60 * 1000;
 
             if (diff < cooldown) {
-
-                const remain =
-                    cooldown - diff;
-
-                const minutes =
-                    Math.floor(remain / 1000 / 60);
-
-                const seconds =
-                    Math.floor((remain / 1000) % 60);
+                const remain = cooldown - diff;
+                const minutes = Math.floor(remain / 1000 / 60);
+                const seconds = Math.floor((remain / 1000) % 60);
 
                 return interaction.editReply(
-                    `❌ 아직 구걸 못함!\n` +
-                    `⏰ 남은 시간: ${minutes}분 ${seconds}초`
+                    `❌ 아직 구걸 못함!\n⏰ 남은 시간: ${minutes}분 ${seconds}초`
                 );
             }
         }
 
-        // 100~300 랜덤 지급
-        const reward =
-            Math.floor(Math.random() * 201) + 100;
-
+        const reward = Math.floor(Math.random() * 201) + 100;
         user.money += reward;
-
         user.lastBegTime = new Date();
-
         await user.save();
 
-        return interaction.editReply(
-            `🪙 ${reward}원을 구걸했다!\n` +
-            `💰 현재 돈: ${formatMoney(user.money)}`
-        );
+        return interaction.editReply(`🪙 ${reward}원을 구걸했다!\n💰 현재 돈: ${formatMoney(user.money)}`);
     }
 
-
+    // =========================
+    // 돈순위
+    // =========================
     if (interaction.commandName === '돈순위') {
-
         await interaction.deferReply();
 
-        const users = await Money.find()
-            .sort({ money: -1 })
-            .limit(10);
+        const users = await Money.find().sort({ money: -1 }).limit(10);
 
         let text =
-            '순위   돈        유저\n' +
-            '────────────────────────\n';
+            '순위   돈              유저\n' +
+            '──────────────────────────────\n';
 
         for (let i = 0; i < users.length; i++) {
-
             let username = '알 수 없음';
-
             try {
-                const discordUser =
-                    await client.users.fetch(users[i].userId);
-
+                const discordUser = await client.users.fetch(users[i].userId);
                 username = discordUser.username;
-            } catch {}
+            } catch { }
 
             text +=
                 `${String(i + 1).padEnd(6)} ` +
-                `${String(users[i].money).padEnd(10)} ` +
+                `${String(users[i].money).padEnd(15)} ` +
                 `${username}\n`;
         }
 
         return interaction.editReply({
             content:
-    `💰 플레이어 돈 순위
+`💰 플레이어 돈 순위
 
-    \`\`\`
-    ${text}
-    \`\`\``
+\`\`\`
+${text}
+\`\`\``
         });
     }
 
+    // =========================
+    // 회사삭제
+    // =========================
     if (interaction.commandName === '회사삭제') {
-
         await interaction.deferReply();
 
-        const name =
-            interaction.options.getString('회사');
-
+        const name = interaction.options.getString('회사');
         const stock = await Stock.findOne({ name });
 
-        if (!stock) {
-            return interaction.editReply('❌ 회사 없음');
-        }
-
-        // 자기 회사만 삭제 가능
-        if (stock.owner !== interaction.user.id) {
-            return interaction.editReply('❌ 자기 회사만 삭제 가능');
-        }
+        if (!stock) return interaction.editReply('❌ 회사 없음');
+        if (stock.owner !== interaction.user.id) return interaction.editReply('❌ 자기 회사만 삭제 가능');
 
         const user = await getUser(interaction.user.id);
 
-        // 삭제 비용 없으면 생성
-        if (!user.deleteCost) {
-            user.deleteCost = 1000;
-        }
+        if (!user.deleteCost) user.deleteCost = 1000;
 
-        // 돈 부족
         if (user.money < user.deleteCost) {
-
-            return interaction.editReply(
-                `❌ 회사 삭제 비용 부족\n현재 비용: ${user.deleteCost}원`
-            );
+            return interaction.editReply(`❌ 회사 삭제 비용 부족\n현재 비용: ${formatMoney(user.deleteCost)}`);
         }
 
-        // 돈 차감
         user.money -= user.deleteCost;
-
-        // 다음 비용 증가
         const currentCost = user.deleteCost;
         user.deleteCost += 1000;
-
         await user.save();
 
         stock.deleted = true;
         stock.deletedAt = new Date();
-
         stock.listed = false;
         stock.price = 0;
-
-        stock.news.unshift(
-            `💀 회사 삭제됨`
-        );
-
+        stock.news.unshift('💀 회사 삭제됨');
         await stock.save();
 
         return interaction.editReply(
-            `🗑 ${name} 회사 삭제 완료!\n` +
-            `💸 삭제 비용: ${currentCost}원\n` +
-            `📈 다음 삭제 비용: ${user.deleteCost}원`
+            `🗑 ${name} 회사 삭제 완료!\n💸 삭제 비용: ${formatMoney(currentCost)}\n📈 다음 삭제 비용: ${formatMoney(user.deleteCost)}`
         );
     }
 
-
+    // =========================
+    // 홀짝
+    // =========================
     if (interaction.commandName === '홀짝') {
-
         const user = await getUser(interaction.user.id);
-
-        const input =
-            interaction.options.getString('배팅');
-
-        const choice =
-            interaction.options.getString('선택');
+        const input = interaction.options.getString('배팅');
+        const choice = interaction.options.getString('선택');
 
         let bet;
+        if (input === '올인') { bet = user.money; } else { bet = parseInt(input); }
 
-        if (input === '올인') {
-            bet = user.money;
-        } else {
-            bet = parseInt(input);
-        }
+        if (!bet || bet <= 0) return interaction.reply('❌ 배팅 오류');
+        if (user.money < bet) return interaction.reply('❌ 돈 부족');
 
-        if (!bet || bet <= 0) {
-            return interaction.reply('❌ 배팅 오류');
-        }
-
-        if (user.money < bet) {
-            return interaction.reply('❌ 돈 부족');
-        }
-
-        const num =
-            Math.floor(Math.random() * 10) + 1;
-
-        const result =
-            num % 2 === 0 ? '짝' : '홀';
-
+        const num = Math.floor(Math.random() * 10) + 1;
+        const result = num % 2 === 0 ? '짝' : '홀';
         const win = choice === result;
 
-        if (win) {
-            user.money += bet;
-        } else {
-            user.money -= bet;
-        }
-
+        if (win) { user.money += bet; } else { user.money -= bet; }
         await user.save();
 
         return interaction.reply(
-            `🎲 숫자: ${num}\n` +
-            `${win ? '🎉 승리!' : '💀 패배'}\n` +
-            `현재 돈: ${formatMoney(user.money)}`
+            `🎲 숫자: ${num}\n${win ? '🎉 승리!' : '💀 패배'}\n현재 돈: ${formatMoney(user.money)}`
         );
     }
 
-
+    // =========================
+    // 슬롯
+    // =========================
     if (interaction.commandName === '슬롯') {
-
         const user = await getUser(interaction.user.id);
-
-        const input =
-            interaction.options.getString('배팅');
+        const input = interaction.options.getString('배팅');
 
         let bet;
+        if (input === '올인' || input === 'allin') { bet = user.money; } else { bet = parseInt(input); }
 
-        if (
-            input === '올인' ||
-            input === 'allin'
-        ) {
-            bet = user.money;
-        } else {
-            bet = parseInt(input);
-        }
+        if (!bet || bet <= 0) return interaction.reply('❌ 배팅 오류');
+        if (user.money < bet) return interaction.reply('❌ 돈 부족');
 
-        if (!bet || bet <= 0) {
-            return interaction.reply('❌ 배팅 오류');
-        }
-
-        if (user.money < bet) {
-            return interaction.reply('❌ 돈 부족');
-        }
-
-        const icons = ['🍒','🍋','💎','💀','🍀'];
-
+        const icons = ['🍒', '🍋', '💎', '💀', '🍀'];
         const roll = [
-            icons[Math.floor(Math.random()*icons.length)],
-            icons[Math.floor(Math.random()*icons.length)],
-            icons[Math.floor(Math.random()*icons.length)]
+            icons[Math.floor(Math.random() * icons.length)],
+            icons[Math.floor(Math.random() * icons.length)],
+            icons[Math.floor(Math.random() * icons.length)]
         ];
 
         let reward = 0;
 
-        if (
-            roll[0] === roll[1] &&
-            roll[1] === roll[2]
-        ) {
-
-            if (roll[0] === '💎') {
-                reward = bet * 10;
-            }
-
-            else if (roll[0] === '💀') {
-                reward = -Math.floor(user.money / 2);
-            }
-
-            else {
-                reward = bet * 3;
-            }
-
+        if (roll[0] === roll[1] && roll[1] === roll[2]) {
+            if (roll[0] === '💎') { reward = bet * 10; }
+            else if (roll[0] === '💀') { reward = -Math.floor(user.money / 2); }
+            else { reward = bet * 3; }
         } else {
-
             reward = -bet;
         }
 
         user.money += reward;
-
-        if (user.money < 0) {
-            user.money = 0;
-        }
-
+        if (user.money < 0) user.money = 0;
         await user.save();
 
         return interaction.reply(
-            `🎰 ${roll.join(' | ')}\n\n` +
-            `${reward >= 0
-                ? `🎉 +${reward}원`
-                : `💀 ${reward}원`
-            }\n` +
-            `💰 현재 돈: ${formatMoney(user.money)}`
+            `🎰 ${roll.join(' | ')}\n\n${reward >= 0 ? `🎉 +${formatMoney(reward)}` : `💀 ${formatMoney(reward)}`}\n💰 현재 돈: ${formatMoney(user.money)}`
         );
     }
 
+    // =========================
+    // 블랙잭
+    // =========================
     if (interaction.commandName === '블랙잭') {
-
         const user = await getUser(interaction.user.id);
-
-        const input =
-            interaction.options.getString('배팅');
+        const input = interaction.options.getString('배팅');
 
         let bet;
+        if (input === '올인' || input === 'allin') { bet = user.money; } else { bet = parseInt(input); }
 
-        if (
-            input === '올인' ||
-            input === 'allin'
-        ) {
-            bet = user.money;
-        } else {
-            bet = parseInt(input);
-        }
+        if (!bet || bet <= 0) return interaction.reply('❌ 배팅 오류');
+        if (user.money < bet) return interaction.reply('❌ 돈 부족');
 
-        if (!bet || bet <= 0) {
-            return interaction.reply('❌ 배팅 오류');
-        }
+        const drawCard = () => Math.floor(Math.random() * 10) + 1;
+        const playerCards = [drawCard(), drawCard()];
+        const dealerCards = [drawCard(), drawCard()];
 
-        if (user.money < bet) {
-            return interaction.reply('❌ 돈 부족');
-        }
+        blackjackGames.set(interaction.user.id, { bet, playerCards, dealerCards });
 
-        const drawCard = () =>
-            Math.floor(Math.random() * 10) + 1;
-
-        const playerCards = [
-            drawCard(),
-            drawCard()
-        ];
-
-        const dealerCards = [
-            drawCard(),
-            drawCard()
-        ];
-
-        blackjackGames.set(interaction.user.id, {
-            bet,
-            playerCards,
-            dealerCards
-        });
-
-        const row =
-            new ActionRowBuilder().addComponents(
-
-                new ButtonBuilder()
-                    .setCustomId('blackjack_hit')
-                    .setLabel('🃏 더 뽑기')
-                    .setStyle(ButtonStyle.Primary),
-
-                new ButtonBuilder()
-                    .setCustomId('blackjack_stand')
-                    .setLabel('✋ 멈추기')
-                    .setStyle(ButtonStyle.Secondary)
-            );
+        const row = new ActionRowBuilder().addComponents(
+            new ButtonBuilder().setCustomId('blackjack_hit').setLabel('🃏 더 뽑기').setStyle(ButtonStyle.Primary),
+            new ButtonBuilder().setCustomId('blackjack_stand').setLabel('✋ 멈추기').setStyle(ButtonStyle.Secondary)
+        );
 
         return interaction.reply({
-            content:
-                `🃏 블랙잭 시작!\n\n` +
-                `내 카드: ${playerCards.join(', ')}\n` +
-                `합계: ${
-                    playerCards.reduce((a,b)=>a+b,0)
-                }`,
+            content: `🃏 블랙잭 시작!\n\n내 카드: ${playerCards.join(', ')}\n합계: ${playerCards.reduce((a, b) => a + b, 0)}`,
             components: [row]
         });
     }
 
+    // =========================
+    // 청소
+    // =========================
     if (interaction.commandName === '청소') {
-
-        // 관리자 권한 체크
         if (!interaction.member.permissions.has('ManageMessages')) {
-
-            return interaction.reply({
-                content: '❌ 메시지 관리 권한이 없습니다.',
-                flags: 64
-            });
+            return interaction.reply({ content: '❌ 메시지 관리 권한이 없습니다.', flags: 64 });
         }
 
-        const amount =
-            interaction.options.getInteger('개수');
+        const amount = interaction.options.getInteger('개수');
 
-        // 1~100 제한
         if (amount < 1 || amount > 100) {
-
-            return interaction.reply({
-                content: '❌ 1~100개만 삭제 가능',
-                flags: 64
-            });
+            return interaction.reply({ content: '❌ 1~100개만 삭제 가능', flags: 64 });
         }
 
         try {
-
-            // 명령어 메시지 포함 삭제
             await interaction.channel.bulkDelete(amount, true);
-
-            return interaction.reply({
-                content: `🧹 ${amount}개 메시지 삭제 완료`,
-                flags: 64
-            });
-
+            return interaction.reply({ content: `🧹 ${amount}개 메시지 삭제 완료`, flags: 64 });
         } catch (err) {
-
             console.error(err);
-
-            return interaction.reply({
-                content: '❌ 삭제 실패',
-                flags: 64
-            });
+            return interaction.reply({ content: '❌ 삭제 실패', flags: 64 });
         }
     }
 
+    // =========================
+    // ai설정
+    // =========================
     if (interaction.commandName === 'ai설정') {
-
-            // 관리자만 가능
-            if (!interaction.member.permissions.has('Administrator')) {
-
-                return interaction.reply({
-                    content: '❌ 관리자만 사용 가능',
-                    flags: 64
-                });
-            }
-
-            const channel =
-                interaction.options.getChannel('채널');
-
-            aiChannelId = channel.id;
-
-            return interaction.reply({
-                content:
-                    `🤖 AI 채널 설정 완료!\n` +
-                    `채널: ${channel}`,
-                flags: 64
-            });
+        if (!interaction.member.permissions.has('Administrator')) {
+            return interaction.reply({ content: '❌ 관리자만 사용 가능', flags: 64 });
         }
 
-        if (interaction.commandName === '성격설정') {
+        const channel = interaction.options.getChannel('채널');
+        aiChannelId = channel.id;
 
+        return interaction.reply({ content: `🤖 AI 채널 설정 완료!\n채널: ${channel}`, flags: 64 });
+    }
+
+    // =========================
+    // 성격설정
+    // =========================
+    if (interaction.commandName === '성격설정') {
         if (!interaction.member.permissions.has('Administrator')) {
-            return interaction.reply({
-                content: '❌ 관리자만 사용 가능',
-                flags: 64
-            });
+            return interaction.reply({ content: '❌ 관리자만 사용 가능', flags: 64 });
         }
 
         aiPersonality = interaction.options.getString('프롬프트');
-
-        return interaction.reply({
-            content: `🤖 AI 성격 변경 완료!\n\n${aiPersonality}`,
-            flags: 64
-        });
+        return interaction.reply({ content: `🤖 AI 성격 변경 완료!\n\n${aiPersonality}`, flags: 64 });
     }
 
+    // =========================
+    // 송금
+    // =========================
     if (interaction.commandName === '송금') {
-
         await interaction.deferReply();
 
-        const target =
-            interaction.options.getUser('유저');
+        const target = interaction.options.getUser('유저');
+        const amount = interaction.options.getInteger('금액');
 
-        const amount =
-            interaction.options.getInteger('금액');
+        if (target.id === interaction.user.id) return interaction.editReply('❌ 자기 자신에게는 송금 불가');
+        if (target.bot) return interaction.editReply('❌ 봇에게는 송금 불가');
+        if (amount <= 0) return interaction.editReply('❌ 1원 이상 송금 가능');
 
-        // 자기 자신 송금 방지
-        if (target.id === interaction.user.id) {
+        const sender = await getUser(interaction.user.id);
 
-            return interaction.editReply(
-                '❌ 자기 자신에게는 송금 불가'
-            );
-        }
-
-        // 봇 송금 방지
-        if (target.bot) {
-
-            return interaction.editReply(
-                '❌ 봇에게는 송금 불가'
-            );
-        }
-
-        // 금액 체크
-        if (amount <= 0) {
-
-            return interaction.editReply(
-                '❌ 1원 이상 송금 가능'
-            );
-        }
-
-        const sender =
-            await getUser(interaction.user.id);
-
-        // 돈 부족
         if (sender.money < amount) {
-
-            return interaction.editReply(
-                `❌ 돈 부족\n현재 돈: ${sender.money}원`
-            );
+            return interaction.editReply(`❌ 돈 부족\n현재 돈: ${formatMoney(sender.money)}`);
         }
 
-        const receiver =
-            await getUser(target.id);
-
-        // 송금
+        const receiver = await getUser(target.id);
         sender.money -= amount;
         receiver.money += amount;
 
@@ -2765,153 +2011,77 @@ if (
         await receiver.save();
 
         return interaction.editReply(
-            `💸 송금 완료!\n\n` +
-            `보낸 사람: ${interaction.user.username}\n` +
-            `받는 사람: ${target.username}\n` +
-            `송금 금액: ${amount}원\n\n` +
-            `💰 현재 돈: ${sender.money}원`
+            `💸 송금 완료!\n\n보낸 사람: ${interaction.user.username}\n받는 사람: ${target.username}\n송금 금액: ${formatMoney(amount)}\n\n💰 현재 돈: ${formatMoney(sender.money)}`
         );
     }
-        
-    if (interaction.commandName === '회사홍보') {
 
+    // =========================
+    // 회사홍보
+    // =========================
+    if (interaction.commandName === '회사홍보') {
         await interaction.deferReply();
 
-        const name =
-            interaction.options.getString('회사');
+        const name = interaction.options.getString('회사');
+        const method = interaction.options.getString('방법');
 
-        const method =
-            interaction.options.getString('방법');
+        const stock = await Stock.findOne({ name, deleted: { $ne: true }, listed: true });
 
-        const stock =
-            await Stock.findOne({
-                name,
-                deleted: { $ne: true },
-                listed: true
-            });
+        if (!stock) return interaction.editReply('❌ 회사 없음');
+        if (stock.owner !== interaction.user.id) return interaction.editReply('❌ 자기 회사만 홍보 가능');
 
-        if (!stock) {
-
-            return interaction.editReply(
-                '❌ 회사 없음'
-            );
-        }
-
-        // 자기 회사만 가능
-        if (stock.owner !== interaction.user.id) {
-
-            return interaction.editReply(
-                '❌ 자기 회사만 홍보 가능'
-            );
-        }
-
-        const user =
-            await getUser(interaction.user.id);
+        const user = await getUser(interaction.user.id);
 
         let cost = 0;
         let promoAdd = 0;
         let news = '';
 
         switch (method) {
-
             case 'flyer':
-
-                cost = 10000;
-                promoAdd = 1;
-
-                news =
-                    '📄 홍보용 전단지 배포!!, 우리회사좀 봐주세요!! 제발요!!!';
-
+                cost = 10000; promoAdd = 1;
+                news = '📄 홍보용 전단지 배포!!, 우리회사좀 봐주세요!! 제발요!!!';
                 break;
-
             case 'speaker':
-
-                cost = 300000;
-                promoAdd = 2;
-
-                news =
-                    '📢 확성기 홍보!!, 아- 아- 왔어요 왔어요, 계란이 왔어요';
-
+                cost = 300000; promoAdd = 2;
+                news = '📢 확성기 홍보!!, 아- 아- 왔어요 왔어요, 계란이 왔어요';
                 break;
-
             case 'billboard':
-
-                cost = 500000;
-                promoAdd = 4;
-
-                news =
-                    '🪧 길거리 판넬 설치!!!, 이거 불법건축물 아니여??';
-
+                cost = 500000; promoAdd = 4;
+                news = '🪧 길거리 판넬 설치!!!, 이거 불법건축물 아니여??';
                 break;
-
             case 'internet':
-
-                cost = 800000;
-                promoAdd = 3;
-
-                news =
-                    '🌐 인터넷 광고 시작!!, 이 회사!! 대표가 맛있고 회사가 친절해요!!';
-
+                cost = 800000; promoAdd = 3;
+                news = '🌐 인터넷 광고 시작!!, 이 회사!! 대표가 맛있고 회사가 친절해요!!';
                 break;
-
             case 'tv':
-
-                cost = 10000000;
-                promoAdd = 7;
-
-                news =
-                    '📺 TV 프로그램 광고 시작!!, 보아라 세상아!! 나의 잘남을!!';
-
+                cost = 10000000; promoAdd = 7;
+                news = '📺 TV 프로그램 광고 시작!!, 보아라 세상아!! 나의 잘남을!!';
                 break;
         }
 
         if (user.money < cost) {
-
-            return interaction.editReply(
-                `❌ 돈 부족\n필요 금액: ${cost}원`
-            );
+            return interaction.editReply(`❌ 돈 부족\n필요 금액: ${formatMoney(cost)}`);
         }
 
         user.money -= cost;
 
-        // 홍보 레벨 증가
         stock.promotionLevel += promoAdd;
+        if (stock.promotionLevel > 20) stock.promotionLevel = 20;
 
-        // 최대 제한
-        if (stock.promotionLevel > 20) {
-            stock.promotionLevel = 20;
-        }
-
-        // 즉시 상승 보너스
-        const plus =
-            Math.floor(
-                stock.price * (
-                    promoAdd * 0.03
-                )
-            );
-
+        const plus = Math.floor(stock.price * (promoAdd * 0.03));
         stock.price += plus;
 
-        stock.news.unshift(
-            `🟢 ${news}\n📈 홍보력 +${promoAdd}`
-        );
-
+        stock.news.unshift(`🟢 ${news}\n📈 홍보력 +${promoAdd}`);
         stock.news = stock.news.slice(0, 5);
 
         await user.save();
         await stock.save();
 
         return interaction.editReply(
-            `📢 ${name} 홍보 완료!\n\n` +
-            `💸 사용 금액: ${cost}원\n` +
-            `📈 주가 상승: +${plus}원\n` +
-            `🔥 현재 홍보력: ${stock.promotionLevel}`
+            `📢 ${name} 홍보 완료!\n\n💸 사용 금액: ${formatMoney(cost)}\n📈 주가 상승: +${formatMoney(plus)}\n🔥 현재 홍보력: ${stock.promotionLevel}`
         );
     }
 
 });
-
-
 
 client.on('error', console.error);
 
@@ -2923,39 +2093,30 @@ process.on('uncaughtException', error => {
     console.error('Uncaught exception:', error);
 });
 
-// AI 대화 채널 ID
+// AI 채널
 client.on('messageCreate', async message => {
-
     if (message.author.bot) return;
     if (!aiChannelId) return;
     if (message.channel.id !== aiChannelId) return;
 
     try {
-
         await message.channel.sendTyping();
 
         const reply = await groq.chat.completions.create({
             model: "llama-3.3-70b-versatile",
             messages: [
-                {
-                    role: "system",
-                    content: aiPersonality
-                },
-                {
-                    role: "user",
-                    content: message.content
-                }
+                { role: "system", content: aiPersonality },
+                { role: "user", content: message.content }
             ],
             temperature: 0.7,
             max_tokens: 500
         });
 
         await message.reply(reply.choices[0].message.content);
-
     } catch (err) {
         console.error(err);
         await message.reply('❌ AI 오류');
     }
-});;
+});
 
 client.login(token);
