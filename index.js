@@ -618,7 +618,7 @@ setInterval(async () => {
             if (random < 0.05) {
 
                 percent =
-                    Math.random() * 2 + 1;
+                    Math.random() * 0.5 + 0.3;
 
                 const boom =
                     boomMessages[
@@ -632,7 +632,7 @@ setInterval(async () => {
             else if (random < 0.10) {
 
                 percent =
-                    -(Math.random() * 0.7 + 0.3);
+                    -(Math.random() * 0.4 + 0.2);
 
                 const crash =
                     crashMessages[
@@ -2185,25 +2185,28 @@ if (
                     type = '🚀 폭등 가능성';
                     chance = '5%';
                     news = boomPreview[Math.floor(Math.random() * boomPreview.length)];
-                    percent = Math.random() * 2 + 1;
+                    percent = Math.random() * 0.5 + 0.3;  // 30~80% 상승
                     stock.pendingType = 'boom';
+
                 } else if (random < 0.10) {
                     type = '💀 폭락 가능성';
                     chance = '5%';
                     news = crashPreview[Math.floor(Math.random() * crashPreview.length)];
-                    percent = -(Math.random() * 0.7 + 0.3);
+                    percent = -(Math.random() * 0.4 + 0.2);  // 20~60% 하락
                     stock.pendingType = 'crash';
+
                 } else if (random < 0.55) {
                     type = '📈 상승 예상';
                     chance = '45%';
                     news = goodPreview[Math.floor(Math.random() * goodPreview.length)];
-                    percent = Math.random() * 0.2;
+                    percent = Math.random() * 0.2;  // 0~20% 상승
                     stock.pendingType = null;
+
                 } else {
                     type = '📉 하락 예상';
                     chance = '45%';
                     news = badPreview[Math.floor(Math.random() * badPreview.length)];
-                    percent = -(Math.random() * 0.2);
+                    percent = -(Math.random() * 0.2);  // 0~20% 하락
                     stock.pendingType = null;
                 }
 
