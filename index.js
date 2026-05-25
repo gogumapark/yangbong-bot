@@ -69,6 +69,11 @@ mongoose.connect(process.env.MONGO_URI)
             default: 0
         },
 
+        promotionLevel: {
+            type: Number,
+            default: 0
+        },
+
         // 마지막 변동 시간
         lastChangedAt: {
             type: Date,
@@ -97,6 +102,11 @@ mongoose.connect(process.env.MONGO_URI)
         },
                 
     });
+
+    function formatMoney(num) {
+
+        return num.toLocaleString('ko-KR') + '원';
+    }
 
     const Groq = require("groq-sdk");
 
@@ -194,6 +204,29 @@ client.on('messageDelete', message => {
 const userFortunes = {};
 
 const commands = [
+
+    new SlashCommandBuilder()
+        .setName('회사홍보')
+        .setDescription('회사를 홍보합니다')
+        .addStringOption(option =>
+            option
+                .setName('회사')
+                .setDescription('홍보할 회사')
+                .setRequired(true)
+        )
+        .addStringOption(option =>
+            option
+                .setName('방법')
+                .setDescription('홍보 방식')
+                .setRequired(true)
+                .addChoices(
+                    { name: '📄 홍보용 전단지', value: 'flyer' },
+                    { name: '📢 확성기 홍보', value: 'speaker' },
+                    { name: '🪧 길거리 판넬', value: 'billboard' },
+                    { name: '🌐 인터넷 광고', value: 'internet' },
+                    { name: '📺 TV 프로그램 광고', value: 'tv' }
+                )
+        ),
 
     new SlashCommandBuilder()
     .setName('송금')
@@ -614,6 +647,22 @@ setInterval(async () => {
 
                 percent =
                     (Math.random() * 40 - 20) / 100;
+
+                // =========================
+                // 홍보 효과
+                // =========================
+
+                const promoBonus =
+                    stock.promotionLevel * 0.03;
+
+                // 상승 확률 증가
+                if (Math.random() < promoBonus) {
+
+                    percent +=
+                        Math.random() * (
+                            stock.promotionLevel * 0.05
+                        );
+                }
             }
         }
 
@@ -743,6 +792,15 @@ setInterval(async () => {
             // 뉴스 최대 5개 유지
             stock.news = stock.news.slice(0, 5);
 
+            // =========================
+            // 홍보 효과 감소
+            // =========================
+
+            if (stock.promotionLevel > 0) {
+
+                stock.promotionLevel -= 1;
+            }
+
             // 즉시 저장
             await stock.save();
 
@@ -759,7 +817,7 @@ setInterval(async () => {
             const owner = await getUser(stock.owner);
 
             const fee =
-                Math.floor(stock.price * 0.1);
+                Math.floor(stock.price * 0.05);
 
             owner.money += fee;
 
@@ -770,6 +828,72 @@ setInterval(async () => {
         stock.news = stock.news.slice(0, 5);
 
         await stock.save();
+        }
+
+        // =========================
+        // 세금 시스템
+        // =========================
+
+        const users = await Money.find();
+
+        for (const user of users) {
+
+            // 5만원 이상부터 세금
+            if (user.money < 50000) continue;
+
+            let tax = 0;
+
+            // 구간별 세금
+            if (user.money >= 1000000) {
+
+                tax =
+                    Math.floor(user.money * 0.08);
+
+            } else if (user.money >= 500000) {
+
+                tax =
+                    Math.floor(user.money * 0.05);
+
+            } else if (user.money >= 100000) {
+
+                tax =
+                    Math.floor(user.money * 0.03);
+
+            } else {
+
+                tax =
+                    Math.floor(user.money * 0.01);
+            }
+
+            // 최소 세금
+            if (tax < 1000) {
+                tax = 1000;
+            }
+
+            user.money -= tax;
+
+            // 음수 방지
+            if (user.money < 0) {
+                user.money = 0;
+            }
+
+            await user.save();
+
+            console.log(
+                `[세금] ${user.userId} -${tax}원`
+            );
+
+            // DM 알림 (선택)
+            try {
+
+                const discordUser =
+                    await client.users.fetch(user.userId);
+
+                await discordUser.send(
+                    `🏛 세금 징수!\n💸 -${tax}원`
+                );
+
+            } catch {}
         }
 
 }, 600000);
@@ -918,7 +1042,7 @@ if (
                             content:
                                 `💀 버스트!\n` +
                                 `카드: ${game.playerCards.join(', ')}\n` +
-                                `현재 돈: ${user.money}원`,
+                                `현재 돈: ${formatMoney(user.money)}`,
                             components: []
                         });
                     }
@@ -969,7 +1093,7 @@ if (
                         `${result}\n\n` +
                         `내 카드: ${game.playerCards.join(', ')} (${playerTotal()})\n` +
                         `딜러 카드: ${game.dealerCards.join(', ')} (${dealerTotal()})\n\n` +
-                        `💰 현재 돈: ${user.money}원`,
+                        `💰 현재 돈: ${formatMoney(user.money)}`,
                     components: []
                 });
             }
@@ -1718,7 +1842,7 @@ if (
         const user = await getUser(interaction.user.id);
 
         return interaction.reply({
-            content: `💰 현재 돈: ${user.money}원`,
+            content: `💰 현재 돈: ${formatMoney(user.money)}`,
             flags: 64
         });
     }
@@ -1772,7 +1896,7 @@ if (
 
         return interaction.reply(
             `${win ? '🎉 승리!' : '💀 패배...'}\n` +
-            `${win ? '+' : '-'}${bet}원\n현재 돈: ${user.money}원`
+            `${win ? '+' : '-'}${bet}원\n현재 돈: ${formatMoney(user.money)}`
         );
     }
 
@@ -2207,7 +2331,7 @@ if (
 
         return interaction.editReply(
             `🪙 ${reward}원을 구걸했다!\n` +
-            `💰 현재 돈: ${user.money}원`
+            `💰 현재 돈: ${formatMoney(user.money)}`
         );
     }
 
@@ -2358,7 +2482,7 @@ if (
         return interaction.reply(
             `🎲 숫자: ${num}\n` +
             `${win ? '🎉 승리!' : '💀 패배'}\n` +
-            `현재 돈: ${user.money}원`
+            `현재 돈: ${formatMoney(user.money)}`
         );
     }
 
@@ -2435,7 +2559,7 @@ if (
                 ? `🎉 +${reward}원`
                 : `💀 ${reward}원`
             }\n` +
-            `💰 현재 돈: ${user.money}원`
+            `💰 현재 돈: ${formatMoney(user.money)}`
         );
     }
 
@@ -2658,7 +2782,141 @@ if (
         );
     }
         
+    if (interaction.commandName === '회사홍보') {
 
+        await interaction.deferReply();
+
+        const name =
+            interaction.options.getString('회사');
+
+        const method =
+            interaction.options.getString('방법');
+
+        const stock =
+            await Stock.findOne({
+                name,
+                deleted: { $ne: true },
+                listed: true
+            });
+
+        if (!stock) {
+
+            return interaction.editReply(
+                '❌ 회사 없음'
+            );
+        }
+
+        // 자기 회사만 가능
+        if (stock.owner !== interaction.user.id) {
+
+            return interaction.editReply(
+                '❌ 자기 회사만 홍보 가능'
+            );
+        }
+
+        const user =
+            await getUser(interaction.user.id);
+
+        let cost = 0;
+        let promoAdd = 0;
+        let news = '';
+
+        switch (method) {
+
+            case 'flyer':
+
+                cost = 10000;
+                promoAdd = 1;
+
+                news =
+                    '📄 홍보용 전단지 배포!!, 우리회사좀 봐주세요!! 제발요!!!';
+
+                break;
+
+            case 'speaker':
+
+                cost = 300000;
+                promoAdd = 2;
+
+                news =
+                    '📢 확성기 홍보!!, 아- 아- 왔어요 왔어요, 계란이 왔어요';
+
+                break;
+
+            case 'billboard':
+
+                cost = 500000;
+                promoAdd = 4;
+
+                news =
+                    '🪧 길거리 판넬 설치!!!, 이거 불법건축물 아니여??';
+
+                break;
+
+            case 'internet':
+
+                cost = 800000;
+                promoAdd = 3;
+
+                news =
+                    '🌐 인터넷 광고 시작!!, 이 회사!! 대표가 맛있고 회사가 친절해요!!';
+
+                break;
+
+            case 'tv':
+
+                cost = 10000000;
+                promoAdd = 7;
+
+                news =
+                    '📺 TV 프로그램 광고 시작!!, 보아라 세상아!! 나의 잘남을!!';
+
+                break;
+        }
+
+        if (user.money < cost) {
+
+            return interaction.editReply(
+                `❌ 돈 부족\n필요 금액: ${cost}원`
+            );
+        }
+
+        user.money -= cost;
+
+        // 홍보 레벨 증가
+        stock.promotionLevel += promoAdd;
+
+        // 최대 제한
+        if (stock.promotionLevel > 20) {
+            stock.promotionLevel = 20;
+        }
+
+        // 즉시 상승 보너스
+        const plus =
+            Math.floor(
+                stock.price * (
+                    promoAdd * 0.03
+                )
+            );
+
+        stock.price += plus;
+
+        stock.news.unshift(
+            `🟢 ${news}\n📈 홍보력 +${promoAdd}`
+        );
+
+        stock.news = stock.news.slice(0, 5);
+
+        await user.save();
+        await stock.save();
+
+        return interaction.editReply(
+            `📢 ${name} 홍보 완료!\n\n` +
+            `💸 사용 금액: ${cost}원\n` +
+            `📈 주가 상승: +${plus}원\n` +
+            `🔥 현재 홍보력: ${stock.promotionLevel}`
+        );
+    }
 
 });
 
