@@ -1816,7 +1816,8 @@ if (
         // 최대 2개 제한
         const myCompanies =
             await Stock.countDocuments({
-                owner: interaction.user.id
+                owner: interaction.user.id,
+                deleted: { $ne: true }
             });
 
         if (myCompanies >= 2) {
@@ -2005,7 +2006,7 @@ if (
         }
 
         const goodPreview = [
-            'ㅇㅇㅇ대표 선행 밝혀져.. "그저 도움이 되고 싶었다"',
+            'ㅇㅇㅇ대표 선행 밝혀져.. "그저 도움이 되고 싶었다" ',
             '꽁치기업과의 협업 루머.. 드디어 큰 거 오나..',
             '매출 상승 기대.. ㅇㅇㅇ대표 입가에 큰 미소',
             '박모씨의 사원 인터뷰.. 긍정적 평가..',
@@ -2029,7 +2030,7 @@ if (
         ];
 
         const crashPreview = [
-            '상장폐지 설 돌아... 과연 루머인가..',
+            '상장폐지 설 돌아... 과연 루머인가.. ',
             'ㅇㅇ기업 사원 장ㅇㅇ 씨 "대표가 저에게 막말을 했어요.." 곧 밝혀질것',
             'ㅇㅇ대표 조폭 하모씨와의 만남.. 둘의 친분 루머..',
         ];
@@ -2043,86 +2044,71 @@ if (
             let chance;
             let percent;
 
-            const random = Math.random();
+            // ✅ 이미 예측이 저장된 경우 그대로 표시
+            if (stock.pendingPercent !== null) {
 
-            // 🚀 폭등
-            if (random < 0.05) {
+                percent = stock.pendingPercent;
+                news = stock.pendingNews;
 
-                type = '🚀 폭등 가능성';
-                chance = '5%';
+                if (stock.pendingType === 'boom') {
+                    type = '🚀 폭등 가능성';
+                    chance = '5%';
+                } else if (stock.pendingType === 'crash') {
+                    type = '💀 폭락 가능성';
+                    chance = '5%';
+                } else if (percent >= 0) {
+                    type = '📈 상승 예상';
+                    chance = '45%';
+                } else {
+                    type = '📉 하락 예상';
+                    chance = '45%';
+                }
 
-                news =
-                    boomPreview[
-                        Math.floor(Math.random() * boomPreview.length)
-                    ];
+            } else {
 
-                percent =
-                    Math.random() * 2 + 1;
+                // 새로 랜덤 생성 후 저장
+                const random = Math.random();
+
+                if (random < 0.05) {
+                    type = '🚀 폭등 가능성';
+                    chance = '5%';
+                    news = boomPreview[Math.floor(Math.random() * boomPreview.length)];
+                    percent = Math.random() * 2 + 1;
+                    stock.pendingType = 'boom';
+                } else if (random < 0.10) {
+                    type = '💀 폭락 가능성';
+                    chance = '5%';
+                    news = crashPreview[Math.floor(Math.random() * crashPreview.length)];
+                    percent = -(Math.random() * 0.7 + 0.3);
+                    stock.pendingType = 'crash';
+                } else if (random < 0.55) {
+                    type = '📈 상승 예상';
+                    chance = '45%';
+                    news = goodPreview[Math.floor(Math.random() * goodPreview.length)];
+                    percent = Math.random() * 0.2;
+                    stock.pendingType = null;
+                } else {
+                    type = '📉 하락 예상';
+                    chance = '45%';
+                    news = badPreview[Math.floor(Math.random() * badPreview.length)];
+                    percent = -(Math.random() * 0.2);
+                    stock.pendingType = null;
+                }
+
+                stock.pendingNews = news;
+                stock.pendingPercent = percent;
+                await stock.save();
             }
 
-            // 💀 폭락
-            else if (random < 0.10) {
+            const lastTime = stock.lastChangedAt
+                ? `<t:${Math.floor(stock.lastChangedAt.getTime() / 1000)}:R>`
+                : '없음';
 
-                type = '💀 폭락 가능성';
-                chance = '5%';
-
-                news =
-                    crashPreview[
-                        Math.floor(Math.random() * crashPreview.length)
-                    ];
-
-                percent =
-                    -(Math.random() * 0.7 + 0.3);
-            }
-
-            // 📈 상승
-            else if (random < 0.55) {
-
-                type = '📈 상승 예상';
-                chance = '45%';
-
-                news =
-                    goodPreview[
-                        Math.floor(Math.random() * goodPreview.length)
-                    ];
-
-                percent =
-                    Math.random() * 0.2;
-            }
-
-            // 📉 하락
-            else {
-
-                type = '📉 하락 예상';
-                chance = '45%';
-
-                news =
-                    badPreview[
-                        Math.floor(Math.random() * badPreview.length)
-                    ];
-
-                percent =
-                    -(Math.random() * 0.2);
-            }
-
-            // 실제 다음 변동 저장
-            stock.pendingNews = news;
-            stock.pendingPercent = percent;
-
-            await stock.save();
-
-            const lastTime =
-                stock.lastChangedAt
-                    ? `<t:${Math.floor(stock.lastChangedAt.getTime() / 1000)}:R>`
-                    : '없음';
-
-            const nextTime =
-                stock.nextChangeAt
-                    ? `<t:${Math.floor(stock.nextChangeAt.getTime() / 1000)}:R>`
-                    : '없음';
+            const nextTime = stock.nextChangeAt
+                ? `<t:${Math.floor(stock.nextChangeAt.getTime() / 1000)}:R>`
+                : '없음';
 
             pages.push(
-
     `🏢 ${stock.name}
 
     💰 현재 가격: ${stock.price}원
@@ -2152,29 +2138,23 @@ if (
             page: 0
         });
 
-        const row =
-            new ActionRowBuilder()
-                .addComponents(
+        const row = new ActionRowBuilder()
+            .addComponents(
+                new ButtonBuilder()
+                    .setCustomId(`news_prev_${pageId}`)
+                    .setLabel('◀')
+                    .setStyle(ButtonStyle.Secondary)
+                    .setDisabled(true),
 
-                    new ButtonBuilder()
-                        .setCustomId(`news_prev_${pageId}`)
-                        .setLabel('◀')
-                        .setStyle(ButtonStyle.Secondary)
-                        .setDisabled(true),
-
-                    new ButtonBuilder()
-                        .setCustomId(`news_next_${pageId}`)
-                        .setLabel('▶')
-                        .setStyle(ButtonStyle.Secondary)
-                        .setDisabled(
-                            pages.length <= 1
-                        )
-                );
+                new ButtonBuilder()
+                    .setCustomId(`news_next_${pageId}`)
+                    .setLabel('▶')
+                    .setStyle(ButtonStyle.Secondary)
+                    .setDisabled(pages.length <= 1)
+            );
 
         return interaction.editReply({
-            content:
-                `🗞 주식 뉴스 (1/${pages.length})\n\n` +
-                pages[0],
+            content: `🗞 주식 뉴스 (1/${pages.length})\n\n` + pages[0],
             components: [row]
         });
     }
