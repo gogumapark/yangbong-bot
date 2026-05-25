@@ -1814,11 +1814,11 @@ if (
         }
 
         // 최대 2개 제한
-        const myCompanies =
-            await Stock.countDocuments({
-                owner: interaction.user.id,
-                deleted: { $ne: true }
-            });
+        const myCompanies = await Stock.countDocuments({
+            owner: interaction.user.id,
+            deleted: { $ne: true },
+            listed: true
+        });
 
         if (myCompanies >= 2) {
 
@@ -2045,7 +2045,7 @@ if (
             let percent;
 
             // ✅ 이미 예측이 저장된 경우 그대로 표시
-            if (stock.pendingPercent !== null) {
+            if (stock.pendingPercent !== null && stock.pendingPercent !== undefined && stock.pendingNews) {
 
                 percent = stock.pendingPercent;
                 news = stock.pendingNews;
