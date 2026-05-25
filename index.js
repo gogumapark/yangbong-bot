@@ -882,18 +882,6 @@ setInterval(async () => {
             console.log(
                 `[세금] ${user.userId} -${tax}원`
             );
-
-            // DM 알림 (선택)
-            try {
-
-                const discordUser =
-                    await client.users.fetch(user.userId);
-
-                await discordUser.send(
-                    `🏛 세금 징수!\n💸 -${tax}원`
-                );
-
-            } catch {}
         }
 
 }, 600000);
