@@ -1561,10 +1561,23 @@ ai의 성격혹은 말투, 등 을 설정합니다.
         let hasStock = false;
 
         for (const [name, qty] of user.stocks) {
+
             if (qty <= 0) continue;
+
             hasStock = true;
-            myStockTable += `${name.padEnd(15, ' ')}${qty}주\n`;
-        }
+
+            const stock = await Stock.findOne({ name });
+
+            let displayName = name;
+
+            // 상장폐지 or 삭제된 회사면 취소선
+            if (stock && (!stock.listed || stock.deleted)) {
+                displayName = `~~${name}~~`;
+            }
+
+            myStockTable +=
+                `${displayName.padEnd(25, ' ')}${qty}주\n`;
+}
 
         if (!hasStock) myStockTable += '보유 주식 없음';
 
