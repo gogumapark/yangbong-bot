@@ -2123,7 +2123,7 @@ ${text}
         user.money -= cost;
 
         stock.promotionLevel += promoAdd;
-        if (stock.promotionLevel > 20) stock.promotionLevel = 100;
+        if (stock.promotionLevel > 100) stock.promotionLevel = 100;
 
         const plus = Math.floor(stock.price * (promoAdd * 0.03));
         stock.price += plus;
