@@ -660,9 +660,9 @@ setInterval(async () => {
                     percent -= 0.05;
                 }
 
-                const promoBonus = stock.promotionLevel * 0.03;
+                const promoBonus = Math.min(stock.promotionLevel * 0.03, 0.5);
                 if (Math.random() < promoBonus) {
-                    percent += Math.random() * (stock.promotionLevel * 0.05);
+                    percent += Math.random() * (stock.promotionLevel * 0.005);
                 }
             }
         }
@@ -754,7 +754,7 @@ setInterval(async () => {
 
         if (stock.owner && stock.listed) {
             const owner = await getUser(stock.owner);
-            const fee = Math.floor(stock.price * 0.05);
+            const fee = Math.floor(stock.price * 0.01);
             owner.money += fee;
             await owner.save();
         }
@@ -2457,7 +2457,7 @@ ${text}
             const diff = Date.now() - new Date(user.recentCompanyCreatedAt).getTime();
             recentCompany = diff < 20 * 60 * 1000;
         }
-        availableList += `${recentCompany ? '✅' : '❌'} **창업 지원금** - 10,000원 + 회사 주가상승 확률 90% 부스트 (1회)\n  조건: 20분 이내 회사 창설 & 미사용\n\n`;
+        availableList += `${recentCompany ? '✅' : '❌'} **창업 지원금** - 10,000원 + 회사 주가상승 확률15% 부스트 (1회)\n  조건: 20분 이내 회사 창설 & 미사용\n\n`;
 
         const gogumAvailable = !user.gogumSubsidyUsed;
         availableList += `${gogumAvailable ? '✅' : '❌'} **고굼박 최고 지원금** - 50,000원 (1회 한정)\n  조건: 미수령\n\n`;
@@ -2486,9 +2486,9 @@ ${text}
             }).sort({ _id: -1 });
 
             if (myStock) {
-                myStock.promotionLevel = Math.min(100, (myStock.promotionLevel || 0) + 90);
+                myStock.promotionLevel = Math.min(100, (myStock.promotionLevel || 0) + 15);
                 await myStock.save();
-                stockBoostMsg = `\n📈 ${myStock.name} 주가상승 확률 90% 부스트 적용!`;
+                stockBoostMsg = `\n📈 ${myStock.name} 주가상승 확률 15% 부스트 적용!`;
             }
 
             user.companyBoostUsed = true;
