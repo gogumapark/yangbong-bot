@@ -43,7 +43,9 @@ const moneySchema = new mongoose.Schema({
         type: Map,
         of: Date,
         default: {}
-    }
+    },
+
+    lastTax: { type: Number, default: 0 }
 });
 
 const stockSchema = new mongoose.Schema({
@@ -686,6 +688,8 @@ setInterval(async () => {
 
         user.money -= tax;
         if (user.money < 0) user.money = 0;
+        
+        user.lastTax = tax;
 
         await user.save();
         console.log(`[세금] ${user.userId} -${formatMoney(tax)}`);
@@ -1312,7 +1316,15 @@ ai의 성격혹은 말투, 등 을 설정합니다.
     // =========================
     if (interaction.commandName === '돈') {
         const user = await getUser(interaction.user.id);
-        return interaction.reply({ content: `💰 현재 돈: ${formatMoney(user.money)}`, flags: 64 });
+
+        const taxMsg = user.lastTax > 0
+            ? ` (지난 세금: -${formatMoney(user.lastTax)})`
+            : '';
+
+        return interaction.reply({
+            content: `💰 현재 돈: ${formatMoney(user.money)}${taxMsg}`,
+            flags: 64
+        });
     }
 
     // =========================
@@ -1829,8 +1841,8 @@ ${nextTime}`
         const users = await Money.find().sort({ money: -1 }).limit(10);
 
         let text =
-            '순위   돈              유저\n' +
-            '──────────────────────────────\n';
+            '순위   돈              세금            유저\n' +
+            '──────────────────────────────────────\n';
 
         for (let i = 0; i < users.length; i++) {
             let username = '알 수 없음';
@@ -1841,7 +1853,8 @@ ${nextTime}`
 
             text +=
                 `${String(i + 1).padEnd(6)} ` +
-                `${String(users[i].money).padEnd(15)} ` +
+                `${users[i].money.toLocaleString('ko-KR').padEnd(15)} ` +
+                `${users[i].lastTax > 0 ? `(-${users[i].lastTax.toLocaleString('ko-KR')})`.padEnd(15) : ''.padEnd(15)} ` +
                 `${username}\n`;
         }
 
