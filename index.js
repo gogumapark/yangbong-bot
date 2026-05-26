@@ -2090,23 +2090,28 @@ ${text}
 
         switch (method) {
             case 'flyer':
-                cost = 10000; promoAdd = 1;
+                cost = 100000;
+                promoAdd = 1;
                 news = '📄 홍보용 전단지 배포!!, 우리회사좀 봐주세요!! 제발요!!!';
                 break;
             case 'speaker':
-                cost = 300000; promoAdd = 2;
+                cost = 300000;
+                promoAdd = 5;
                 news = '📢 확성기 홍보!!, 아- 아- 왔어요 왔어요, 계란이 왔어요';
                 break;
             case 'billboard':
-                cost = 500000; promoAdd = 4;
+                cost = 500000;
+                promoAdd = 10;
                 news = '🪧 길거리 판넬 설치!!!, 이거 불법건축물 아니여??';
                 break;
             case 'internet':
-                cost = 800000; promoAdd = 3;
+                cost = 800000;
+                promoAdd = 20;
                 news = '🌐 인터넷 광고 시작!!, 이 회사!! 대표가 맛있고 회사가 친절해요!!';
                 break;
             case 'tv':
-                cost = 10000000; promoAdd = 7;
+                cost = 10000000;
+                promoAdd = 50;
                 news = '📺 TV 프로그램 광고 시작!!, 보아라 세상아!! 나의 잘남을!!';
                 break;
         }
@@ -2118,7 +2123,7 @@ ${text}
         user.money -= cost;
 
         stock.promotionLevel += promoAdd;
-        if (stock.promotionLevel > 20) stock.promotionLevel = 20;
+        if (stock.promotionLevel > 20) stock.promotionLevel = 100;
 
         const plus = Math.floor(stock.price * (promoAdd * 0.03));
         stock.price += plus;
