@@ -1876,10 +1876,17 @@ ${text}
 
         const name = interaction.options.getString('회사');
         const stock = await Stock.findOne({ name });
+        const { PermissionsBitField } = require('discord.js');
 
         if (!stock) return interaction.editReply('❌ 회사 없음');
-        if (stock.owner !== interaction.user.id) return interaction.editReply('❌ 자기 회사만 삭제 가능');
-
+        if (
+            stock.owner !== interaction.user.id &&
+            !interaction.member.permissions.has(PermissionsBitField.Flags.Administrator)
+        ) {
+            return interaction.editReply(
+                '❌ 자기 회사 또는 서버 관리자만 삭제 가능'
+            );
+        }
         const user = await getUser(interaction.user.id);
 
         if (!user.deleteCost) user.deleteCost = 1000;
