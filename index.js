@@ -564,7 +564,7 @@ setInterval(async () => {
             stock.downStreak = 0;
         }
 
-        if (stock.downStreak >= 5) {
+        if (stock.downStreak >= 10) {
             stock.news.unshift(`⚠ ${stock.downStreak}연속 하락중!!`);
         }
 
@@ -596,8 +596,8 @@ setInterval(async () => {
             stock.listed = false;
             stock.price = 0;
 
-            if (stock.downStreak >= 9) {
-                stock.news.unshift('💀 9연속 하락으로 상장폐지');
+            if (stock.downStreak >= 15) {
+                stock.news.unshift('💀 15연속 하락으로 상장폐지');
             } else {
                 stock.news.unshift('💀 주가 5원 이하로 상장폐지');
             }
@@ -625,9 +625,10 @@ setInterval(async () => {
         await stock.save();
     }
 
-    // =========================
-    // 세금 시스템 (누진세 5/2)
-    // =========================
+}, 600000);
+
+setInterval(async () => {
+
     const users = await Money.find();
 
     for (const user of users) {
@@ -638,49 +639,49 @@ setInterval(async () => {
         const m = user.money;
 
         if (m > 100000) {
-            tax += Math.floor((m - 100000) * 0.18);
-            tax += Math.floor((100000 - 50000) * 0.168);
-            tax += Math.floor((50000 - 30000) * 0.16);
-            tax += Math.floor((30000 - 15000) * 0.152);
-            tax += Math.floor((15000 - 8800) * 0.14);
-            tax += Math.floor((8800 - 5000) * 0.096);
-            tax += Math.floor((5000 - 1400) * 0.06);
-            tax += Math.floor((1400) * 0.024);
+            tax += Math.floor((m - 100000) * 0.225);
+            tax += Math.floor((100000 - 50000) * 0.21);
+            tax += Math.floor((50000 - 30000) * 0.20);
+            tax += Math.floor((30000 - 15000) * 0.19);
+            tax += Math.floor((15000 - 8800) * 0.175);
+            tax += Math.floor((8800 - 5000) * 0.12);
+            tax += Math.floor((5000 - 1400) * 0.075);
+            tax += Math.floor(1400 * 0.03);
         } else if (m > 50000) {
-            tax += Math.floor((m - 50000) * 0.168);
-            tax += Math.floor((50000 - 30000) * 0.16);
-            tax += Math.floor((30000 - 15000) * 0.152);
-            tax += Math.floor((15000 - 8800) * 0.14);
-            tax += Math.floor((8800 - 5000) * 0.096);
-            tax += Math.floor((5000 - 1400) * 0.06);
-            tax += Math.floor((1400) * 0.024);
+            tax += Math.floor((m - 50000) * 0.21);
+            tax += Math.floor((50000 - 30000) * 0.20);
+            tax += Math.floor((30000 - 15000) * 0.19);
+            tax += Math.floor((15000 - 8800) * 0.175);
+            tax += Math.floor((8800 - 5000) * 0.12);
+            tax += Math.floor((5000 - 1400) * 0.075);
+            tax += Math.floor(1400 * 0.03);
         } else if (m > 30000) {
-            tax += Math.floor((m - 30000) * 0.16);
-            tax += Math.floor((30000 - 15000) * 0.152);
-            tax += Math.floor((15000 - 8800) * 0.14);
-            tax += Math.floor((8800 - 5000) * 0.096);
-            tax += Math.floor((5000 - 1400) * 0.06);
-            tax += Math.floor((1400) * 0.024);
+            tax += Math.floor((m - 30000) * 0.20);
+            tax += Math.floor((30000 - 15000) * 0.19);
+            tax += Math.floor((15000 - 8800) * 0.175);
+            tax += Math.floor((8800 - 5000) * 0.12);
+            tax += Math.floor((5000 - 1400) * 0.075);
+            tax += Math.floor(1400 * 0.03);
         } else if (m > 15000) {
-            tax += Math.floor((m - 15000) * 0.152);
-            tax += Math.floor((15000 - 8800) * 0.14);
-            tax += Math.floor((8800 - 5000) * 0.096);
-            tax += Math.floor((5000 - 1400) * 0.06);
-            tax += Math.floor((1400) * 0.024);
+            tax += Math.floor((m - 15000) * 0.19);
+            tax += Math.floor((15000 - 8800) * 0.175);
+            tax += Math.floor((8800 - 5000) * 0.12);
+            tax += Math.floor((5000 - 1400) * 0.075);
+            tax += Math.floor(1400 * 0.03);
         } else if (m > 8800) {
-            tax += Math.floor((m - 8800) * 0.14);
-            tax += Math.floor((8800 - 5000) * 0.096);
-            tax += Math.floor((5000 - 1400) * 0.06);
-            tax += Math.floor((1400) * 0.024);
+            tax += Math.floor((m - 8800) * 0.175);
+            tax += Math.floor((8800 - 5000) * 0.12);
+            tax += Math.floor((5000 - 1400) * 0.075);
+            tax += Math.floor(1400 * 0.03);
         } else if (m > 5000) {
-            tax += Math.floor((m - 5000) * 0.096);
-            tax += Math.floor((5000 - 1400) * 0.06);
-            tax += Math.floor((1400) * 0.024);
+            tax += Math.floor((m - 5000) * 0.12);
+            tax += Math.floor((5000 - 1400) * 0.075);
+            tax += Math.floor(1400 * 0.03);
         } else if (m > 1400) {
-            tax += Math.floor((m - 1400) * 0.06);
-            tax += Math.floor((1400) * 0.024);
+            tax += Math.floor((m - 1400) * 0.075);
+            tax += Math.floor(1400 * 0.03);
         } else {
-            tax += Math.floor(m * 0.024);
+            tax += Math.floor(m * 0.03);
         }
 
         user.money -= tax;
@@ -690,7 +691,7 @@ setInterval(async () => {
         console.log(`[세금] ${user.userId} -${formatMoney(tax)}`);
     }
 
-}, 600000);
+}, 60 * 60 * 1000); // 1시간
 
 
 // =========================
