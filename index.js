@@ -1351,14 +1351,18 @@ ai의 성격혹은 말투, 등 을 설정합니다.
         return interaction.editReply(`🏢 ${name} 회사 생성 완료!\n💸 생성 비용: ${formatMoney(createCost)}`);
     }
 
-    // =========================
-    // 매수 (수수료 1.5% + 쿨타임 100주)
-    // =========================
     if (interaction.commandName === '매수') {
         await interaction.deferReply();
 
         const name = interaction.options.getString('회사');
         const qty = interaction.options.getInteger('수량');
+
+        // ✅ 200주 초과 불가
+        if (qty > 200) {
+            return interaction.editReply(
+                '❌ 한번에 최대 200주까지만 매수 가능합니다.'
+            );
+        }
 
         if (qty <= 0) return interaction.editReply('❌ 1주 이상 매수 가능');
 
@@ -1367,11 +1371,12 @@ ai의 성격혹은 말투, 등 을 설정합니다.
 
         const user = await getUser(interaction.user.id);
 
-        // =========================
-        // 대량 매수 쿨타임 체크 (100주마다 10분)
-        // =========================
+        // ✅ 대량 매수 쿨타임 체크 (100주 이상)
         if (qty >= 100) {
-            const lastBuy = user.buyCooldowns?.get(name);
+            const lastBuy = user.buyCooldowns instanceof Map
+                ? user.buyCooldowns.get(name)
+                : user.buyCooldowns?.[name];
+
             if (lastBuy) {
                 const diff = Date.now() - new Date(lastBuy).getTime();
                 const cooldown = 10 * 60 * 1000;
@@ -1402,10 +1407,11 @@ ai의 성격혹은 말투, 등 을 설정합니다.
         user.money -= totalCost;
         user.stocks.set(name, (user.stocks.get(name) || 0) + qty);
 
-        // 쿨타임 저장
+        // ✅ 쿨타임 저장
         if (qty >= 100) {
             if (!user.buyCooldowns) user.buyCooldowns = new Map();
             user.buyCooldowns.set(name, new Date());
+            user.markModified('buyCooldowns');
         }
 
         await user.save();
@@ -1416,7 +1422,9 @@ ai의 성격혹은 말투, 등 을 설정합니다.
         await stock.save();
 
         return interaction.editReply(
-            `📈 ${name} ${qty}주 매수 완료!\n💸 수수료: ${formatMoney(fee)}\n💰 총 지불: ${formatMoney(totalCost)}`
+            `📈 ${name} ${qty}주 매수 완료!\n` +
+            `💸 수수료: ${formatMoney(fee)}\n` +
+            `💰 총 지불: ${formatMoney(totalCost)}`
         );
     }
 
@@ -1971,9 +1979,6 @@ ${text}
         }
     }
 
-    // =========================
-    // ai설정
-    // =========================
     if (interaction.commandName === 'ai설정') {
         if (!interaction.member.permissions.has('Administrator')) {
             return interaction.reply({ content: '❌ 관리자만 사용 가능', flags: 64 });
@@ -1985,9 +1990,6 @@ ${text}
         return interaction.reply({ content: `🤖 AI 채널 설정 완료!\n채널: ${channel}`, flags: 64 });
     }
 
-    // =========================
-    // 성격설정
-    // =========================
     if (interaction.commandName === '성격설정') {
         if (!interaction.member.permissions.has('Administrator')) {
             return interaction.reply({ content: '❌ 관리자만 사용 가능', flags: 64 });
@@ -1997,9 +1999,6 @@ ${text}
         return interaction.reply({ content: `🤖 AI 성격 변경 완료!\n\n${aiPersonality}`, flags: 64 });
     }
 
-    // =========================
-    // 송금
-    // =========================
     if (interaction.commandName === '송금') {
         await interaction.deferReply();
 
@@ -2028,9 +2027,6 @@ ${text}
         );
     }
 
-    // =========================
-    // 회사홍보
-    // =========================
     if (interaction.commandName === '회사홍보') {
         await interaction.deferReply();
 
