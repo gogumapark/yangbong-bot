@@ -47,18 +47,18 @@ const moneySchema = new mongoose.Schema({
     lastTax: { type: Number, default: 0 },
 
     // 지원금 관련
-    lastSubsidyDate: { type: String, default: null },          // 마지막 지원금 수령일
-    recentCompanyCreatedAt: { type: Date, default: null },     // 가장 최근 회사 생성 시간
-    companyBoostUsed: { type: Boolean, default: false },       // 회사 생성 주가 부스트 1회 사용 여부
-    gogumSubsidyUsed: { type: Boolean, default: false },       // 고굼박 지원금 사용 여부
+    lastSubsidyDate: { type: String, default: null },
+    recentCompanyCreatedAt: { type: Date, default: null },
+    companyBoostUsed: { type: Boolean, default: false },
+    gogumSubsidyUsed: { type: Boolean, default: false },
 
     // 범죄 관련
-    crimeRisk: { type: Number, default: 0 },                   // 들킬 위험도 (%)
-    taxEvasionActive: { type: Boolean, default: false },       // 탈세 활성화 여부
-    taxEvasionSaved: { type: Number, default: 0 },             // 탈세로 아낀 누적 세금
-    stockManipUsed: { type: Boolean, default: false },         // 주가조작 사용 여부 (거래제한용)
-    stockManipUntil: { type: Date, default: null },            // 주가조작 들킴 -> 거래제한 해제 시간
-    crimeCount: { type: Number, default: 0 },                  // 범죄 총 사용 횟수
+    crimeRisk: { type: Number, default: 0 },
+    taxEvasionActive: { type: Boolean, default: false },
+    taxEvasionSaved: { type: Number, default: 0 },
+    stockManipUsed: { type: Boolean, default: false },
+    stockManipUntil: { type: Date, default: null },
+    crimeCount: { type: Number, default: 0 },
 
     // 양봉장 대출
     loanAmount: { type: Number, default: 0 },
@@ -94,23 +94,18 @@ const stockSchema = new mongoose.Schema({
     pendingPercent: { type: Number, default: null },
     pendingType: { type: String, default: null },
 
-    // 허위뉴스: 변동방향 반전 여부
     fakeNewsActive: { type: Boolean, default: false },
     fakeNewsUntil: { type: Date, default: null },
 
-    // 거래제한 (주가조작 들킴)
     tradeBanUntil: { type: Date, default: null },
 
-    // 홍보 쿨타임
     lastPromoAt: { type: Date, default: null },
 
-    // 홍보 10회 초과 여부 (비용 2배)
     promoCount: { type: Number, default: 0 },
 });
 
-// ========================= 대공황 이벤트 스키마 =========================
 const eventSchema = new mongoose.Schema({
-    type: { type: String, unique: true },   // 'depression'
+    type: { type: String, unique: true },
     active: { type: Boolean, default: false },
     startedAt: { type: Date, default: null },
     endsAt: { type: Date, default: null },
@@ -396,26 +391,20 @@ const commands = [
         .setName('지원금')
         .setDescription('현재 받을 수 있는 지원금을 조회합니다'),
 
+    // 범죄 3개를 하나로 통합
     new SlashCommandBuilder()
         .setName('범죄')
-        .setDescription('현재 할 수 있는 범죄 목록을 봅니다'),
-
-    new SlashCommandBuilder()
-        .setName('탈세')
-        .setDescription('탈세를 시도합니다 (10,000원, 100,000원 이상 보유 필요)'),
-
-    new SlashCommandBuilder()
-        .setName('주가조작')
-        .setDescription('주가조작을 시도합니다 (1,000,000원)')
+        .setDescription('범죄를 저지릅니다')
         .addStringOption(option =>
-            option.setName('회사').setDescription('조작할 회사').setRequired(true)
-        ),
-
-    new SlashCommandBuilder()
-        .setName('허위뉴스')
-        .setDescription('허위뉴스를 살포합니다 (10,000,000원)')
+            option.setName('종류').setDescription('범죄 종류를 선택합니다').setRequired(true)
+                .addChoices(
+                    { name: '💸 탈세 (10,000원 / 보유 100,000원 이상)', value: 'taxevasion' },
+                    { name: '📈 주가조작 (1,000,000원)', value: 'stockmanip' },
+                    { name: '📰 허위뉴스 (10,000,000원)', value: 'fakenews' }
+                )
+        )
         .addStringOption(option =>
-            option.setName('회사').setDescription('대상 회사').setRequired(true)
+            option.setName('회사').setDescription('대상 회사 (주가조작/허위뉴스에 필요)').setRequired(false)
         ),
 
     new SlashCommandBuilder()
@@ -428,10 +417,6 @@ const commands = [
     new SlashCommandBuilder()
         .setName('상환')
         .setDescription('양봉장에 빌린 돈을 갚습니다'),
-
-    new SlashCommandBuilder()
-        .setName('대공황')
-        .setDescription('[관리자] 대공황 이벤트를 발동합니다'),
 
     new SlashCommandBuilder()
         .setName('초기화')
@@ -477,14 +462,10 @@ function createBoard(gameId) {
     return rows;
 }
 
-// =========================
-// 주가 변동 배율 계산 (대공황, 주가 구간별)
-// =========================
 function getPriceMultiplier(price, isDepression) {
     let upMult = 1;
     let downMult = 1;
 
-    // 구간별 배율
     if (price <= 100) {
         upMult = 4;
     } else if (price <= 500) {
@@ -494,7 +475,6 @@ function getPriceMultiplier(price, isDepression) {
         downMult = 1.5;
     }
 
-    // 대공황 중에는 호재/악재 모두 증폭
     if (isDepression) {
         upMult *= 1.5;
         downMult *= 1.5;
@@ -505,15 +485,83 @@ function getPriceMultiplier(price, isDepression) {
 
 // =========================
 // setInterval - 주식 변동 (10분)
+// 대공황: 0.1% 확률로 자동 발동, 6시간 지속
 // =========================
 
 setInterval(async () => {
 
     const stocks = await Stock.find({ deleted: { $ne: true } });
 
-    // 대공황 이벤트 확인
-    const depressionEvent = await GameEvent.findOne({ type: 'depression' });
-    const isDepression = depressionEvent?.active && depressionEvent.endsAt > new Date();
+    // 대공황 이벤트 확인 및 자동 발동
+    let depressionEvent = await GameEvent.findOne({ type: 'depression' });
+
+    // 대공황 종료 체크
+    if (depressionEvent && depressionEvent.active && depressionEvent.endsAt < new Date()) {
+        depressionEvent.active = false;
+        await depressionEvent.save();
+
+        // 종료 뉴스
+        const allStocks = await Stock.find({ listed: true, deleted: { $ne: true } });
+        for (const s of allStocks) {
+            s.news.unshift('📈 대공황 종료!! 시장 안정화!!');
+            s.news = s.news.slice(0, 5);
+            await s.save();
+        }
+
+        // 채널에 알림 (aiChannelId가 있으면 거기에, 없으면 패스)
+        if (aiChannelId) {
+            try {
+                const ch = await client.channels.fetch(aiChannelId);
+                if (ch) await ch.send('📈 **대공황이 종료되었습니다!** 시장이 안정화됩니다.');
+            } catch { }
+        }
+
+        console.log('[대공황] 종료');
+    }
+
+    // 대공황 비활성화 상태일 때 0.1% 확률로 자동 발동
+    const isCurrentlyActive = depressionEvent?.active && depressionEvent.endsAt > new Date();
+    if (!isCurrentlyActive && Math.random() < 0.001) {
+        const endsAt = new Date(Date.now() + 6 * 60 * 60 * 1000);
+
+        if (!depressionEvent) {
+            depressionEvent = await GameEvent.create({
+                type: 'depression',
+                active: true,
+                startedAt: new Date(),
+                endsAt
+            });
+        } else {
+            depressionEvent.active = true;
+            depressionEvent.startedAt = new Date();
+            depressionEvent.endsAt = endsAt;
+            await depressionEvent.save();
+        }
+
+        // 발동 뉴스
+        const allStocks = await Stock.find({ listed: true, deleted: { $ne: true } });
+        for (const s of allStocks) {
+            s.news.unshift('💀 대공황 발생!! 모든 주식 변동 증폭!!');
+            s.news = s.news.slice(0, 5);
+            await s.save();
+        }
+
+        // 채널 알림
+        if (aiChannelId) {
+            try {
+                const ch = await client.channels.fetch(aiChannelId);
+                if (ch) await ch.send(
+                    `💀 **⚠ 대공황 이벤트 자동 발동!!** ⚠\n\n⏰ 종료: <t:${Math.floor(endsAt.getTime() / 1000)}:R>\n\n효과:\n- 모든 주식 호재/악재 효과 1.5배\n- 주가 100원 이하: 상승률 4배\n- 주가 500원 이하: 상승률 2배\n- 주가 10,000원 이상: 상승률 0.8배, 하락률 1.5배`
+                );
+            } catch { }
+        }
+
+        console.log('[대공황] 0.1% 확률 자동 발동');
+    }
+
+    // 현재 대공황 여부 다시 확인
+    const freshEvent = await GameEvent.findOne({ type: 'depression' });
+    const isDepression = freshEvent?.active && freshEvent.endsAt > new Date();
 
     const goodNews = [
         '하늘에서 내려온 토끼가 하는말 바니바니 대박대박!!',
@@ -550,7 +598,6 @@ setInterval(async () => {
 
         if (!stock.listed) continue;
 
-        // 허위뉴스 만료 체크
         if (stock.fakeNewsActive && stock.fakeNewsUntil && stock.fakeNewsUntil < new Date()) {
             stock.fakeNewsActive = false;
             stock.fakeNewsUntil = null;
@@ -620,12 +667,10 @@ setInterval(async () => {
             }
         }
 
-        // 허위뉴스 활성화 시 변동 방향 반전
         if (stock.fakeNewsActive) {
             percent = -percent;
         }
 
-        // 구간별 배율 적용
         const { upMult, downMult } = getPriceMultiplier(stock.price, isDepression);
         if (percent > 0) percent *= upMult;
         else percent *= downMult;
@@ -729,9 +774,7 @@ setInterval(async () => {
 
     for (const user of users) {
 
-        // 탈세 활성화 중이면 세금 면제 (탈세 금액 누적)
         if (user.taxEvasionActive) {
-            // 세금 계산만 하고 실제로 징수하지 않음
             let simulatedTax = calcTax(user.money);
             user.taxEvasionSaved = (user.taxEvasionSaved || 0) + simulatedTax;
             user.lastTax = 0;
@@ -816,7 +859,6 @@ setInterval(async () => {
         if (!user.loanDueAt) continue;
         const now = new Date();
         if (now > user.loanDueAt) {
-            // 기한 초과 - 잔액의 30% 추가 페널티
             const penalty = Math.floor(user.loanAmount * 0.3);
             user.money = Math.max(0, user.money - user.loanAmount - penalty);
             user.loanAmount = 0;
@@ -1162,19 +1204,19 @@ client.on('interactionCreate', async interaction => {
                     embed = new EmbedBuilder()
                         .setTitle('🔫 범죄 도움말').setColor('DarkRed')
                         .setDescription(`
-\`/범죄\`
-현재 할 수 있는 범죄 목록 조회
+\`/범죄 종류:\`
+범죄를 저지릅니다. 종류 선택:
 
-\`/탈세\`
-세금 납부 회피 시도 (10,000원, 100,000원 이상 보유 필요)
+💸 **탈세** - 10,000원 / 보유 100,000원 이상 필요
+세금 납부 1회 면제. 들킬 시 탈세 누적액 3배 징수.
 
-\`/주가조작 회사:\`
-주가 조작 시도 (1,000,000원)
+📈 **주가조작** - 1,000,000원
+대상 회사 다음 변동 강제 상승. 들킬 시 거래 24시간 제한.
 
-\`/허위뉴스 회사:\`
-허위 뉴스 살포 (10,000,000원)
+📰 **허위뉴스** - 10,000,000원
+대상 회사 뉴스 방향 반전 3시간. 들킬 시 3천만원 추가 차감 + 회사 거래 3시간 제한.
 
-⚠ 범죄 들킬 위험도는 세 범죄가 공유합니다.
+⚠ 들킬 위험도는 세 범죄가 공유합니다.
 `);
                 }
 
@@ -1206,11 +1248,10 @@ ai의 성격혹은 말투, 등 을 설정합니다.
 \`/삭제로그\`
 삭제 메시지 확인
 
-\`/대공황\`
-[관리자] 대공황 이벤트 발동
-
 \`/초기화\`
 [관리자] 전체 초기화
+
+💀 **대공황**은 10분마다 0.1% 확률로 자동 발동되는 희귀 이벤트입니다!
 `);
                 }
 
@@ -1549,8 +1590,6 @@ ai의 성격혹은 말투, 등 을 설정합니다.
         }
 
         user.money -= createCost;
-
-        // 회사 생성 시간 기록 (지원금 부스트용)
         user.recentCompanyCreatedAt = new Date();
         user.companyBoostUsed = false;
 
@@ -1585,7 +1624,6 @@ ai의 성격혹은 말투, 등 을 설정합니다.
         const stock = await Stock.findOne({ name, listed: true });
         if (!stock) return interaction.editReply('❌ 회사 없음');
 
-        // 거래 제한 확인
         if (stock.tradeBanUntil && stock.tradeBanUntil > new Date()) {
             const remain = stock.tradeBanUntil - new Date();
             const hours = Math.floor(remain / 1000 / 60 / 60);
@@ -1595,7 +1633,6 @@ ai의 성격혹은 말투, 등 을 설정합니다.
 
         const user = await getUser(interaction.user.id);
 
-        // 거래제한 (주가조작 들킴)
         if (user.stockManipUntil && user.stockManipUntil > new Date()) {
             const remain = user.stockManipUntil - new Date();
             const hours = Math.floor(remain / 1000 / 60 / 60);
@@ -1666,7 +1703,6 @@ ai의 성격혹은 말투, 등 을 설정합니다.
         const stock = await Stock.findOne({ name, listed: true });
         if (!stock) return interaction.editReply('❌ 회사 없음');
 
-        // 거래 제한 확인
         if (stock.tradeBanUntil && stock.tradeBanUntil > new Date()) {
             const remain = stock.tradeBanUntil - new Date();
             const hours = Math.floor(remain / 1000 / 60 / 60);
@@ -1773,12 +1809,11 @@ ai의 성격혹은 말투, 등 을 설정합니다.
     }
 
     // =========================
-    // 주식 (상장폐지 제외, 다음변동시간, 대표 표시)
+    // 주식
     // =========================
     if (interaction.commandName === '주식') {
         await interaction.deferReply();
 
-        // 상장된 회사만, 삭제 안된 것만
         const stocks = await Stock.find({ deleted: { $ne: true }, listed: true });
 
         if (stocks.length === 0) return interaction.editReply('현재 상장된 회사가 없습니다.');
@@ -2297,7 +2332,7 @@ ${text}
     }
 
     // =========================
-    // 회사홍보 (1시간 쿨타임, 10회 초과 비용 2배, 주가상승 삭제)
+    // 회사홍보
     // =========================
     if (interaction.commandName === '회사홍보') {
         await interaction.deferReply();
@@ -2310,10 +2345,9 @@ ${text}
         if (!stock) return interaction.editReply('❌ 회사 없음');
         if (stock.owner !== interaction.user.id) return interaction.editReply('❌ 자기 회사만 홍보 가능');
 
-        // 1시간 쿨타임 체크
         if (stock.lastPromoAt) {
             const diff = Date.now() - new Date(stock.lastPromoAt).getTime();
-            const cooldown = 60 * 60 * 1000; // 1시간
+            const cooldown = 60 * 60 * 1000;
             if (diff < cooldown) {
                 const remain = cooldown - diff;
                 const minutes = Math.floor(remain / 1000 / 60);
@@ -2356,7 +2390,6 @@ ${text}
                 break;
         }
 
-        // 10회 초과 시 비용 2배
         const promoCount = stock.promoCount || 0;
         const costMultiplier = promoCount >= 10 ? 2 : 1;
         const cost = baseCost * costMultiplier;
@@ -2368,7 +2401,6 @@ ${text}
         user.money -= cost;
         await user.save();
 
-        // 주가 상승 없이 확률만 증가
         stock.promotionLevel = Math.min(100, (stock.promotionLevel || 0) + promoAdd);
         stock.promoCount = promoCount + 1;
         stock.lastPromoAt = new Date();
@@ -2400,7 +2432,6 @@ ${text}
 
         const today = new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Seoul' });
 
-        // 3일 주기 체크
         let canReceive = true;
         let cooldownMsg = '';
 
@@ -2416,14 +2447,11 @@ ${text}
             }
         }
 
-        // 수령 가능한 지원금 목록 표시
         let availableList = '📋 **수령 가능한 지원금 목록**\n\n';
 
-        // 1. 자금 10,000원 이하 지원금
         const isLowFunds = user.money <= 10000;
         availableList += `${isLowFunds ? '✅' : '❌'} **저자금 지원금** - 50,000원\n  조건: 현재 자금 10,000원 이하 (현재: ${formatMoney(user.money)})\n\n`;
 
-        // 2. 회사 생성 20분 이내 주가 부스트
         let recentCompany = false;
         if (user.recentCompanyCreatedAt && !user.companyBoostUsed) {
             const diff = Date.now() - new Date(user.recentCompanyCreatedAt).getTime();
@@ -2431,7 +2459,6 @@ ${text}
         }
         availableList += `${recentCompany ? '✅' : '❌'} **창업 지원금** - 10,000원 + 회사 주가상승 확률 90% 부스트 (1회)\n  조건: 20분 이내 회사 창설 & 미사용\n\n`;
 
-        // 3. 고굼박 지원금 (1회용)
         const gogumAvailable = !user.gogumSubsidyUsed;
         availableList += `${gogumAvailable ? '✅' : '❌'} **고굼박 최고 지원금** - 50,000원 (1회 한정)\n  조건: 미수령\n\n`;
 
@@ -2439,7 +2466,6 @@ ${text}
             return interaction.editReply(availableList + cooldownMsg);
         }
 
-        // 지원금 지급
         let totalReward = 0;
         let rewardMsg = '💰 **지급된 지원금:**\n';
         let stockBoostMsg = '';
@@ -2453,7 +2479,6 @@ ${text}
             totalReward += 10000;
             rewardMsg += '- 창업 지원금: +10,000원\n';
 
-            // 가장 최근 생성한 회사에 주가 상승 확률 부스트 (promotionLevel +90 임시)
             const myStock = await Stock.findOne({
                 owner: userId,
                 deleted: { $ne: true },
@@ -2493,188 +2518,138 @@ ${text}
     }
 
     // =========================
-    // 범죄 목록
+    // 범죄 (통합: 탈세 / 주가조작 / 허위뉴스)
     // =========================
     if (interaction.commandName === '범죄') {
         await interaction.deferReply({ flags: 64 });
 
+        const crimeType = interaction.options.getString('종류');
+        const targetName = interaction.options.getString('회사');
         const user = await getUser(interaction.user.id);
         const risk = user.crimeRisk || 0;
 
-        const embed = new EmbedBuilder()
-            .setTitle('🔫 범죄 목록')
-            .setColor('DarkRed')
-            .setDescription(`⚠ 현재 들킬 위험도: **${risk}%**\n위험도는 세 범죄 모두 공유됩니다.\n\n───────────────────`)
-            .addFields(
-                {
-                    name: '💸 탈세 `/탈세`',
-                    value: `비용: 10,000원\n조건: 보유 자금 100,000원 이상\n효과: 다음 세금 징수 1회 면제\n들킬 시 위험도 +10%\n들킬 시: 기존 세금 + 탈세 누적액의 **3배** 징수\n탈세 뉴스 발행\n현재 상태: ${user.taxEvasionActive ? '✅ 활성화 중' : '❌ 비활성화'}`
-                },
-                {
-                    name: '📈 주가조작 `/주가조작 회사:`',
-                    value: `비용: 1,000,000원\n효과: 대상 회사 다음 변동 강제 상승\n들킬 시 위험도 +35%\n들킬 시: 본인 거래 하루 제한`
-                },
-                {
-                    name: '📰 허위뉴스 `/허위뉴스 회사:`',
-                    value: `비용: 10,000,000원\n효과: 대상 회사 뉴스 방향 반전 (3시간)\n들킬 시 위험도 +30%\n들킬 시: 30,000,000원 차감 + 회사 거래 3시간 제한\n허위뉴스 발행 뉴스 발행`
+        // ─── 탈세 ───
+        if (crimeType === 'taxevasion') {
+            if (user.money < 100000) {
+                return interaction.editReply('❌ 탈세는 보유 자금 100,000원 이상일 때만 가능합니다.');
+            }
+            if (user.money < 10000) {
+                return interaction.editReply('❌ 탈세 비용 10,000원이 부족합니다.');
+            }
+            if (user.taxEvasionActive) {
+                return interaction.editReply('❌ 이미 탈세 중입니다. 다음 세금 징수 후 다시 시도하세요.');
+            }
+
+            if (Math.random() * 100 < risk) {
+                const savedTax = user.taxEvasionSaved || 0;
+                const penalty = calcTax(user.money) + savedTax * 3;
+
+                user.money = Math.max(0, user.money - penalty);
+                user.crimeRisk = Math.min(100, risk + 10);
+                user.taxEvasionSaved = 0;
+                user.crimeCount = (user.crimeCount || 0) + 1;
+                await user.save();
+
+                const myStocks = await Stock.find({ owner: interaction.user.id, listed: true, deleted: { $ne: true } });
+                for (const s of myStocks) {
+                    s.news.unshift(`🔴 ${interaction.user.username} 대표 탈세의혹.. 조사버리겠다 선언`);
+                    s.news = s.news.slice(0, 5);
+                    await s.save();
                 }
-            )
-            .setFooter({ text: `범죄 총 횟수: ${user.crimeCount || 0}회` });
 
-        return interaction.editReply({ embeds: [embed] });
-    }
+                return interaction.editReply(
+                    `🚨 탈세가 들켰습니다!!\n\n💸 페널티: -${formatMoney(penalty)}\n📊 현재 위험도: ${user.crimeRisk}%\n💰 현재 잔액: ${formatMoney(user.money)}`
+                );
+            }
 
-    // =========================
-    // 탈세
-    // =========================
-    if (interaction.commandName === '탈세') {
-        await interaction.deferReply({ flags: 64 });
-
-        const user = await getUser(interaction.user.id);
-
-        if (user.money < 100000) {
-            return interaction.editReply('❌ 탈세는 보유 자금 100,000원 이상일 때만 가능합니다.');
-        }
-
-        if (user.money < 10000) {
-            return interaction.editReply('❌ 탈세 비용 10,000원이 부족합니다.');
-        }
-
-        if (user.taxEvasionActive) {
-            return interaction.editReply('❌ 이미 탈세 중입니다. 다음 세금 징수 후 다시 시도하세요.');
-        }
-
-        const risk = user.crimeRisk || 0;
-
-        // 들킴 판정
-        if (Math.random() * 100 < risk) {
-            // 들킴
-            const savedTax = user.taxEvasionSaved || 0;
-            const penalty = calcTax(user.money) + savedTax * 3;
-
-            user.money = Math.max(0, user.money - penalty);
+            user.money -= 10000;
+            user.taxEvasionActive = true;
             user.crimeRisk = Math.min(100, risk + 10);
-            user.taxEvasionSaved = 0;
             user.crimeCount = (user.crimeCount || 0) + 1;
             await user.save();
 
-            // 뉴스 발행 (모든 상장 회사에)
-            const myStocks = await Stock.find({ owner: interaction.user.id, listed: true, deleted: { $ne: true } });
-            for (const s of myStocks) {
-                s.news.unshift(`🔴 ${interaction.user.username} 대표 탈세의혹.. 조사버리겠다 선언`);
-                s.news = s.news.slice(0, 5);
-                await s.save();
+            return interaction.editReply(
+                `✅ 탈세 성공!\n\n💸 비용: -10,000원\n🎭 다음 세금 징수 1회 면제\n📊 현재 위험도: ${user.crimeRisk}%`
+            );
+        }
+
+        // ─── 주가조작 ───
+        if (crimeType === 'stockmanip') {
+            if (!targetName) {
+                return interaction.editReply('❌ 주가조작에는 회사 이름이 필요합니다.');
+            }
+            if (user.money < 1000000) {
+                return interaction.editReply('❌ 주가조작 비용 1,000,000원이 부족합니다.');
             }
 
-            return interaction.editReply(
-                `🚨 탈세가 들켰습니다!!\n\n💸 페널티: -${formatMoney(penalty)}\n📊 현재 위험도: ${user.crimeRisk}%\n💰 현재 잔액: ${formatMoney(user.money)}`
-            );
-        }
+            const stock = await Stock.findOne({ name: targetName, listed: true, deleted: { $ne: true } });
+            if (!stock) return interaction.editReply('❌ 상장된 회사 없음');
 
-        // 성공
-        user.money -= 10000;
-        user.taxEvasionActive = true;
-        user.crimeRisk = Math.min(100, risk + 10);
-        user.crimeCount = (user.crimeCount || 0) + 1;
-        await user.save();
+            user.money -= 1000000;
+            user.crimeRisk = Math.min(100, risk + 35);
+            user.crimeCount = (user.crimeCount || 0) + 1;
 
-        return interaction.editReply(
-            `✅ 탈세 성공!\n\n💸 비용: -10,000원\n🎭 다음 세금 징수 1회 면제\n📊 현재 위험도: ${user.crimeRisk}%`
-        );
-    }
+            if (Math.random() * 100 < risk) {
+                user.stockManipUntil = new Date(Date.now() + 24 * 60 * 60 * 1000);
+                await user.save();
 
-    // =========================
-    // 주가조작
-    // =========================
-    if (interaction.commandName === '주가조작') {
-        await interaction.deferReply({ flags: 64 });
+                return interaction.editReply(
+                    `🚨 주가조작이 들켰습니다!!\n\n🚫 거래 제한: 24시간\n📊 현재 위험도: ${user.crimeRisk}%`
+                );
+            }
 
-        const name = interaction.options.getString('회사');
-        const user = await getUser(interaction.user.id);
-
-        if (user.money < 1000000) {
-            return interaction.editReply('❌ 주가조작 비용 1,000,000원이 부족합니다.');
-        }
-
-        const stock = await Stock.findOne({ name, listed: true, deleted: { $ne: true } });
-        if (!stock) return interaction.editReply('❌ 상장된 회사 없음');
-
-        const risk = user.crimeRisk || 0;
-
-        user.money -= 1000000;
-        user.crimeRisk = Math.min(100, risk + 35);
-        user.crimeCount = (user.crimeCount || 0) + 1;
-
-        if (Math.random() * 100 < risk) {
-            // 들킴: 본인 거래 하루 제한
-            user.stockManipUntil = new Date(Date.now() + 24 * 60 * 60 * 1000);
+            stock.pendingPercent = Math.random() * 0.3 + 0.2;
+            stock.pendingType = 'boom';
+            stock.pendingNews = `🌐 ${targetName} 기업 호재 소식!! 상승 기대!!`;
+            await stock.save();
             await user.save();
 
             return interaction.editReply(
-                `🚨 주가조작이 들켰습니다!!\n\n🚫 거래 제한: 24시간\n📊 현재 위험도: ${user.crimeRisk}%`
+                `✅ 주가조작 성공!\n\n📈 ${targetName} 다음 변동 강제 상승 예약\n📊 현재 위험도: ${user.crimeRisk}%`
             );
         }
 
-        // 성공: 다음 변동 강제 상승 (pendingPercent를 양수로 덮어씀)
-        stock.pendingPercent = Math.random() * 0.3 + 0.2; // 20~50% 상승
-        stock.pendingType = 'boom';
-        stock.pendingNews = `🌐 ${name} 기업 호재 소식!! 상승 기대!!`;
-        await stock.save();
-        await user.save();
+        // ─── 허위뉴스 ───
+        if (crimeType === 'fakenews') {
+            if (!targetName) {
+                return interaction.editReply('❌ 허위뉴스에는 회사 이름이 필요합니다.');
+            }
+            if (user.money < 10000000) {
+                return interaction.editReply('❌ 허위뉴스 비용 10,000,000원이 부족합니다.');
+            }
 
-        return interaction.editReply(
-            `✅ 주가조작 성공!\n\n📈 ${name} 다음 변동 강제 상승 예약\n📊 현재 위험도: ${user.crimeRisk}%`
-        );
-    }
+            const stock = await Stock.findOne({ name: targetName, listed: true, deleted: { $ne: true } });
+            if (!stock) return interaction.editReply('❌ 상장된 회사 없음');
 
-    // =========================
-    // 허위뉴스
-    // =========================
-    if (interaction.commandName === '허위뉴스') {
-        await interaction.deferReply({ flags: 64 });
+            user.money -= 10000000;
+            user.crimeRisk = Math.min(100, risk + 30);
+            user.crimeCount = (user.crimeCount || 0) + 1;
 
-        const name = interaction.options.getString('회사');
-        const user = await getUser(interaction.user.id);
+            if (Math.random() * 100 < risk) {
+                user.money = Math.max(0, user.money - 30000000);
+                await user.save();
 
-        if (user.money < 10000000) {
-            return interaction.editReply('❌ 허위뉴스 비용 10,000,000원이 부족합니다.');
-        }
+                stock.tradeBanUntil = new Date(Date.now() + 3 * 60 * 60 * 1000);
+                stock.news.unshift(`🔴 ${interaction.user.username} 대표 허위뉴스 발행.. 이대로 괜찮..냐?`);
+                stock.news = stock.news.slice(0, 5);
+                await stock.save();
 
-        const stock = await Stock.findOne({ name, listed: true, deleted: { $ne: true } });
-        if (!stock) return interaction.editReply('❌ 상장된 회사 없음');
+                return interaction.editReply(
+                    `🚨 허위뉴스 살포가 들켰습니다!!\n\n💸 추가 페널티: -30,000,000원\n🚫 ${targetName} 거래 3시간 제한\n📊 현재 위험도: ${user.crimeRisk}%\n💰 현재 잔액: ${formatMoney(user.money)}`
+                );
+            }
 
-        const risk = user.crimeRisk || 0;
-
-        user.money -= 10000000;
-        user.crimeRisk = Math.min(100, risk + 30);
-        user.crimeCount = (user.crimeCount || 0) + 1;
-
-        if (Math.random() * 100 < risk) {
-            // 들킴: 30,000,000원 차감 + 회사 거래 3시간 제한
-            user.money = Math.max(0, user.money - 30000000);
-            await user.save();
-
-            stock.tradeBanUntil = new Date(Date.now() + 3 * 60 * 60 * 1000);
-            stock.news.unshift(`🔴 ${interaction.user.username} 대표 허위뉴스 발행.. 이대로 괜찮..냐?`);
+            stock.fakeNewsActive = true;
+            stock.fakeNewsUntil = new Date(Date.now() + 3 * 60 * 60 * 1000);
+            stock.news.unshift(`📰 ${targetName} 허위 뉴스 살포 중.. 주가 방향 반전!!`);
             stock.news = stock.news.slice(0, 5);
             await stock.save();
+            await user.save();
 
             return interaction.editReply(
-                `🚨 허위뉴스 살포가 들켰습니다!!\n\n💸 추가 페널티: -30,000,000원\n🚫 ${name} 거래 3시간 제한\n📊 현재 위험도: ${user.crimeRisk}%\n💰 현재 잔액: ${formatMoney(user.money)}`
+                `✅ 허위뉴스 살포 성공!\n\n📰 ${targetName} 주가 변동 방향 3시간 반전\n📊 현재 위험도: ${user.crimeRisk}%`
             );
         }
-
-        // 성공: 3시간 동안 변동 방향 반전
-        stock.fakeNewsActive = true;
-        stock.fakeNewsUntil = new Date(Date.now() + 3 * 60 * 60 * 1000);
-        stock.news.unshift(`📰 ${name} 허위 뉴스 살포 중.. 주가 방향 반전!!`);
-        stock.news = stock.news.slice(0, 5);
-        await stock.save();
-        await user.save();
-
-        return interaction.editReply(
-            `✅ 허위뉴스 살포 성공!\n\n📰 ${name} 주가 변동 방향 3시간 반전\n📊 현재 위험도: ${user.crimeRisk}%`
-        );
     }
 
     // =========================
@@ -2694,9 +2669,8 @@ ${text}
         if (isNaN(amount) || amount <= 0) return interaction.editReply('❌ 올바른 금액을 입력해주세요.');
         if (amount > 500000) return interaction.editReply('❌ 최대 대출 한도는 500,000원입니다.');
 
-        // 이자 10%
         const repayAmount = Math.floor(amount * 1.1);
-        const dueAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24시간
+        const dueAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
 
         user.money += amount;
         user.loanAmount = repayAmount;
@@ -2736,60 +2710,6 @@ ${text}
     }
 
     // =========================
-    // 대공황 [관리자]
-    // =========================
-    if (interaction.commandName === '대공황') {
-        if (!interaction.member.permissions.has('Administrator')) {
-            return interaction.reply({ content: '❌ 관리자만 사용 가능', flags: 64 });
-        }
-
-        await interaction.deferReply();
-
-        // 기존 이벤트 확인
-        let event = await GameEvent.findOne({ type: 'depression' });
-
-        if (event && event.active && event.endsAt > new Date()) {
-            // 대공황 종료
-            event.active = false;
-            await event.save();
-
-            // 모든 상장 회사에 뉴스
-            const stocks = await Stock.find({ listed: true, deleted: { $ne: true } });
-            for (const s of stocks) {
-                s.news.unshift('📈 대공황 종료!! 시장 안정화!!');
-                s.news = s.news.slice(0, 5);
-                await s.save();
-            }
-
-            return interaction.editReply('📈 대공황 이벤트 종료!');
-        }
-
-        // 대공황 시작 (6시간)
-        const endsAt = new Date(Date.now() + 6 * 60 * 60 * 1000);
-
-        if (!event) {
-            event = await GameEvent.create({ type: 'depression', active: true, startedAt: new Date(), endsAt });
-        } else {
-            event.active = true;
-            event.startedAt = new Date();
-            event.endsAt = endsAt;
-            await event.save();
-        }
-
-        // 모든 상장 회사에 뉴스
-        const stocks = await Stock.find({ listed: true, deleted: { $ne: true } });
-        for (const s of stocks) {
-            s.news.unshift('💀 대공황 발생!! 모든 주식 변동 증폭!!');
-            s.news = s.news.slice(0, 5);
-            await s.save();
-        }
-
-        return interaction.editReply(
-            `💀 **대공황 이벤트 발동!**\n\n⏰ 종료: <t:${Math.floor(endsAt.getTime() / 1000)}:R>\n\n효과:\n- 모든 주식 호재/악재 효과 1.5배\n- 주가 100원 이하: 상승률 4배\n- 주가 500원 이하: 상승률 2배\n- 주가 10,000원 이상: 상승률 0.8배, 하락률 1.5배`
-        );
-    }
-
-    // =========================
     // 초기화 [관리자]
     // =========================
     if (interaction.commandName === '초기화') {
@@ -2799,7 +2719,6 @@ ${text}
 
         await interaction.deferReply();
 
-        // 모든 유저 자금 초기화
         await Money.updateMany({}, {
             $set: {
                 money: 1000,
@@ -2827,8 +2746,10 @@ ${text}
             }
         });
 
-        // 모든 회사 삭제
         await Stock.deleteMany({});
+
+        // 대공황 이벤트도 초기화
+        await GameEvent.updateMany({}, { $set: { active: false } });
 
         return interaction.editReply('🔄 **전체 초기화 완료!**\n모든 플레이어 자금 1,000원으로 초기화\n모든 회사 삭제 완료');
     }
