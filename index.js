@@ -11,6 +11,8 @@ app.listen(PORT, () => {
 });
 
 const mongoose = require('mongoose');
+const { ChartJSNodeCanvas } = require('chartjs-node-canvas');
+const { AttachmentBuilder } = require('discord.js');
 
 let aiChannelId = null;
 
@@ -46,13 +48,11 @@ const moneySchema = new mongoose.Schema({
 
     lastTax: { type: Number, default: 0 },
 
-    // 지원금 관련
     lastSubsidyDate: { type: String, default: null },
     recentCompanyCreatedAt: { type: Date, default: null },
     companyBoostUsed: { type: Boolean, default: false },
     gogumSubsidyUsed: { type: Boolean, default: false },
 
-    // 범죄 관련
     crimeRisk: { type: Number, default: 0 },
     taxEvasionActive: { type: Boolean, default: false },
     taxEvasionSaved: { type: Number, default: 0 },
@@ -60,7 +60,6 @@ const moneySchema = new mongoose.Schema({
     stockManipUntil: { type: Date, default: null },
     crimeCount: { type: Number, default: 0 },
 
-    // 양봉장 대출
     loanAmount: { type: Number, default: 0 },
     loanDueAt: { type: Date, default: null },
 });
@@ -102,6 +101,11 @@ const stockSchema = new mongoose.Schema({
     lastPromoAt: { type: Date, default: null },
 
     promoCount: { type: Number, default: 0 },
+
+    // ✅ 추가: 가격 히스토리 (최근 30개 = 약 5시간치)
+    priceHistory: { type: [Number], default: [] },
+    // ✅ 추가: 히스토리 타임스탬프
+    priceHistoryTimes: { type: [Date], default: [] },
 });
 
 const eventSchema = new mongoose.Schema({
@@ -114,6 +118,71 @@ const GameEvent = mongoose.model('GameEvent', eventSchema);
 
 function formatMoney(num) {
     return num.toLocaleString('ko-KR') + '원';
+}
+
+// ✅ 차트 생성기
+const chartRenderer = new ChartJSNodeCanvas({
+    width: 800,
+    height: 400,
+    backgroundColour: '#2b2d31'
+});
+
+async function generateStockChart(stock) {
+    const history = stock.priceHistory || [];
+    const times = stock.priceHistoryTimes || [];
+
+    // 히스토리가 없으면 현재 가격만
+    const data = history.length > 0 ? [...history, stock.price] : [stock.price];
+    const labels = times.map((t, i) => {
+        const d = new Date(t);
+        return `${d.getHours()}:${String(d.getMinutes()).padStart(2, '0')}`;
+    });
+    labels.push('현재');
+
+    // 색상: 첫 가격 대비 현재 가격으로 결정
+    const isUp = data[data.length - 1] >= data[0];
+    const lineColor = isUp ? '#57f287' : '#ed4245';
+    const fillColor = isUp ? 'rgba(87,242,135,0.1)' : 'rgba(237,66,69,0.1)';
+
+    const config = {
+        type: 'line',
+        data: {
+            labels,
+            datasets: [{
+                label: `${stock.name} 주가`,
+                data,
+                borderColor: lineColor,
+                backgroundColor: fillColor,
+                tension: 0.3,
+                fill: true,
+                pointRadius: 4,
+                pointBackgroundColor: lineColor,
+            }]
+        },
+        options: {
+            animation: false,
+            plugins: {
+                legend: {
+                    labels: { color: '#ffffff', font: { size: 14 } }
+                }
+            },
+            scales: {
+                x: {
+                    ticks: { color: '#aaaaaa', maxRotation: 45 },
+                    grid: { color: '#3a3a3a' }
+                },
+                y: {
+                    ticks: {
+                        color: '#aaaaaa',
+                        callback: (v) => v.toLocaleString('ko-KR') + '원'
+                    },
+                    grid: { color: '#3a3a3a' }
+                }
+            }
+        }
+    };
+
+    return await chartRenderer.renderToBuffer(config);
 }
 
 const Groq = require("groq-sdk");
@@ -183,8 +252,6 @@ client.on('messageDelete', message => {
         createdAt: new Date()
     });
 });
-
-const userFortunes = {};
 
 const commands = [
 
@@ -310,6 +377,14 @@ const commands = [
             option.setName('회사').setDescription('회사 이름').setRequired(true)
         ),
 
+    // ✅ 추가: 차트 명령어
+    new SlashCommandBuilder()
+        .setName('차트')
+        .setDescription('회사의 주가 차트를 확인합니다')
+        .addStringOption(option =>
+            option.setName('회사').setDescription('회사 이름').setRequired(true)
+        ),
+
     new SlashCommandBuilder()
         .setName('도움말')
         .setDescription('양봉이의 도움말을 확인합니다.'),
@@ -385,13 +460,10 @@ const commands = [
         .setName('구걸')
         .setDescription('옛다 거지야'),
 
-    // ===================== 신규 명령어 =====================
-
     new SlashCommandBuilder()
         .setName('지원금')
         .setDescription('현재 받을 수 있는 지원금을 조회합니다'),
 
-    // 범죄 3개를 하나로 통합
     new SlashCommandBuilder()
         .setName('범죄')
         .setDescription('범죄를 저지릅니다')
@@ -485,22 +557,18 @@ function getPriceMultiplier(price, isDepression) {
 
 // =========================
 // setInterval - 주식 변동 (10분)
-// 대공황: 0.1% 확률로 자동 발동, 6시간 지속
 // =========================
 
 setInterval(async () => {
 
     const stocks = await Stock.find({ deleted: { $ne: true } });
 
-    // 대공황 이벤트 확인 및 자동 발동
     let depressionEvent = await GameEvent.findOne({ type: 'depression' });
 
-    // 대공황 종료 체크
     if (depressionEvent && depressionEvent.active && depressionEvent.endsAt < new Date()) {
         depressionEvent.active = false;
         await depressionEvent.save();
 
-        // 종료 뉴스
         const allStocks = await Stock.find({ listed: true, deleted: { $ne: true } });
         for (const s of allStocks) {
             s.news.unshift('📈 대공황 종료!! 시장 안정화!!');
@@ -508,7 +576,6 @@ setInterval(async () => {
             await s.save();
         }
 
-        // 채널에 알림 (aiChannelId가 있으면 거기에, 없으면 패스)
         if (aiChannelId) {
             try {
                 const ch = await client.channels.fetch(aiChannelId);
@@ -519,7 +586,6 @@ setInterval(async () => {
         console.log('[대공황] 종료');
     }
 
-    // 대공황 비활성화 상태일 때 0.1% 확률로 자동 발동
     const isCurrentlyActive = depressionEvent?.active && depressionEvent.endsAt > new Date();
     if (!isCurrentlyActive && Math.random() < 0.001) {
         const endsAt = new Date(Date.now() + 6 * 60 * 60 * 1000);
@@ -538,7 +604,6 @@ setInterval(async () => {
             await depressionEvent.save();
         }
 
-        // 발동 뉴스
         const allStocks = await Stock.find({ listed: true, deleted: { $ne: true } });
         for (const s of allStocks) {
             s.news.unshift('💀 대공황 발생!! 모든 주식 변동 증폭!!');
@@ -546,7 +611,6 @@ setInterval(async () => {
             await s.save();
         }
 
-        // 채널 알림
         if (aiChannelId) {
             try {
                 const ch = await client.channels.fetch(aiChannelId);
@@ -559,7 +623,6 @@ setInterval(async () => {
         console.log('[대공황] 0.1% 확률 자동 발동');
     }
 
-    // 현재 대공황 여부 다시 확인
     const freshEvent = await GameEvent.findOne({ type: 'depression' });
     const isDepression = freshEvent?.active && freshEvent.endsAt > new Date();
 
@@ -621,7 +684,6 @@ setInterval(async () => {
         const hadPending = stock.pendingPercent !== null && stock.pendingPercent !== undefined;
 
         if (hadPending) {
-
             percent = stock.pendingPercent;
 
             if (Math.random() < 0.1) {
@@ -660,6 +722,7 @@ setInterval(async () => {
                     percent -= 0.05;
                 }
 
+                // ✅ 수정: 홍보력 보너스 확률 캡 0.5, 효과 0.005
                 const promoBonus = Math.min(stock.promotionLevel * 0.03, 0.5);
                 if (Math.random() < promoBonus) {
                     percent += Math.random() * (stock.promotionLevel * 0.005);
@@ -681,6 +744,18 @@ setInterval(async () => {
         if (stock.price >= 1000000) {
             badEventThreshold = 0.8;
         }
+
+        // ✅ 가격 히스토리 저장 (변동 전 가격 기록)
+        if (!stock.priceHistory) stock.priceHistory = [];
+        if (!stock.priceHistoryTimes) stock.priceHistoryTimes = [];
+        stock.priceHistory.push(stock.price);
+        stock.priceHistoryTimes.push(new Date());
+        if (stock.priceHistory.length > 30) {
+            stock.priceHistory = stock.priceHistory.slice(-30);
+            stock.priceHistoryTimes = stock.priceHistoryTimes.slice(-30);
+        }
+        stock.markModified('priceHistory');
+        stock.markModified('priceHistoryTimes');
 
         let change = Math.floor(stock.price * percent);
         if (change === 0) change = Math.random() < 0.5 ? -1 : 1;
@@ -754,6 +829,7 @@ setInterval(async () => {
 
         if (stock.owner && stock.listed) {
             const owner = await getUser(stock.owner);
+            // ✅ 수정: 오너 수수료 5% → 1%
             const fee = Math.floor(stock.price * 0.01);
             owner.money += fee;
             await owner.save();
@@ -798,53 +874,54 @@ setInterval(async () => {
 
 }, 60 * 60 * 1000);
 
+// ✅ 수정: 세율 1/3 인하
 function calcTax(m) {
     let tax = 0;
 
     if (m > 100000) {
-        tax += Math.floor((m - 100000) * 0.225);
-        tax += Math.floor((100000 - 50000) * 0.21);
-        tax += Math.floor((50000 - 30000) * 0.20);
-        tax += Math.floor((30000 - 15000) * 0.19);
-        tax += Math.floor((15000 - 8800) * 0.175);
-        tax += Math.floor((8800 - 5000) * 0.12);
-        tax += Math.floor((5000 - 1400) * 0.075);
-        tax += Math.floor(1400 * 0.03);
+        tax += Math.floor((m - 100000) * 0.15);
+        tax += Math.floor((100000 - 50000) * 0.14);
+        tax += Math.floor((50000 - 30000) * 0.133);
+        tax += Math.floor((30000 - 15000) * 0.127);
+        tax += Math.floor((15000 - 8800) * 0.117);
+        tax += Math.floor((8800 - 5000) * 0.08);
+        tax += Math.floor((5000 - 1400) * 0.05);
+        tax += Math.floor(1400 * 0.02);
     } else if (m > 50000) {
-        tax += Math.floor((m - 50000) * 0.21);
-        tax += Math.floor((50000 - 30000) * 0.20);
-        tax += Math.floor((30000 - 15000) * 0.19);
-        tax += Math.floor((15000 - 8800) * 0.175);
-        tax += Math.floor((8800 - 5000) * 0.12);
-        tax += Math.floor((5000 - 1400) * 0.075);
-        tax += Math.floor(1400 * 0.03);
+        tax += Math.floor((m - 50000) * 0.14);
+        tax += Math.floor((50000 - 30000) * 0.133);
+        tax += Math.floor((30000 - 15000) * 0.127);
+        tax += Math.floor((15000 - 8800) * 0.117);
+        tax += Math.floor((8800 - 5000) * 0.08);
+        tax += Math.floor((5000 - 1400) * 0.05);
+        tax += Math.floor(1400 * 0.02);
     } else if (m > 30000) {
-        tax += Math.floor((m - 30000) * 0.20);
-        tax += Math.floor((30000 - 15000) * 0.19);
-        tax += Math.floor((15000 - 8800) * 0.175);
-        tax += Math.floor((8800 - 5000) * 0.12);
-        tax += Math.floor((5000 - 1400) * 0.075);
-        tax += Math.floor(1400 * 0.03);
+        tax += Math.floor((m - 30000) * 0.133);
+        tax += Math.floor((30000 - 15000) * 0.127);
+        tax += Math.floor((15000 - 8800) * 0.117);
+        tax += Math.floor((8800 - 5000) * 0.08);
+        tax += Math.floor((5000 - 1400) * 0.05);
+        tax += Math.floor(1400 * 0.02);
     } else if (m > 15000) {
-        tax += Math.floor((m - 15000) * 0.19);
-        tax += Math.floor((15000 - 8800) * 0.175);
-        tax += Math.floor((8800 - 5000) * 0.12);
-        tax += Math.floor((5000 - 1400) * 0.075);
-        tax += Math.floor(1400 * 0.03);
+        tax += Math.floor((m - 15000) * 0.127);
+        tax += Math.floor((15000 - 8800) * 0.117);
+        tax += Math.floor((8800 - 5000) * 0.08);
+        tax += Math.floor((5000 - 1400) * 0.05);
+        tax += Math.floor(1400 * 0.02);
     } else if (m > 8800) {
-        tax += Math.floor((m - 8800) * 0.175);
-        tax += Math.floor((8800 - 5000) * 0.12);
-        tax += Math.floor((5000 - 1400) * 0.075);
-        tax += Math.floor(1400 * 0.03);
+        tax += Math.floor((m - 8800) * 0.117);
+        tax += Math.floor((8800 - 5000) * 0.08);
+        tax += Math.floor((5000 - 1400) * 0.05);
+        tax += Math.floor(1400 * 0.02);
     } else if (m > 5000) {
-        tax += Math.floor((m - 5000) * 0.12);
-        tax += Math.floor((5000 - 1400) * 0.075);
-        tax += Math.floor(1400 * 0.03);
+        tax += Math.floor((m - 5000) * 0.08);
+        tax += Math.floor((5000 - 1400) * 0.05);
+        tax += Math.floor(1400 * 0.02);
     } else if (m > 1400) {
-        tax += Math.floor((m - 1400) * 0.075);
-        tax += Math.floor(1400 * 0.03);
+        tax += Math.floor((m - 1400) * 0.05);
+        tax += Math.floor(1400 * 0.02);
     } else {
-        tax += Math.floor(m * 0.03);
+        tax += Math.floor(m * 0.02);
     }
 
     return tax;
@@ -1192,6 +1269,9 @@ client.on('interactionCreate', async interaction => {
 \`/시가총액 회사:\`
 회사 시가총액을 확인합니다!!
 
+\`/차트 회사:\`
+회사 주가 차트를 확인합니다!!
+
 \`/뉴스\`
 주식 변동률을 미리 확인합니다.
 
@@ -1274,24 +1354,15 @@ ai의 성격혹은 말투, 등 을 설정합니다.
 
     if (!interaction.isChatInputCommand()) return;
 
-    // =========================
-    // 안녕
-    // =========================
     if (interaction.commandName === '안녕') {
         return interaction.reply('인사 똑바로해라.');
     }
 
-    // =========================
-    // 주사위
-    // =========================
     if (interaction.commandName === '주사위') {
         const dice = Math.floor(Math.random() * 6) + 1;
         await interaction.reply(`🎲 금나와라 뚝딱!! : ${dice}`);
     }
 
-    // =========================
-    // 운세
-    // =========================
     if (interaction.commandName === '운세') {
         await interaction.deferReply({ flags: 64 });
 
@@ -1348,9 +1419,6 @@ ai의 성격혹은 말투, 등 을 설정합니다.
         );
     }
 
-    // =========================
-    // 도움말
-    // =========================
     if (interaction.commandName === '도움말') {
         const embed = new EmbedBuilder()
             .setTitle('🐝 양봉이')
@@ -1375,9 +1443,6 @@ ai의 성격혹은 말투, 등 을 설정합니다.
         return interaction.reply({ embeds: [embed], components: [row] });
     }
 
-    // =========================
-    // 삭제로그
-    // =========================
     if (interaction.commandName === '삭제로그') {
         const data = deletedMessages.get(interaction.channel.id);
 
@@ -1396,9 +1461,6 @@ ai의 성격혹은 말투, 등 을 설정합니다.
         await interaction.reply({ embeds: [embed] });
     }
 
-    // =========================
-    // 유저정보
-    // =========================
     if (interaction.commandName === '유저정보') {
         await interaction.deferReply();
 
@@ -1434,9 +1496,6 @@ ai의 성격혹은 말투, 등 을 설정합니다.
         return interaction.editReply({ embeds: [embed] });
     }
 
-    // =========================
-    // 틱택토
-    // =========================
     if (interaction.commandName === '틱택토') {
         await interaction.deferReply();
 
@@ -1449,9 +1508,6 @@ ai의 성격혹은 말투, 등 을 설정합니다.
         });
     }
 
-    // =========================
-    // 편지
-    // =========================
     if (interaction.commandName === '편지') {
         const to = interaction.options.getUser('유저');
         const type = interaction.options.getString('종류');
@@ -1466,9 +1522,6 @@ ai의 성격혹은 말투, 등 을 설정합니다.
         } catch { }
     }
 
-    // =========================
-    // 편지함
-    // =========================
     if (interaction.commandName === '편지함') {
         const perPage = 5;
         const page = 0;
@@ -1510,9 +1563,6 @@ ai의 성격혹은 말투, 등 을 설정합니다.
         await interaction.reply({ content: `📬 편지함 (${allLetters.length}개)`, components: rows, flags: 64 });
     }
 
-    // =========================
-    // 돈
-    // =========================
     if (interaction.commandName === '돈') {
         const user = await getUser(interaction.user.id);
 
@@ -1530,9 +1580,6 @@ ai의 성격혹은 말투, 등 을 설정합니다.
         });
     }
 
-    // =========================
-    // 도박
-    // =========================
     if (interaction.commandName === '도박') {
         const userId = interaction.user.id;
         const amountInput = interaction.options.getString('금액');
@@ -1558,9 +1605,6 @@ ai의 성격혹은 말투, 등 을 설정합니다.
         );
     }
 
-    // =========================
-    // 회사생성
-    // =========================
     if (interaction.commandName === '회사생성') {
         await interaction.deferReply();
 
@@ -1600,15 +1644,14 @@ ai의 성격혹은 말투, 등 을 설정합니다.
             owner: interaction.user.id,
             price: 1000,
             totalShares: 0,
-            news: []
+            news: [],
+            priceHistory: [],
+            priceHistoryTimes: []
         });
 
         return interaction.editReply(`🏢 ${name} 회사 생성 완료!\n💸 생성 비용: ${formatMoney(createCost)}`);
     }
 
-    // =========================
-    // 매수
-    // =========================
     if (interaction.commandName === '매수') {
         await interaction.deferReply();
 
@@ -1679,6 +1722,15 @@ ai의 성격혹은 말투, 등 을 설정합니다.
         await user.save();
 
         stock.totalShares = (stock.totalShares || 0) + qty;
+
+        // ✅ 매수 시 다음 변동 상승 영향
+        const buyBoost = Math.min(qty * 0.001, 0.15);
+        if (!stock.pendingPercent) {
+            stock.pendingPercent = buyBoost;
+            stock.pendingType = null;
+            stock.pendingNews = null;
+        }
+
         stock.news = stock.news.slice(0, 5);
         await stock.save();
 
@@ -1689,9 +1741,6 @@ ai의 성격혹은 말투, 등 을 설정합니다.
         );
     }
 
-    // =========================
-    // 매도
-    // =========================
     if (interaction.commandName === '매도') {
         await interaction.deferReply();
 
@@ -1734,6 +1783,14 @@ ai의 성격혹은 말투, 등 을 설정합니다.
 
         stock.totalShares = Math.max(0, (stock.totalShares || 0) - qty);
 
+        // ✅ 매도 시 다음 변동 하락 영향
+        const sellDrop = Math.min(qty * 0.001, 0.15);
+        if (!stock.pendingPercent) {
+            stock.pendingPercent = -sellDrop;
+            stock.pendingType = null;
+            stock.pendingNews = null;
+        }
+
         let crashMsg = '';
 
         if (qty >= 100) {
@@ -1759,9 +1816,6 @@ ai의 성격혹은 말투, 등 을 설정합니다.
         );
     }
 
-    // =========================
-    // 시가총액
-    // =========================
     if (interaction.commandName === '시가총액') {
         await interaction.deferReply();
 
@@ -1808,9 +1862,50 @@ ai의 성격혹은 말투, 등 을 설정합니다.
         return interaction.editReply({ embeds: [embed] });
     }
 
-    // =========================
-    // 주식
-    // =========================
+    // ✅ 추가: 차트 명령어
+    if (interaction.commandName === '차트') {
+        await interaction.deferReply();
+
+        const name = interaction.options.getString('회사');
+        const stock = await Stock.findOne({ name, deleted: { $ne: true } });
+
+        if (!stock) return interaction.editReply('❌ 회사 없음');
+
+        const history = stock.priceHistory || [];
+
+        if (history.length < 2) {
+            return interaction.editReply('❌ 아직 차트 데이터가 부족합니다. 최소 2번 이상 변동이 있어야 합니다. (10분마다 갱신)');
+        }
+
+        try {
+            const chartBuffer = await generateStockChart(stock);
+            const attachment = new AttachmentBuilder(chartBuffer, { name: `${name}_chart.png` });
+
+            const firstPrice = history[0];
+            const currentPrice = stock.price;
+            const change = currentPrice - firstPrice;
+            const changePercent = ((change / firstPrice) * 100).toFixed(2);
+            const isUp = change >= 0;
+
+            const embed = new EmbedBuilder()
+                .setTitle(`📊 ${name} 주가 차트`)
+                .setColor(isUp ? 0x57f287 : 0xed4245)
+                .addFields(
+                    { name: '💰 현재 주가', value: formatMoney(currentPrice), inline: true },
+                    { name: `${isUp ? '📈' : '📉'} 변동`, value: `${isUp ? '+' : ''}${formatMoney(change)} (${isUp ? '+' : ''}${changePercent}%)`, inline: true },
+                    { name: '📋 기록 수', value: `${history.length}개 (최근 ${history.length * 10}분)`, inline: true }
+                )
+                .setImage(`attachment://${name}_chart.png`)
+                .setFooter({ text: '10분마다 자동 갱신' });
+
+            return interaction.editReply({ embeds: [embed], files: [attachment] });
+
+        } catch (err) {
+            console.error(err);
+            return interaction.editReply('❌ 차트 생성 오류');
+        }
+    }
+
     if (interaction.commandName === '주식') {
         await interaction.deferReply();
 
@@ -1876,8 +1971,7 @@ ai의 성격혹은 말투, 등 을 설정합니다.
                 displayName = `~~${name}~~`;
             }
 
-            myStockTable +=
-                `${displayName.padEnd(25, ' ')}${qty}주\n`;
+            myStockTable += `${displayName.padEnd(25, ' ')}${qty}주\n`;
         }
 
         if (!hasStock) myStockTable += '보유 주식 없음';
@@ -1898,9 +1992,6 @@ ${myStockTable}
         });
     }
 
-    // =========================
-    // 뉴스
-    // =========================
     if (interaction.commandName === '뉴스') {
         await interaction.deferReply();
 
@@ -2053,9 +2144,6 @@ ${nextTime}`
         });
     }
 
-    // =========================
-    // 구걸
-    // =========================
     if (interaction.commandName === '구걸') {
         await interaction.deferReply({ flags: 64 });
 
@@ -2085,9 +2173,6 @@ ${nextTime}`
         return interaction.editReply(`🪙 ${reward}원을 구걸했다!\n💰 현재 돈: ${formatMoney(user.money)}`);
     }
 
-    // =========================
-    // 돈순위
-    // =========================
     if (interaction.commandName === '돈순위') {
         await interaction.deferReply();
 
@@ -2121,9 +2206,6 @@ ${text}
         });
     }
 
-    // =========================
-    // 회사삭제
-    // =========================
     if (interaction.commandName === '회사삭제') {
         await interaction.deferReply();
 
@@ -2136,9 +2218,7 @@ ${text}
             stock.owner !== interaction.user.id &&
             !interaction.member.permissions.has(PermissionsBitField.Flags.Administrator)
         ) {
-            return interaction.editReply(
-                '❌ 자기 회사 또는 서버 관리자만 삭제 가능'
-            );
+            return interaction.editReply('❌ 자기 회사 또는 서버 관리자만 삭제 가능');
         }
         const user = await getUser(interaction.user.id);
 
@@ -2165,9 +2245,6 @@ ${text}
         );
     }
 
-    // =========================
-    // 홀짝
-    // =========================
     if (interaction.commandName === '홀짝') {
         const user = await getUser(interaction.user.id);
         const input = interaction.options.getString('배팅');
@@ -2191,9 +2268,6 @@ ${text}
         );
     }
 
-    // =========================
-    // 슬롯
-    // =========================
     if (interaction.commandName === '슬롯') {
         const user = await getUser(interaction.user.id);
         const input = interaction.options.getString('배팅');
@@ -2230,9 +2304,6 @@ ${text}
         );
     }
 
-    // =========================
-    // 블랙잭
-    // =========================
     if (interaction.commandName === '블랙잭') {
         const user = await getUser(interaction.user.id);
         const input = interaction.options.getString('배팅');
@@ -2260,9 +2331,6 @@ ${text}
         });
     }
 
-    // =========================
-    // 청소
-    // =========================
     if (interaction.commandName === '청소') {
         if (!interaction.member.permissions.has('ManageMessages')) {
             return interaction.reply({ content: '❌ 메시지 관리 권한이 없습니다.', flags: 64 });
@@ -2331,9 +2399,6 @@ ${text}
         );
     }
 
-    // =========================
-    // 회사홍보
-    // =========================
     if (interaction.commandName === '회사홍보') {
         await interaction.deferReply();
 
@@ -2417,13 +2482,6 @@ ${text}
         );
     }
 
-    // ============================================================
-    // ===================== 신규 명령어 ===========================
-    // ============================================================
-
-    // =========================
-    // 지원금
-    // =========================
     if (interaction.commandName === '지원금') {
         await interaction.deferReply({ flags: 64 });
 
@@ -2457,7 +2515,7 @@ ${text}
             const diff = Date.now() - new Date(user.recentCompanyCreatedAt).getTime();
             recentCompany = diff < 20 * 60 * 1000;
         }
-        availableList += `${recentCompany ? '✅' : '❌'} **창업 지원금** - 10,000원 + 회사 주가상승 확률15% 부스트 (1회)\n  조건: 20분 이내 회사 창설 & 미사용\n\n`;
+        availableList += `${recentCompany ? '✅' : '❌'} **창업 지원금** - 10,000원 + 회사 홍보력 +15 부스트 (1회)\n  조건: 20분 이내 회사 창설 & 미사용\n\n`;
 
         const gogumAvailable = !user.gogumSubsidyUsed;
         availableList += `${gogumAvailable ? '✅' : '❌'} **고굼박 최고 지원금** - 50,000원 (1회 한정)\n  조건: 미수령\n\n`;
@@ -2486,9 +2544,10 @@ ${text}
             }).sort({ _id: -1 });
 
             if (myStock) {
+                // ✅ 수정: 홍보력 부스트 90 → 15
                 myStock.promotionLevel = Math.min(100, (myStock.promotionLevel || 0) + 15);
                 await myStock.save();
-                stockBoostMsg = `\n📈 ${myStock.name} 주가상승 확률 15% 부스트 적용!`;
+                stockBoostMsg = `\n📈 ${myStock.name} 홍보력 +15 부스트 적용!`;
             }
 
             user.companyBoostUsed = true;
@@ -2517,9 +2576,6 @@ ${text}
         );
     }
 
-    // =========================
-    // 범죄 (통합: 탈세 / 주가조작 / 허위뉴스)
-    // =========================
     if (interaction.commandName === '범죄') {
         await interaction.deferReply({ flags: 64 });
 
@@ -2528,7 +2584,6 @@ ${text}
         const user = await getUser(interaction.user.id);
         const risk = user.crimeRisk || 0;
 
-        // ─── 탈세 ───
         if (crimeType === 'taxevasion') {
             if (user.money < 100000) {
                 return interaction.editReply('❌ 탈세는 보유 자금 100,000원 이상일 때만 가능합니다.');
@@ -2573,7 +2628,6 @@ ${text}
             );
         }
 
-        // ─── 주가조작 ───
         if (crimeType === 'stockmanip') {
             if (!targetName) {
                 return interaction.editReply('❌ 주가조작에는 회사 이름이 필요합니다.');
@@ -2609,7 +2663,6 @@ ${text}
             );
         }
 
-        // ─── 허위뉴스 ───
         if (crimeType === 'fakenews') {
             if (!targetName) {
                 return interaction.editReply('❌ 허위뉴스에는 회사 이름이 필요합니다.');
@@ -2652,9 +2705,6 @@ ${text}
         }
     }
 
-    // =========================
-    // 대출
-    // =========================
     if (interaction.commandName === '대출') {
         await interaction.deferReply({ flags: 64 });
 
@@ -2682,9 +2732,6 @@ ${text}
         );
     }
 
-    // =========================
-    // 상환
-    // =========================
     if (interaction.commandName === '상환') {
         await interaction.deferReply({ flags: 64 });
 
@@ -2709,9 +2756,6 @@ ${text}
         );
     }
 
-    // =========================
-    // 초기화 [관리자]
-    // =========================
     if (interaction.commandName === '초기화') {
         if (!interaction.member.permissions.has('Administrator')) {
             return interaction.reply({ content: '❌ 관리자만 사용 가능', flags: 64 });
@@ -2747,8 +2791,6 @@ ${text}
         });
 
         await Stock.deleteMany({});
-
-        // 대공황 이벤트도 초기화
         await GameEvent.updateMany({}, { $set: { active: false } });
 
         return interaction.editReply('🔄 **전체 초기화 완료!**\n모든 플레이어 자금 1,000원으로 초기화\n모든 회사 삭제 완료');
@@ -2766,7 +2808,6 @@ process.on('uncaughtException', error => {
     console.error('Uncaught exception:', error);
 });
 
-// AI 채널
 client.on('messageCreate', async message => {
     if (message.author.bot) return;
     if (!aiChannelId) return;
