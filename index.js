@@ -29,12 +29,22 @@ const moneySchema = new mongoose.Schema({
 
     lastBegTime: { type: Date, default: null },
 
+    // ✅ 추가: 도박 쿨타임
+    lastGambleTime: { type: Date, default: null },
+
     deleteCost: { type: Number, default: 1000 },
 
     blackjackWins: { type: Number, default: 0 },
     gambleWins: { type: Number, default: 0 },
 
     stocks: {
+        type: Map,
+        of: Number,
+        default: {}
+    },
+
+    // ✅ 추가: 평균 매입단가
+    stockAvgPrice: {
         type: Map,
         of: Number,
         default: {}
@@ -102,9 +112,7 @@ const stockSchema = new mongoose.Schema({
 
     promoCount: { type: Number, default: 0 },
 
-    // ✅ 추가: 가격 히스토리 (최근 30개 = 약 5시간치)
     priceHistory: { type: [Number], default: [] },
-    // ✅ 추가: 히스토리 타임스탬프
     priceHistoryTimes: { type: [Date], default: [] },
 });
 
@@ -120,7 +128,6 @@ function formatMoney(num) {
     return num.toLocaleString('ko-KR') + '원';
 }
 
-// ✅ 차트 생성기
 const chartRenderer = new ChartJSNodeCanvas({
     width: 800,
     height: 400,
@@ -131,7 +138,6 @@ async function generateStockChart(stock) {
     const history = stock.priceHistory || [];
     const times = stock.priceHistoryTimes || [];
 
-    // 히스토리가 없으면 현재 가격만
     const data = history.length > 0 ? [...history, stock.price] : [stock.price];
     const labels = times.map((t, i) => {
         const d = new Date(t);
@@ -139,7 +145,6 @@ async function generateStockChart(stock) {
     });
     labels.push('현재');
 
-    // 색상: 첫 가격 대비 현재 가격으로 결정
     const isUp = data[data.length - 1] >= data[0];
     const lineColor = isUp ? '#57f287' : '#ed4245';
     const fillColor = isUp ? 'rgba(87,242,135,0.1)' : 'rgba(237,66,69,0.1)';
@@ -352,7 +357,7 @@ const commands = [
 
     new SlashCommandBuilder()
         .setName('매수')
-        .setDescription('주식을 구매합니다 (수수료 1.5%, 10분 쿨타임)')
+        .setDescription('주식을 구매합니다 (10분 쿨타임)')
         .addStringOption(option =>
             option.setName('회사').setDescription('회사 이름').setRequired(true)
         )
@@ -377,7 +382,6 @@ const commands = [
             option.setName('회사').setDescription('회사 이름').setRequired(true)
         ),
 
-    // ✅ 추가: 차트 명령어
     new SlashCommandBuilder()
         .setName('차트')
         .setDescription('회사의 주가 차트를 확인합니다')
@@ -722,7 +726,6 @@ setInterval(async () => {
                     percent -= 0.05;
                 }
 
-                // ✅ 수정: 홍보력 보너스 확률 캡 0.5, 효과 0.005
                 const promoBonus = Math.min(stock.promotionLevel * 0.03, 0.5);
                 if (Math.random() < promoBonus) {
                     percent += Math.random() * (stock.promotionLevel * 0.005);
@@ -745,7 +748,6 @@ setInterval(async () => {
             badEventThreshold = 0.8;
         }
 
-        // ✅ 가격 히스토리 저장 (변동 전 가격 기록)
         if (!stock.priceHistory) stock.priceHistory = [];
         if (!stock.priceHistoryTimes) stock.priceHistoryTimes = [];
         stock.priceHistory.push(stock.price);
@@ -829,7 +831,6 @@ setInterval(async () => {
 
         if (stock.owner && stock.listed) {
             const owner = await getUser(stock.owner);
-            // ✅ 수정: 오너 수수료 5% → 1%
             const fee = Math.floor(stock.price * 0.01);
             owner.money += fee;
             await owner.save();
@@ -874,7 +875,6 @@ setInterval(async () => {
 
 }, 60 * 60 * 1000);
 
-// ✅ 수정: 세율 1/3 인하
 function calcTax(m) {
     let tax = 0;
 
@@ -1225,7 +1225,7 @@ client.on('interactionCreate', async interaction => {
 블랙잭을 시작합니다. 
 
 \`/도박 금액:\`
-돈을 걸고 도박합니다. 50%!!
+돈을 걸고 도박합니다. 50%!! (10분 쿨타임)
 `);
                 }
 
@@ -1261,7 +1261,7 @@ client.on('interactionCreate', async interaction => {
 1000원으로 회사를 생성합니다!! (최대 2개)
 
 \`/매수 회사: 수량:\`
-주식을 구입합니다!! (수수료 1.5%, 10분 쿨타임)
+주식을 구입합니다!! (10분 쿨타임)
 
 \`/매도 회사: 수량:\`
 주식을 판매합니다!! (수수료 1.5%)
@@ -1276,7 +1276,7 @@ client.on('interactionCreate', async interaction => {
 주식 변동률을 미리 확인합니다.
 
 \`/주식\`
-주식 목록 확인
+주식 목록 확인 (매입단가 & 수익 포함)
 `);
                 }
 
@@ -1585,6 +1585,22 @@ ai의 성격혹은 말투, 등 을 설정합니다.
         const amountInput = interaction.options.getString('금액');
         const user = await getUser(userId);
 
+        // ✅ 10분 쿨타임 체크
+        if (user.lastGambleTime) {
+            const diff = Date.now() - new Date(user.lastGambleTime).getTime();
+            const cooldown = 10 * 60 * 1000;
+
+            if (diff < cooldown) {
+                const remain = cooldown - diff;
+                const minutes = Math.floor(remain / 1000 / 60);
+                const seconds = Math.floor((remain / 1000) % 60);
+                return interaction.reply({
+                    content: `❌ 도박 쿨타임!\n⏰ 남은 시간: ${minutes}분 ${seconds}초`,
+                    flags: 64
+                });
+            }
+        }
+
         let bet;
         if (amountInput === '올인' || amountInput === 'allin') {
             bet = user.money;
@@ -1598,6 +1614,8 @@ ai의 성격혹은 말투, 등 을 설정합니다.
         const win = Math.random() < 0.5;
         if (win) { user.money += bet; } else { user.money -= bet; }
 
+        // ✅ 쿨타임 저장
+        user.lastGambleTime = new Date();
         await user.save();
 
         return interaction.reply(
@@ -1702,9 +1720,7 @@ ai의 성격혹은 말투, 등 을 설정합니다.
             }
         }
 
-        const rawCost = stock.price * qty;
-        const fee = Math.floor(rawCost * 0.015);
-        const totalCost = rawCost + fee;
+        const totalCost = stock.price * qty;
 
         if (user.money < totalCost) {
             return interaction.editReply(
@@ -1713,7 +1729,20 @@ ai의 성격혹은 말투, 등 을 설정합니다.
         }
 
         user.money -= totalCost;
-        user.stocks.set(name, (user.stocks.get(name) || 0) + qty);
+
+        // ✅ 평균 매입단가 계산
+        const prevQty = user.stocks.get(name) || 0;
+        const prevAvg = user.stockAvgPrice?.get(name) || 0;
+        const newQty = prevQty + qty;
+        const newAvg = prevQty > 0
+            ? Math.floor((prevAvg * prevQty + stock.price * qty) / newQty)
+            : stock.price;
+
+        user.stocks.set(name, newQty);
+
+        if (!user.stockAvgPrice) user.stockAvgPrice = new Map();
+        user.stockAvgPrice.set(name, newAvg);
+        user.markModified('stockAvgPrice');
 
         if (!user.buyCooldowns) user.buyCooldowns = new Map();
         user.buyCooldowns.set(name, new Date());
@@ -1723,7 +1752,6 @@ ai의 성격혹은 말투, 등 을 설정합니다.
 
         stock.totalShares = (stock.totalShares || 0) + qty;
 
-        // ✅ 매수 시 다음 변동 상승 영향
         const buyBoost = Math.min(qty * 0.001, 0.15);
         if (!stock.pendingPercent) {
             stock.pendingPercent = buyBoost;
@@ -1736,8 +1764,8 @@ ai의 성격혹은 말투, 등 을 설정합니다.
 
         return interaction.editReply(
             `📈 ${name} ${qty}주 매수 완료!\n` +
-            `💸 수수료: ${formatMoney(fee)}\n` +
-            `💰 총 지불: ${formatMoney(totalCost)}`
+            `💰 총 지불: ${formatMoney(totalCost)}\n` +
+            `📊 평균 매입단가: ${formatMoney(newAvg)}`
         );
     }
 
@@ -1776,14 +1804,25 @@ ai의 성격혹은 말투, 등 을 설정합니다.
         const fee = Math.floor(rawRevenue * 0.015);
         const netRevenue = rawRevenue - fee;
 
+        // ✅ 수익 계산
+        const avgPrice = user.stockAvgPrice?.get(name) || 0;
+        const profit = (stock.price - avgPrice) * qty - fee;
+        const profitSign = profit >= 0 ? '+' : '';
+        const profitEmoji = profit >= 0 ? '📈' : '📉';
+
         user.stocks.set(name, owned - qty);
         user.money += netRevenue;
+
+        // ✅ 전량 매도 시 평균 단가 초기화
+        if (owned - qty === 0) {
+            user.stockAvgPrice?.set(name, 0);
+            user.markModified('stockAvgPrice');
+        }
 
         await user.save();
 
         stock.totalShares = Math.max(0, (stock.totalShares || 0) - qty);
 
-        // ✅ 매도 시 다음 변동 하락 영향
         const sellDrop = Math.min(qty * 0.001, 0.15);
         if (!stock.pendingPercent) {
             stock.pendingPercent = -sellDrop;
@@ -1811,7 +1850,8 @@ ai의 성격혹은 말투, 등 을 설정합니다.
         return interaction.editReply(
             `💰 ${name} ${qty}주 매도 완료!\n` +
             `💸 수수료: ${formatMoney(fee)}\n` +
-            `💵 실수령: ${formatMoney(netRevenue)}` +
+            `💵 실수령: ${formatMoney(netRevenue)}\n` +
+            `${profitEmoji} 실현 수익: ${profitSign}${formatMoney(profit)}` +
             crashMsg
         );
     }
@@ -1862,7 +1902,6 @@ ai의 성격혹은 말투, 등 을 설정합니다.
         return interaction.editReply({ embeds: [embed] });
     }
 
-    // ✅ 추가: 차트 명령어
     if (interaction.commandName === '차트') {
         await interaction.deferReply();
 
@@ -1952,11 +1991,13 @@ ai의 성격혹은 말투, 등 을 설정합니다.
             companyTable += '────────────────────────────────────────\n';
         }
 
+        // ✅ 내 주식 현황 (매입단가 & 수익 포함)
         let myStockTable =
-            '회사명           보유수량\n' +
-            '────────────────────\n';
+            '회사명        수량    매입단가       현재가         평가손익\n' +
+            '────────────────────────────────────────────────────\n';
 
         let hasStock = false;
+        let totalProfit = 0;
 
         for (const [name, qty] of user.stocks) {
             if (qty <= 0) continue;
@@ -1964,17 +2005,34 @@ ai의 성격혹은 말투, 등 을 설정합니다.
             hasStock = true;
 
             const stock = await Stock.findOne({ name });
+            const avgPrice = user.stockAvgPrice?.get(name) || 0;
+            const currentPrice = stock?.price || 0;
+            const profit = (currentPrice - avgPrice) * qty;
+            const profitSign = profit >= 0 ? '+' : '';
+            const profitEmoji = profit >= 0 ? '▲' : '▼';
+
+            totalProfit += profit;
 
             let displayName = name;
-
             if (stock && (!stock.listed || stock.deleted)) {
-                displayName = `~~${name}~~`;
+                displayName = `[폐지]${name}`;
             }
 
-            myStockTable += `${displayName.padEnd(25, ' ')}${qty}주\n`;
+            myStockTable +=
+                `${displayName.padEnd(14)}` +
+                `${String(qty + '주').padEnd(8)}` +
+                `${(avgPrice.toLocaleString('ko-KR') + '원').padEnd(15)}` +
+                `${(currentPrice.toLocaleString('ko-KR') + '원').padEnd(15)}` +
+                `${profitEmoji}${profitSign}${profit.toLocaleString('ko-KR')}원\n`;
         }
 
-        if (!hasStock) myStockTable += '보유 주식 없음';
+        if (!hasStock) {
+            myStockTable += '보유 주식 없음\n';
+        } else {
+            myStockTable += '────────────────────────────────────────────────────\n';
+            const totalSign = totalProfit >= 0 ? '+' : '';
+            myStockTable += `${'총 평가손익'.padEnd(53)}${totalSign}${totalProfit.toLocaleString('ko-KR')}원\n`;
+        }
 
         return interaction.editReply({
             content:
@@ -2544,7 +2602,6 @@ ${text}
             }).sort({ _id: -1 });
 
             if (myStock) {
-                // ✅ 수정: 홍보력 부스트 90 → 15
                 myStock.promotionLevel = Math.min(100, (myStock.promotionLevel || 0) + 15);
                 await myStock.save();
                 stockBoostMsg = `\n📈 ${myStock.name} 홍보력 +15 부스트 적용!`;
@@ -2767,6 +2824,7 @@ ${text}
             $set: {
                 money: 1000,
                 stocks: {},
+                stockAvgPrice: {},
                 buyCooldowns: {},
                 lastTax: 0,
                 deleteCost: 1000,
@@ -2775,6 +2833,7 @@ ${text}
                 lastFortuneDate: null,
                 fortuneStreak: 0,
                 lastBegTime: null,
+                lastGambleTime: null,
                 lastSubsidyDate: null,
                 recentCompanyCreatedAt: null,
                 companyBoostUsed: false,
