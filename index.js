@@ -557,14 +557,11 @@ function getPriceMultiplier(price, isDepression) {
         upMult = 4;
     } else if (price <= 500) {
         upMult = 2;
+    } else if (price <= 800) {   // ← 추가: 800원 이하 상승 10% 보너스
+        upMult = 1.1;
     } else if (price >= 10000) {
         upMult = 0.8;
         downMult = 1.5;
-    }
-
-    if (isDepression) {
-        upMult *= 1.5;
-        downMult *= 1.5;
     }
 
     return { upMult, downMult };
@@ -805,7 +802,7 @@ setInterval(async () => {
             stock.news.unshift(`⚠ ${stock.downStreak}연속 하락중!!`);
         }
 
-        if (stock.downStreak >= 3) {
+        if (stock.downStreak >= 3 && stock.price >= 10000) {   // ← 주가 10,000원 이상 조건 추가
             if (!stock.bearMarket) {
                 stock.bearMarket = true;
                 stock.bearMarketCount = 0;
@@ -821,7 +818,7 @@ setInterval(async () => {
             }
         }
 
-        if (stock.listed && (stock.price <= 5 || stock.downStreak >= 9)) {
+        if (stock.listed && (stock.price <= 5 || stock.downStreak >= 15)) {
             stock.listed = false;
             stock.price = 0;
 
@@ -2516,27 +2513,27 @@ ${text}
 
         switch (method) {
             case 'flyer':
-                baseCost = 100000;
+                baseCost = 10000;
                 promoAdd = 1;
                 news = '📄 홍보용 전단지 배포!!, 우리회사좀 봐주세요!! 제발요!!!';
                 break;
             case 'speaker':
-                baseCost = 300000;
+                baseCost = 30000;
                 promoAdd = 5;
                 news = '📢 확성기 홍보!!, 아- 아- 왔어요 왔어요, 계란이 왔어요';
                 break;
             case 'billboard':
-                baseCost = 500000;
+                baseCost = 50000;
                 promoAdd = 10;
                 news = '🪧 길거리 판넬 설치!!!, 이거 불법건축물 아니여??';
                 break;
             case 'internet':
-                baseCost = 800000;
+                baseCost = 500000;
                 promoAdd = 20;
                 news = '🌐 인터넷 광고 시작!!, 이 회사!! 대표가 맛있고 회사가 친절해요!!';
                 break;
             case 'tv':
-                baseCost = 10000000;
+                baseCost = 1000000;
                 promoAdd = 50;
                 news = '📺 TV 프로그램 광고 시작!!, 보아라 세상아!! 나의 잘남을!!';
                 break;
@@ -2595,14 +2592,14 @@ ${text}
         let availableList = '📋 **수령 가능한 지원금 목록**\n\n';
 
         const isLowFunds = user.money <= 10000;
-        availableList += `${isLowFunds ? '✅' : '❌'} **저자금 지원금** - 50,000원\n  조건: 현재 자금 10,000원 이하 (현재: ${formatMoney(user.money)})\n\n`;
+        availableList += `${isLowFunds ? '✅' : '❌'} **저자금 지원금** - 80,000원\n  조건: 현재 자금 10,000원 이하 (현재: ${formatMoney(user.money)})\n\n`;
 
         let recentCompany = false;
         if (user.recentCompanyCreatedAt && !user.companyBoostUsed) {
             const diff = Date.now() - new Date(user.recentCompanyCreatedAt).getTime();
             recentCompany = diff < 20 * 60 * 1000;
         }
-        availableList += `${recentCompany ? '✅' : '❌'} **창업 지원금** - 10,000원 + 회사 홍보력 +15 부스트 (1회)\n  조건: 20분 이내 회사 창설 & 미사용\n\n`;
+        availableList += `${recentCompany ? '✅' : '❌'} **창업 지원금** - 30,000원 + 회사 홍보력 +15 부스트 (1회)\n  조건: 20분 이내 회사 창설 & 미사용\n\n`;
 
         const gogumAvailable = !user.gogumSubsidyUsed;
         availableList += `${gogumAvailable ? '✅' : '❌'} **고굼박 최고 지원금** - 50,000원 (1회 한정)\n  조건: 미수령\n\n`;
@@ -2616,12 +2613,12 @@ ${text}
         let stockBoostMsg = '';
 
         if (isLowFunds) {
-            totalReward += 50000;
+            totalReward += 80000;
             rewardMsg += '- 저자금 지원금: +50,000원\n';
         }
 
         if (recentCompany) {
-            totalReward += 10000;
+            totalReward += 30000;
             rewardMsg += '- 창업 지원금: +10,000원\n';
 
             const myStock = await Stock.findOne({
