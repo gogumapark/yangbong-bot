@@ -29,7 +29,6 @@ const moneySchema = new mongoose.Schema({
 
     lastBegTime: { type: Date, default: null },
 
-    // ✅ 추가: 도박 쿨타임
     lastGambleTime: { type: Date, default: null },
 
     deleteCost: { type: Number, default: 1000 },
@@ -43,7 +42,6 @@ const moneySchema = new mongoose.Schema({
         default: {}
     },
 
-    // ✅ 추가: 평균 매입단가
     stockAvgPrice: {
         type: Map,
         of: Number,
@@ -124,8 +122,21 @@ const eventSchema = new mongoose.Schema({
 });
 const GameEvent = mongoose.model('GameEvent', eventSchema);
 
+// =====================
+// 유틸 함수
+// =====================
+
 function formatMoney(num) {
     return num.toLocaleString('ko-KR') + '원';
+}
+
+// 한글/영문 혼용 열 맞춤: 한글 1자 = 2칸, 영문 1자 = 1칸
+function padKo(str, len) {
+    let width = 0;
+    for (const ch of str) {
+        width += /[\u1100-\u11FF\u3130-\u318F\uAC00-\uD7AF]/.test(ch) ? 2 : 1;
+    }
+    return str + ' '.repeat(Math.max(0, len - width));
 }
 
 const chartRenderer = new ChartJSNodeCanvas({
@@ -139,7 +150,7 @@ async function generateStockChart(stock) {
     const times = stock.priceHistoryTimes || [];
 
     const data = history.length > 0 ? [...history, stock.price] : [stock.price];
-    const labels = times.map((t, i) => {
+    const labels = times.map((t) => {
         const d = new Date(t);
         return `${d.getHours()}:${String(d.getMinutes()).padStart(2, '0')}`;
     });
@@ -1585,7 +1596,6 @@ ai의 성격혹은 말투, 등 을 설정합니다.
         const amountInput = interaction.options.getString('금액');
         const user = await getUser(userId);
 
-        // ✅ 10분 쿨타임 체크
         if (user.lastGambleTime) {
             const diff = Date.now() - new Date(user.lastGambleTime).getTime();
             const cooldown = 10 * 60 * 1000;
@@ -1614,7 +1624,6 @@ ai의 성격혹은 말투, 등 을 설정합니다.
         const win = Math.random() < 0.5;
         if (win) { user.money += bet; } else { user.money -= bet; }
 
-        // ✅ 쿨타임 저장
         user.lastGambleTime = new Date();
         await user.save();
 
@@ -1724,23 +1733,22 @@ ai의 성격혹은 말투, 등 을 설정합니다.
 
         if (user.money < totalCost) {
             return interaction.editReply(
-                `❌ 돈 부족\n필요 금액: ${formatMoney(totalCost)} (수수료 ${formatMoney(fee)} 포함)`
+                `❌ 돈 부족\n필요 금액: ${formatMoney(totalCost)}`
             );
         }
 
         user.money -= totalCost;
 
-        // ✅ 평균 매입단가 계산
+        // 평균 매입단가 계산
+        if (!user.stockAvgPrice) user.stockAvgPrice = new Map();
         const prevQty = user.stocks.get(name) || 0;
-        const prevAvg = user.stockAvgPrice?.get(name) || 0;
+        const prevAvg = user.stockAvgPrice.get(name) || 0;
         const newQty = prevQty + qty;
         const newAvg = prevQty > 0
             ? Math.floor((prevAvg * prevQty + stock.price * qty) / newQty)
             : stock.price;
 
         user.stocks.set(name, newQty);
-
-        if (!user.stockAvgPrice) user.stockAvgPrice = new Map();
         user.stockAvgPrice.set(name, newAvg);
         user.markModified('stockAvgPrice');
 
@@ -1804,8 +1812,9 @@ ai의 성격혹은 말투, 등 을 설정합니다.
         const fee = Math.floor(rawRevenue * 0.015);
         const netRevenue = rawRevenue - fee;
 
-        // ✅ 수익 계산
-        const avgPrice = user.stockAvgPrice?.get(name) || 0;
+        // 수익 계산
+        if (!user.stockAvgPrice) user.stockAvgPrice = new Map();
+        const avgPrice = user.stockAvgPrice.get(name) || 0;
         const profit = (stock.price - avgPrice) * qty - fee;
         const profitSign = profit >= 0 ? '+' : '';
         const profitEmoji = profit >= 0 ? '📈' : '📉';
@@ -1813,9 +1822,9 @@ ai의 성격혹은 말투, 등 을 설정합니다.
         user.stocks.set(name, owned - qty);
         user.money += netRevenue;
 
-        // ✅ 전량 매도 시 평균 단가 초기화
+        // 전량 매도 시 평균 단가 초기화
         if (owned - qty === 0) {
-            user.stockAvgPrice?.set(name, 0);
+            user.stockAvgPrice.set(name, 0);
             user.markModified('stockAvgPrice');
         }
 
@@ -1953,15 +1962,17 @@ ai의 성격혹은 말투, 등 을 설정합니다.
         if (stocks.length === 0) return interaction.editReply('현재 상장된 회사가 없습니다.');
 
         const user = await getUser(interaction.user.id);
+        if (!user.stockAvgPrice) user.stockAvgPrice = new Map();
 
+        // ── 회사 목록 테이블 ──────────────────────────────
         let companyTable =
-            '회사명          가격        다음변동          대표\n' +
-            '────────────────────────────────────────\n';
+            padKo('회사명', 18) +
+            padKo('가격', 14) +
+            padKo('다음변동', 20) +
+            '대표\n' +
+            '─'.repeat(62) + '\n';
 
         for (const s of stocks) {
-            const namePad = s.name.padEnd(15, ' ');
-            const price = `${s.price.toLocaleString('ko-KR')}원`.padEnd(12, ' ');
-
             let nextStr = '알 수 없음';
             if (s.nextChangeAt) {
                 const diffMs = s.nextChangeAt - new Date();
@@ -1973,7 +1984,6 @@ ai의 성격혹은 말투, 등 을 설정합니다.
                     nextStr = '곧 변동';
                 }
             }
-            const nextPad = nextStr.padEnd(18, ' ');
 
             let ownerName = '?';
             try {
@@ -1982,19 +1992,28 @@ ai의 성격혹은 말투, 등 을 설정합니다.
             } catch { }
 
             const bearMark = s.bearMarket ? ' 📉' : '';
-            companyTable += `${namePad}${price}${nextPad}${ownerName}${bearMark}\n`;
+
+            companyTable +=
+                padKo(s.name, 18) +
+                padKo(`${s.price.toLocaleString('ko-KR')}원`, 14) +
+                padKo(nextStr, 20) +
+                ownerName + bearMark + '\n';
 
             if (s.news && s.news.length > 0) {
                 companyTable += `  📰 ${s.news[0]}\n`;
             }
 
-            companyTable += '────────────────────────────────────────\n';
+            companyTable += '─'.repeat(62) + '\n';
         }
 
-        // ✅ 내 주식 현황 (매입단가 & 수익 포함)
+        // ── 내 주식 현황 테이블 ───────────────────────────
         let myStockTable =
-            '회사명        수량    매입단가       현재가         평가손익\n' +
-            '────────────────────────────────────────────────────\n';
+            padKo('회사명', 16) +
+            padKo('수량', 8) +
+            padKo('매입단가', 16) +
+            padKo('현재가', 16) +
+            '평가손익\n' +
+            '─'.repeat(68) + '\n';
 
         let hasStock = false;
         let totalProfit = 0;
@@ -2005,7 +2024,7 @@ ai의 성격혹은 말투, 등 을 설정합니다.
             hasStock = true;
 
             const stock = await Stock.findOne({ name });
-            const avgPrice = user.stockAvgPrice?.get(name) || 0;
+            const avgPrice = user.stockAvgPrice.get(name) || 0;
             const currentPrice = stock?.price || 0;
             const profit = (currentPrice - avgPrice) * qty;
             const profitSign = profit >= 0 ? '+' : '';
@@ -2019,19 +2038,22 @@ ai의 성격혹은 말투, 등 을 설정합니다.
             }
 
             myStockTable +=
-                `${displayName.padEnd(14)}` +
-                `${String(qty + '주').padEnd(8)}` +
-                `${(avgPrice.toLocaleString('ko-KR') + '원').padEnd(15)}` +
-                `${(currentPrice.toLocaleString('ko-KR') + '원').padEnd(15)}` +
+                padKo(displayName, 16) +
+                padKo(qty + '주', 8) +
+                padKo(avgPrice.toLocaleString('ko-KR') + '원', 16) +
+                padKo(currentPrice.toLocaleString('ko-KR') + '원', 16) +
                 `${profitEmoji}${profitSign}${profit.toLocaleString('ko-KR')}원\n`;
         }
 
         if (!hasStock) {
             myStockTable += '보유 주식 없음\n';
         } else {
-            myStockTable += '────────────────────────────────────────────────────\n';
+            myStockTable += '─'.repeat(68) + '\n';
             const totalSign = totalProfit >= 0 ? '+' : '';
-            myStockTable += `${'총 평가손익'.padEnd(53)}${totalSign}${totalProfit.toLocaleString('ko-KR')}원\n`;
+            const totalEmoji = totalProfit >= 0 ? '▲' : '▼';
+            myStockTable +=
+                padKo('총 평가손익', 58) +
+                `${totalEmoji}${totalSign}${totalProfit.toLocaleString('ko-KR')}원\n`;
         }
 
         return interaction.editReply({
@@ -2237,8 +2259,11 @@ ${nextTime}`
         const users = await Money.find().sort({ money: -1 }).limit(10);
 
         let text =
-            '순위   돈              세금            유저\n' +
-            '──────────────────────────────────────\n';
+            padKo('순위', 6) +
+            padKo('돈', 16) +
+            padKo('지난세금', 16) +
+            '유저\n' +
+            '─'.repeat(52) + '\n';
 
         for (let i = 0; i < users.length; i++) {
             let username = '알 수 없음';
@@ -2247,11 +2272,15 @@ ${nextTime}`
                 username = discordUser.username;
             } catch { }
 
+            const taxStr = users[i].lastTax > 0
+                ? `(-${users[i].lastTax.toLocaleString('ko-KR')})`
+                : '';
+
             text +=
-                `${String(i + 1).padEnd(6)} ` +
-                `${users[i].money.toLocaleString('ko-KR').padEnd(15)} ` +
-                `${users[i].lastTax > 0 ? `(-${users[i].lastTax.toLocaleString('ko-KR')})`.padEnd(15) : ''.padEnd(15)} ` +
-                `${username}\n`;
+                padKo(String(i + 1), 6) +
+                padKo(users[i].money.toLocaleString('ko-KR') + '원', 16) +
+                padKo(taxStr, 16) +
+                username + '\n';
         }
 
         return interaction.editReply({
