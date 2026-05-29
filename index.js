@@ -728,7 +728,7 @@ setInterval(async () => {
                 const crash = crashMessages[Math.floor(Math.random() * crashMessages.length)];
                 stock.news.unshift(`💀 ${crash}`);
             } else {
-                percent = (Math.random() * 40 - 20) / 100;
+                percent = (Math.random() * 60 - 30) / 100;
 
                 if (stock.bearMarket) {
                     percent -= 0.05;
