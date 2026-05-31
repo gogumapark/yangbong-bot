@@ -272,6 +272,10 @@ client.on('messageDelete', message => {
 const commands = [
 
     new SlashCommandBuilder()
+    .setName('내주식')
+    .setDescription('내가 보유한 주식 현황을 확인합니다.'),
+
+    new SlashCommandBuilder()
         .setName('회사홍보')
         .setDescription('회사를 홍보합니다 (1시간 쿨타임, 10회 초과시 비용 2배)')
         .addStringOption(option =>
@@ -1951,59 +1955,13 @@ ai의 성격혹은 말투, 등 을 설정합니다.
         }
     }
 
-    if (interaction.commandName === '주식') {
-        await interaction.deferReply();
+    if (interaction.commandName === '내주식') {
+        await interaction.deferReply({ flags: 64 });
 
         const stocks = await Stock.find({ deleted: { $ne: true }, listed: true });
-
-        if (stocks.length === 0) return interaction.editReply('현재 상장된 회사가 없습니다.');
-
         const user = await getUser(interaction.user.id);
         if (!user.stockAvgPrice) user.stockAvgPrice = new Map();
 
-        // ── 회사 목록 테이블 ──────────────────────────────
-        let companyTable =
-            padKo('회사명', 18) +
-            padKo('가격', 14) +
-            padKo('다음변동', 20) +
-            '대표\n' +
-            '─'.repeat(62) + '\n';
-
-        for (const s of stocks) {
-            let nextStr = '알 수 없음';
-            if (s.nextChangeAt) {
-                const diffMs = s.nextChangeAt - new Date();
-                if (diffMs > 0) {
-                    const diffMin = Math.floor(diffMs / 1000 / 60);
-                    const diffSec = Math.floor((diffMs / 1000) % 60);
-                    nextStr = `${diffMin}분 ${diffSec}초 후`;
-                } else {
-                    nextStr = '곧 변동';
-                }
-            }
-
-            let ownerName = '?';
-            try {
-                const ownerUser = await client.users.fetch(s.owner);
-                ownerName = ownerUser.username;
-            } catch { }
-
-            const bearMark = s.bearMarket ? ' 📉' : '';
-
-            companyTable +=
-                padKo(s.name, 18) +
-                padKo(`${s.price.toLocaleString('ko-KR')}원`, 14) +
-                padKo(nextStr, 20) +
-                ownerName + bearMark + '\n';
-
-            if (s.news && s.news.length > 0) {
-                companyTable += `  📰 ${s.news[0]}\n`;
-            }
-
-            companyTable += '─'.repeat(62) + '\n';
-        }
-
-        // ── 내 주식 현황 테이블 ───────────────────────────
         let myStockTable =
             padKo('회사명', 16) +
             padKo('수량', 8) +
@@ -2055,17 +2013,71 @@ ai의 성격혹은 말투, 등 을 설정합니다.
 
         return interaction.editReply({
             content:
-`🏢 현재 상장 회사 목록
+    `📈 ${interaction.user.username}님의 주식 현황
 
-\`\`\`
-${companyTable}
-\`\`\`
+    \`\`\`
+    ${myStockTable}
+    \`\`\``
+        });
+    }
 
-📈 ${interaction.user.username}님의 주식 현황
 
-\`\`\`
-${myStockTable}
-\`\`\``
+
+    if (interaction.commandName === '주식') {
+        await interaction.deferReply();
+
+        const stocks = await Stock.find({ deleted: { $ne: true }, listed: true });
+
+        if (stocks.length === 0) return interaction.editReply('현재 상장된 회사가 없습니다.');
+
+        let companyTable =
+            padKo('회사명', 18) +
+            padKo('가격', 14) +
+            padKo('다음변동', 20) +
+            '대표\n' +
+            '─'.repeat(62) + '\n';
+
+        for (const s of stocks) {
+            let nextStr = '알 수 없음';
+            if (s.nextChangeAt) {
+                const diffMs = s.nextChangeAt - new Date();
+                if (diffMs > 0) {
+                    const diffMin = Math.floor(diffMs / 1000 / 60);
+                    const diffSec = Math.floor((diffMs / 1000) % 60);
+                    nextStr = `${diffMin}분 ${diffSec}초 후`;
+                } else {
+                    nextStr = '곧 변동';
+                }
+            }
+
+            let ownerName = '?';
+            try {
+                const ownerUser = await client.users.fetch(s.owner);
+                ownerName = ownerUser.username;
+            } catch { }
+
+            const bearMark = s.bearMarket ? ' 📉' : '';
+
+            companyTable +=
+                padKo(s.name, 18) +
+                padKo(`${s.price.toLocaleString('ko-KR')}원`, 14) +
+                padKo(nextStr, 20) +
+                ownerName + bearMark + '\n';
+
+            if (s.news && s.news.length > 0) {
+                companyTable += `  📰 ${s.news[0]}\n`;
+            }
+
+            companyTable += '─'.repeat(62) + '\n';
+        }
+
+        return interaction.editReply({
+            content:
+    `🏢 현재 상장 회사 목록
+
+    \`\`\`
+    ${companyTable}
+    \`\`\``
         });
     }
 
