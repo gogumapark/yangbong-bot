@@ -272,10 +272,6 @@ client.on('messageDelete', message => {
 const commands = [
 
     new SlashCommandBuilder()
-    .setName('내주식')
-    .setDescription('내가 보유한 주식 현황을 확인합니다.'),
-
-    new SlashCommandBuilder()
         .setName('회사홍보')
         .setDescription('회사를 홍보합니다 (1시간 쿨타임, 10회 초과시 비용 2배)')
         .addStringOption(option =>
@@ -361,7 +357,11 @@ const commands = [
 
     new SlashCommandBuilder()
         .setName('주식')
-        .setDescription('주식 정보 확인합니다.'),
+        .setDescription('현재 상장된 회사 목록을 확인합니다.'),
+
+    new SlashCommandBuilder()
+        .setName('내주식')
+        .setDescription('내가 보유한 주식 현황을 확인합니다.'),
 
     new SlashCommandBuilder()
         .setName('회사생성')
@@ -553,6 +553,9 @@ function createBoard(gameId) {
     return rows;
 }
 
+// =====================
+// ★ 수정된 부분: 800원 이하 구간만 2배 (1.1 → 2.2)
+// =====================
 function getPriceMultiplier(price, isDepression) {
     let upMult = 1;
     let downMult = 1;
@@ -560,9 +563,9 @@ function getPriceMultiplier(price, isDepression) {
     if (price <= 100) {
         upMult = 4;
     } else if (price <= 500) {
-        upMult = 2;
-    } else if (price <= 800) {   // ← 추가: 800원 이하 상승 10% 보너스
-        upMult = 1.1;
+        upMult = 3;
+    } else if (price <= 800) {
+        upMult = 2.2;      // 기존 1.1 → 2.2 (2배)
     } else if (price >= 10000) {
         upMult = 0.8;
         downMult = 1.5;
@@ -732,7 +735,7 @@ setInterval(async () => {
                 const crash = crashMessages[Math.floor(Math.random() * crashMessages.length)];
                 stock.news.unshift(`💀 ${crash}`);
             } else {
-                percent = (Math.random() * 60 - 30) / 100;
+                percent = (Math.random() * 72 - 36) / 100;
 
                 if (stock.bearMarket) {
                     percent -= 0.05;
@@ -806,7 +809,7 @@ setInterval(async () => {
             stock.news.unshift(`⚠ ${stock.downStreak}연속 하락중!!`);
         }
 
-        if (stock.downStreak >= 3 && stock.price >= 10000) {   // ← 주가 10,000원 이상 조건 추가
+        if (stock.downStreak >= 3 && stock.price >= 10000) {
             if (!stock.bearMarket) {
                 stock.bearMarket = true;
                 stock.bearMarketCount = 0;
@@ -1288,7 +1291,10 @@ client.on('interactionCreate', async interaction => {
 주식 변동률을 미리 확인합니다.
 
 \`/주식\`
-주식 목록 확인 (매입단가 & 수익 포함)
+상장된 회사 목록 확인
+
+\`/내주식\`
+내 보유 주식 & 수익 확인
 `);
                 }
 
@@ -1740,7 +1746,6 @@ ai의 성격혹은 말투, 등 을 설정합니다.
 
         user.money -= totalCost;
 
-        // 평균 매입단가 계산
         if (!user.stockAvgPrice) user.stockAvgPrice = new Map();
         const prevQty = user.stocks.get(name) || 0;
         const prevAvg = user.stockAvgPrice.get(name) || 0;
@@ -1813,7 +1818,6 @@ ai의 성격혹은 말투, 등 을 설정합니다.
         const fee = Math.floor(rawRevenue * 0.015);
         const netRevenue = rawRevenue - fee;
 
-        // 수익 계산
         if (!user.stockAvgPrice) user.stockAvgPrice = new Map();
         const avgPrice = user.stockAvgPrice.get(name) || 0;
         const profit = (stock.price - avgPrice) * qty - fee;
@@ -1823,7 +1827,6 @@ ai의 성격혹은 말투, 등 을 설정합니다.
         user.stocks.set(name, owned - qty);
         user.money += netRevenue;
 
-        // 전량 매도 시 평균 단가 초기화
         if (owned - qty === 0) {
             user.stockAvgPrice.set(name, 0);
             user.markModified('stockAvgPrice');
@@ -1955,10 +1958,67 @@ ai의 성격혹은 말투, 등 을 설정합니다.
         }
     }
 
+    if (interaction.commandName === '주식') {
+        await interaction.deferReply();
+
+        const stocks = await Stock.find({ deleted: { $ne: true }, listed: true });
+
+        if (stocks.length === 0) return interaction.editReply('현재 상장된 회사가 없습니다.');
+
+        let companyTable =
+            padKo('회사명', 18) +
+            padKo('가격', 14) +
+            padKo('다음변동', 20) +
+            '대표\n' +
+            '─'.repeat(62) + '\n';
+
+        for (const s of stocks) {
+            let nextStr = '알 수 없음';
+            if (s.nextChangeAt) {
+                const diffMs = s.nextChangeAt - new Date();
+                if (diffMs > 0) {
+                    const diffMin = Math.floor(diffMs / 1000 / 60);
+                    const diffSec = Math.floor((diffMs / 1000) % 60);
+                    nextStr = `${diffMin}분 ${diffSec}초 후`;
+                } else {
+                    nextStr = '곧 변동';
+                }
+            }
+
+            let ownerName = '?';
+            try {
+                const ownerUser = await client.users.fetch(s.owner);
+                ownerName = ownerUser.username;
+            } catch { }
+
+            const bearMark = s.bearMarket ? ' 📉' : '';
+
+            companyTable +=
+                padKo(s.name, 18) +
+                padKo(`${s.price.toLocaleString('ko-KR')}원`, 14) +
+                padKo(nextStr, 20) +
+                ownerName + bearMark + '\n';
+
+            if (s.news && s.news.length > 0) {
+                companyTable += `  📰 ${s.news[0]}\n`;
+            }
+
+            companyTable += '─'.repeat(62) + '\n';
+        }
+
+        return interaction.editReply({
+            content:
+`🏢 현재 상장 회사 목록
+
+\`\`\`
+${companyTable}
+\`\`\``
+        });
+    }
+
     if (interaction.commandName === '내주식') {
         await interaction.deferReply({ flags: 64 });
 
-        const stocks = await Stock.find({ deleted: { $ne: true }, listed: true });
         const user = await getUser(interaction.user.id);
         if (!user.stockAvgPrice) user.stockAvgPrice = new Map();
 
@@ -2013,71 +2073,11 @@ ai의 성격혹은 말투, 등 을 설정합니다.
 
         return interaction.editReply({
             content:
-    `📈 ${interaction.user.username}님의 주식 현황
+`📈 ${interaction.user.username}님의 주식 현황
 
-    \`\`\`
-    ${myStockTable}
-    \`\`\``
-        });
-    }
-
-
-
-    if (interaction.commandName === '주식') {
-        await interaction.deferReply();
-
-        const stocks = await Stock.find({ deleted: { $ne: true }, listed: true });
-
-        if (stocks.length === 0) return interaction.editReply('현재 상장된 회사가 없습니다.');
-
-        let companyTable =
-            padKo('회사명', 18) +
-            padKo('가격', 14) +
-            padKo('다음변동', 20) +
-            '대표\n' +
-            '─'.repeat(62) + '\n';
-
-        for (const s of stocks) {
-            let nextStr = '알 수 없음';
-            if (s.nextChangeAt) {
-                const diffMs = s.nextChangeAt - new Date();
-                if (diffMs > 0) {
-                    const diffMin = Math.floor(diffMs / 1000 / 60);
-                    const diffSec = Math.floor((diffMs / 1000) % 60);
-                    nextStr = `${diffMin}분 ${diffSec}초 후`;
-                } else {
-                    nextStr = '곧 변동';
-                }
-            }
-
-            let ownerName = '?';
-            try {
-                const ownerUser = await client.users.fetch(s.owner);
-                ownerName = ownerUser.username;
-            } catch { }
-
-            const bearMark = s.bearMarket ? ' 📉' : '';
-
-            companyTable +=
-                padKo(s.name, 18) +
-                padKo(`${s.price.toLocaleString('ko-KR')}원`, 14) +
-                padKo(nextStr, 20) +
-                ownerName + bearMark + '\n';
-
-            if (s.news && s.news.length > 0) {
-                companyTable += `  📰 ${s.news[0]}\n`;
-            }
-
-            companyTable += '─'.repeat(62) + '\n';
-        }
-
-        return interaction.editReply({
-            content:
-    `🏢 현재 상장 회사 목록
-
-    \`\`\`
-    ${companyTable}
-    \`\`\``
+\`\`\`
+${myStockTable}
+\`\`\``
         });
     }
 
