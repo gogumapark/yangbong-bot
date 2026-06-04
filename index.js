@@ -55,6 +55,8 @@ const moneySchema = new mongoose.Schema({
     },
 
     lastTax: { type: Number, default: 0 },
+    // ★ 변경: 마지막 세금 징수 날짜 (하루 1회)
+    lastTaxDate: { type: String, default: null },
 
     lastSubsidyDate: { type: String, default: null },
     recentCompanyCreatedAt: { type: Date, default: null },
@@ -70,6 +72,11 @@ const moneySchema = new mongoose.Schema({
 
     loanAmount: { type: Number, default: 0 },
     loanDueAt: { type: Date, default: null },
+
+    // ★ 변경: 마이너스 통장 / 파산 관련 필드
+    isBankrupt: { type: Boolean, default: false },
+    bankruptBanUntil: { type: Date, default: null },
+    minusBalance: { type: Number, default: 0 }, // 마이너스 통장 잔액(빚)
 });
 
 const stockSchema = new mongoose.Schema({
@@ -372,7 +379,7 @@ const commands = [
 
     new SlashCommandBuilder()
         .setName('매수')
-        .setDescription('주식을 구매합니다 (10분 쿨타임)')
+        .setDescription('주식을 구매합니다 (1분 쿨타임)')
         .addStringOption(option =>
             option.setName('회사').setDescription('회사 이름').setRequired(true)
         )
@@ -509,6 +516,11 @@ const commands = [
         .setName('상환')
         .setDescription('양봉장에 빌린 돈을 갚습니다'),
 
+    // ★ 변경: 파산신청 커맨드 추가
+    new SlashCommandBuilder()
+        .setName('파산신청')
+        .setDescription('마이너스 통장 상태에서 파산을 신청합니다. 보유 회사가 모두 삭제됩니다.'),
+
     new SlashCommandBuilder()
         .setName('초기화')
         .setDescription('[관리자] 모든 플레이어 자금과 회사를 초기화합니다'),
@@ -553,9 +565,6 @@ function createBoard(gameId) {
     return rows;
 }
 
-// =====================
-// ★ 수정된 부분: 800원 이하 구간만 2배 (1.1 → 2.2)
-// =====================
 function getPriceMultiplier(price, isDepression) {
     let upMult = 1;
     let downMult = 1;
@@ -565,7 +574,7 @@ function getPriceMultiplier(price, isDepression) {
     } else if (price <= 500) {
         upMult = 3;
     } else if (price <= 800) {
-        upMult = 2.2;      // 기존 1.1 → 2.2 (2배)
+        upMult = 2.2;
     } else if (price >= 10000) {
         upMult = 0.8;
         downMult = 1.5;
@@ -858,24 +867,33 @@ setInterval(async () => {
 }, 600000);
 
 // =========================
-// 세금 징수 (1시간)
+// ★ 변경: 세금 징수 - 하루 1회 (24시간 간격), 실제 한국 세율의 1/2
 // =========================
 setInterval(async () => {
 
+    const today = new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Seoul' });
     const users = await Money.find();
 
     for (const user of users) {
+
+        // 오늘 이미 세금 징수됐으면 스킵
+        if (user.lastTaxDate === today) continue;
 
         if (user.taxEvasionActive) {
             let simulatedTax = calcTax(user.money);
             user.taxEvasionSaved = (user.taxEvasionSaved || 0) + simulatedTax;
             user.lastTax = 0;
+            user.lastTaxDate = today;
             await user.save();
             console.log(`[탈세] ${user.userId} 세금 ${formatMoney(simulatedTax)} 회피`);
             continue;
         }
 
-        if (user.money < 14000) continue;
+        if (user.money < 14000) {
+            user.lastTaxDate = today;
+            await user.save();
+            continue;
+        }
 
         let tax = calcTax(user.money);
 
@@ -883,67 +901,72 @@ setInterval(async () => {
         if (user.money < 0) user.money = 0;
 
         user.lastTax = tax;
+        user.lastTaxDate = today;
 
         await user.save();
         console.log(`[세금] ${user.userId} -${formatMoney(tax)}`);
     }
 
-}, 60 * 60 * 1000);
+}, 60 * 60 * 1000); // 1시간마다 체크하되 하루 1회만 징수
 
+// ★ 변경: 세율 실제 한국의 1/2 적용
 function calcTax(m) {
+    // 한국 실제 세율의 절반 적용
+    // 원래: 6%, 15%, 24%, 35%, 38%, 40%, 42%, 45%
+    // 적용: 3%, 7.5%, 12%, 17.5%, 19%, 20%, 21%, 22.5%
     let tax = 0;
 
     if (m > 100000) {
-        tax += Math.floor((m - 100000) * 0.15);
-        tax += Math.floor((100000 - 50000) * 0.14);
-        tax += Math.floor((50000 - 30000) * 0.133);
-        tax += Math.floor((30000 - 15000) * 0.127);
-        tax += Math.floor((15000 - 8800) * 0.117);
-        tax += Math.floor((8800 - 5000) * 0.08);
-        tax += Math.floor((5000 - 1400) * 0.05);
-        tax += Math.floor(1400 * 0.02);
+        tax += Math.floor((m - 100000) * 0.075);        // 7.5% (원래 15%)
+        tax += Math.floor((100000 - 50000) * 0.07);     // 7% (원래 14%)
+        tax += Math.floor((50000 - 30000) * 0.0665);    // 6.65% (원래 13.3%)
+        tax += Math.floor((30000 - 15000) * 0.0635);    // 6.35% (원래 12.7%)
+        tax += Math.floor((15000 - 8800) * 0.0585);     // 5.85% (원래 11.7%)
+        tax += Math.floor((8800 - 5000) * 0.04);        // 4% (원래 8%)
+        tax += Math.floor((5000 - 1400) * 0.025);       // 2.5% (원래 5%)
+        tax += Math.floor(1400 * 0.01);                 // 1% (원래 2%)
     } else if (m > 50000) {
-        tax += Math.floor((m - 50000) * 0.14);
-        tax += Math.floor((50000 - 30000) * 0.133);
-        tax += Math.floor((30000 - 15000) * 0.127);
-        tax += Math.floor((15000 - 8800) * 0.117);
-        tax += Math.floor((8800 - 5000) * 0.08);
-        tax += Math.floor((5000 - 1400) * 0.05);
-        tax += Math.floor(1400 * 0.02);
+        tax += Math.floor((m - 50000) * 0.07);
+        tax += Math.floor((50000 - 30000) * 0.0665);
+        tax += Math.floor((30000 - 15000) * 0.0635);
+        tax += Math.floor((15000 - 8800) * 0.0585);
+        tax += Math.floor((8800 - 5000) * 0.04);
+        tax += Math.floor((5000 - 1400) * 0.025);
+        tax += Math.floor(1400 * 0.01);
     } else if (m > 30000) {
-        tax += Math.floor((m - 30000) * 0.133);
-        tax += Math.floor((30000 - 15000) * 0.127);
-        tax += Math.floor((15000 - 8800) * 0.117);
-        tax += Math.floor((8800 - 5000) * 0.08);
-        tax += Math.floor((5000 - 1400) * 0.05);
-        tax += Math.floor(1400 * 0.02);
+        tax += Math.floor((m - 30000) * 0.0665);
+        tax += Math.floor((30000 - 15000) * 0.0635);
+        tax += Math.floor((15000 - 8800) * 0.0585);
+        tax += Math.floor((8800 - 5000) * 0.04);
+        tax += Math.floor((5000 - 1400) * 0.025);
+        tax += Math.floor(1400 * 0.01);
     } else if (m > 15000) {
-        tax += Math.floor((m - 15000) * 0.127);
-        tax += Math.floor((15000 - 8800) * 0.117);
-        tax += Math.floor((8800 - 5000) * 0.08);
-        tax += Math.floor((5000 - 1400) * 0.05);
-        tax += Math.floor(1400 * 0.02);
+        tax += Math.floor((m - 15000) * 0.0635);
+        tax += Math.floor((15000 - 8800) * 0.0585);
+        tax += Math.floor((8800 - 5000) * 0.04);
+        tax += Math.floor((5000 - 1400) * 0.025);
+        tax += Math.floor(1400 * 0.01);
     } else if (m > 8800) {
-        tax += Math.floor((m - 8800) * 0.117);
-        tax += Math.floor((8800 - 5000) * 0.08);
-        tax += Math.floor((5000 - 1400) * 0.05);
-        tax += Math.floor(1400 * 0.02);
+        tax += Math.floor((m - 8800) * 0.0585);
+        tax += Math.floor((8800 - 5000) * 0.04);
+        tax += Math.floor((5000 - 1400) * 0.025);
+        tax += Math.floor(1400 * 0.01);
     } else if (m > 5000) {
-        tax += Math.floor((m - 5000) * 0.08);
-        tax += Math.floor((5000 - 1400) * 0.05);
-        tax += Math.floor(1400 * 0.02);
+        tax += Math.floor((m - 5000) * 0.04);
+        tax += Math.floor((5000 - 1400) * 0.025);
+        tax += Math.floor(1400 * 0.01);
     } else if (m > 1400) {
-        tax += Math.floor((m - 1400) * 0.05);
-        tax += Math.floor(1400 * 0.02);
+        tax += Math.floor((m - 1400) * 0.025);
+        tax += Math.floor(1400 * 0.01);
     } else {
-        tax += Math.floor(m * 0.02);
+        tax += Math.floor(m * 0.01);
     }
 
     return tax;
 }
 
 // =========================
-// 대출 이자 징수 (1시간)
+// ★ 변경: 대출 만기 처리 - 마이너스 통장 + 거래정지 + 파산신청 유도
 // =========================
 setInterval(async () => {
     const users = await Money.find({ loanAmount: { $gt: 0 } });
@@ -951,12 +974,44 @@ setInterval(async () => {
         if (!user.loanDueAt) continue;
         const now = new Date();
         if (now > user.loanDueAt) {
-            const penalty = Math.floor(user.loanAmount * 0.3);
-            user.money = Math.max(0, user.money - user.loanAmount - penalty);
-            user.loanAmount = 0;
-            user.loanDueAt = null;
-            await user.save();
-            console.log(`[대출강제징수] ${user.userId} 원금+페널티 징수`);
+            // 마이너스 통장 처리: 잔액에서 차감, 부족하면 마이너스 잔액 기록
+            const debt = user.loanAmount;
+            const remainingAfterPay = user.money - debt;
+
+            if (remainingAfterPay >= 0) {
+                // 충분한 돈이 있으면 그냥 징수
+                user.money = remainingAfterPay;
+                user.loanAmount = 0;
+                user.loanDueAt = null;
+                await user.save();
+                console.log(`[대출만기] ${user.userId} 자동 징수 완료`);
+            } else {
+                // 돈이 부족 → 마이너스 통장 처리
+                user.minusBalance = Math.abs(remainingAfterPay); // 빚 기록
+                user.money = 0;
+                user.loanAmount = 0;
+                user.loanDueAt = null;
+                user.isBankrupt = true;
+
+                // 거래 정지 기간: 최소 1일 ~ 최대 3일 랜덤
+                const banDays = Math.floor(Math.random() * 3) + 1;
+                user.bankruptBanUntil = new Date(Date.now() + banDays * 24 * 60 * 60 * 1000);
+
+                await user.save();
+                console.log(`[대출만기] ${user.userId} 마이너스 통장 발생! 빚: ${debt}원, 거래정지 ${banDays}일`);
+
+                // 알림 시도 (DM)
+                try {
+                    const discordUser = await client.users.fetch(user.userId);
+                    await discordUser.send(
+                        `⚠️ **대출 만기 초과 알림**\n\n` +
+                        `잔액 부족으로 대출금 ${formatMoney(debt)}을 상환하지 못했습니다.\n\n` +
+                        `💸 **마이너스 통장** 발생! 빚: ${formatMoney(user.minusBalance)}\n` +
+                        `🚫 거래 정지: ${banDays}일 (${user.bankruptBanUntil.toLocaleDateString('ko-KR')} 해제)\n\n` +
+                        `📢 \`/파산신청\` 명령어로 파산을 신청하면 보유 회사가 모두 삭제되고 빚이 탕감됩니다.`
+                    );
+                } catch { }
+            }
         }
     }
 }, 60 * 60 * 1000);
@@ -1264,10 +1319,13 @@ client.on('interactionCreate', async interaction => {
 받을 수 있는 지원금을 조회합니다!! (3일마다 갱신)
 
 \`/대출 금액:\`
-양봉장에게 돈을 빌립니다!!
+양봉장에게 돈을 빌립니다!! (3일 상환, 이자 10%)
 
 \`/상환\`
 빌린 돈을 갚습니다!!
+
+\`/파산신청\`
+마이너스 통장 상태에서 파산 신청!! 회사 삭제 후 빚 탕감!!
 
 \`/회사삭제 회사:\`
 1000원으로 회사를 삭제합니다!!
@@ -1276,7 +1334,7 @@ client.on('interactionCreate', async interaction => {
 1000원으로 회사를 생성합니다!! (최대 2개)
 
 \`/매수 회사: 수량:\`
-주식을 구입합니다!! (10분 쿨타임)
+주식을 구입합니다!! (1분 쿨타임)
 
 \`/매도 회사: 수량:\`
 주식을 판매합니다!! (수수료 1.5%)
@@ -1585,15 +1643,19 @@ ai의 성격혹은 말투, 등 을 설정합니다.
         const user = await getUser(interaction.user.id);
 
         const taxMsg = user.lastTax > 0
-            ? ` (지난 세금: -${formatMoney(user.lastTax)})`
+            ? ` (마지막 세금: -${formatMoney(user.lastTax)})`
             : '';
 
         const loanMsg = user.loanAmount > 0
             ? `\n💸 대출 잔액: ${formatMoney(user.loanAmount)} (만기: <t:${Math.floor(user.loanDueAt.getTime() / 1000)}:R>)`
             : '';
 
+        const bankruptMsg = user.isBankrupt
+            ? `\n🚨 마이너스 통장! 빚: ${formatMoney(user.minusBalance)}\n🚫 거래 정지: <t:${Math.floor(user.bankruptBanUntil.getTime() / 1000)}:R> 해제\n📢 \`/파산신청\` 으로 파산 신청 가능`
+            : '';
+
         return interaction.reply({
-            content: `💰 현재 돈: ${formatMoney(user.money)}${taxMsg}${loanMsg}`,
+            content: `💰 현재 돈: ${formatMoney(user.money)}${taxMsg}${loanMsg}${bankruptMsg}`,
             flags: 64
         });
     }
@@ -1710,6 +1772,14 @@ ai의 성격혹은 말투, 등 을 설정합니다.
 
         const user = await getUser(interaction.user.id);
 
+        // ★ 변경: 마이너스 통장 / 파산 거래 정지 체크
+        if (user.isBankrupt && user.bankruptBanUntil && user.bankruptBanUntil > new Date()) {
+            const remain = user.bankruptBanUntil - new Date();
+            const days = Math.floor(remain / 1000 / 60 / 60 / 24);
+            const hours = Math.floor((remain / 1000 / 60 / 60) % 24);
+            return interaction.editReply(`❌ 마이너스 통장으로 거래 정지 중!\n⏰ 해제까지: ${days}일 ${hours}시간\n📢 \`/파산신청\` 으로 파산을 신청할 수 있습니다.`);
+        }
+
         if (user.stockManipUntil && user.stockManipUntil > new Date()) {
             const remain = user.stockManipUntil - new Date();
             const hours = Math.floor(remain / 1000 / 60 / 60);
@@ -1723,15 +1793,15 @@ ai의 성격혹은 말투, 등 을 설정합니다.
 
         if (lastBuy) {
             const diff = Date.now() - new Date(lastBuy).getTime();
-            const cooldown = 10 * 60 * 1000;
+            // ★ 변경: 쿨타임 10분 → 1분
+            const cooldown = 1 * 60 * 1000;
 
             if (diff < cooldown) {
                 const remain = cooldown - diff;
-                const minutes = Math.floor(remain / 1000 / 60);
-                const seconds = Math.floor((remain / 1000) % 60);
+                const seconds = Math.floor(remain / 1000);
 
                 return interaction.editReply(
-                    `❌ 매수 쿨타임!\n⏰ 남은 시간: ${minutes}분 ${seconds}초`
+                    `❌ 매수 쿨타임!\n⏰ 남은 시간: ${seconds}초`
                 );
             }
         }
@@ -1802,6 +1872,14 @@ ai의 성격혹은 말투, 등 을 설정합니다.
         }
 
         const user = await getUser(interaction.user.id);
+
+        // ★ 변경: 마이너스 통장 거래 정지 체크
+        if (user.isBankrupt && user.bankruptBanUntil && user.bankruptBanUntil > new Date()) {
+            const remain = user.bankruptBanUntil - new Date();
+            const days = Math.floor(remain / 1000 / 60 / 60 / 24);
+            const hours = Math.floor((remain / 1000 / 60 / 60) % 24);
+            return interaction.editReply(`❌ 마이너스 통장으로 거래 정지 중!\n⏰ 해제까지: ${days}일 ${hours}시간\n📢 \`/파산신청\` 으로 파산을 신청할 수 있습니다.`);
+        }
 
         if (user.stockManipUntil && user.stockManipUntil > new Date()) {
             const remain = user.stockManipUntil - new Date();
@@ -2285,11 +2363,13 @@ ${nextTime}`
                 ? `(-${users[i].lastTax.toLocaleString('ko-KR')})`
                 : '';
 
+            const bankruptMark = users[i].isBankrupt ? ' 💸' : '';
+
             text +=
                 padKo(String(i + 1), 6) +
                 padKo(users[i].money.toLocaleString('ko-KR') + '원', 16) +
                 padKo(taxStr, 16) +
-                username + '\n';
+                username + bankruptMark + '\n';
         }
 
         return interaction.editReply({
@@ -2810,12 +2890,17 @@ ${text}
             return interaction.editReply(`❌ 이미 대출 중입니다.\n잔액: ${formatMoney(user.loanAmount)}\n만기: <t:${Math.floor(user.loanDueAt.getTime() / 1000)}:R>\n\`/상환\` 으로 갚아주세요.`);
         }
 
+        if (user.isBankrupt) {
+            return interaction.editReply(`❌ 마이너스 통장 상태에서는 추가 대출이 불가능합니다.\n📢 \`/파산신청\` 으로 파산을 신청하세요.`);
+        }
+
         let amount = parseInt(input);
         if (isNaN(amount) || amount <= 0) return interaction.editReply('❌ 올바른 금액을 입력해주세요.');
         if (amount > 500000) return interaction.editReply('❌ 최대 대출 한도는 500,000원입니다.');
 
         const repayAmount = Math.floor(amount * 1.1);
-        const dueAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
+        // ★ 변경: 상환 기간 24시간 → 3일
+        const dueAt = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000);
 
         user.money += amount;
         user.loanAmount = repayAmount;
@@ -2823,7 +2908,7 @@ ${text}
         await user.save();
 
         return interaction.editReply(
-            `💵 대출 완료!\n\n받은 금액: ${formatMoney(amount)}\n상환 금액: ${formatMoney(repayAmount)} (이자 10%)\n만기일: <t:${Math.floor(dueAt.getTime() / 1000)}:R>\n\n⚠ 만기 초과 시 잔액에서 강제 징수 + 30% 페널티`
+            `💵 대출 완료!\n\n받은 금액: ${formatMoney(amount)}\n상환 금액: ${formatMoney(repayAmount)} (이자 10%)\n만기일: <t:${Math.floor(dueAt.getTime() / 1000)}:R> (3일)\n\n⚠ 만기 초과 시 마이너스 통장 발생!\n🚫 거래 1~3일 정지 + \`/파산신청\` 후 보유 회사 삭제`
         );
     }
 
@@ -2851,6 +2936,63 @@ ${text}
         );
     }
 
+    // ★ 변경: 파산신청 커맨드
+    if (interaction.commandName === '파산신청') {
+        await interaction.deferReply({ flags: 64 });
+
+        const user = await getUser(interaction.user.id);
+
+        if (!user.isBankrupt) {
+            return interaction.editReply('❌ 마이너스 통장 상태가 아닙니다.\n파산신청은 대출 만기 초과로 마이너스 통장이 발생한 경우에만 가능합니다.');
+        }
+
+        if (user.bankruptBanUntil && user.bankruptBanUntil > new Date()) {
+            const remain = user.bankruptBanUntil - new Date();
+            const days = Math.floor(remain / 1000 / 60 / 60 / 24);
+            const hours = Math.floor((remain / 1000 / 60 / 60) % 24);
+            return interaction.editReply(
+                `❌ 아직 거래 정지 기간입니다.\n⏰ 해제까지: ${days}일 ${hours}시간\n\n거래 정지가 해제된 후 파산신청이 가능합니다.`
+            );
+        }
+
+        // 파산 처리: 보유 회사 모두 삭제, 빚 탕감
+        const debt = user.minusBalance || 0;
+        const myStocks = await Stock.find({
+            owner: interaction.user.id,
+            deleted: { $ne: true },
+            listed: true
+        });
+
+        let deletedCompanies = [];
+        for (const s of myStocks) {
+            s.deleted = true;
+            s.deletedAt = new Date();
+            s.listed = false;
+            s.price = 0;
+            s.news.unshift('💀 대표 파산으로 인한 강제 폐업');
+            s.news = s.news.slice(0, 5);
+            await s.save();
+            deletedCompanies.push(s.name);
+        }
+
+        user.isBankrupt = false;
+        user.bankruptBanUntil = null;
+        user.minusBalance = 0;
+        user.money = 1000; // 파산 후 기초 지원금 1,000원
+        await user.save();
+
+        const companiesMsg = deletedCompanies.length > 0
+            ? `\n🏢 삭제된 회사: ${deletedCompanies.join(', ')}`
+            : '\n🏢 삭제된 회사: 없음';
+
+        return interaction.editReply(
+            `📢 **파산 신청 완료**\n\n` +
+            `💸 탕감된 빚: ${formatMoney(debt)}${companiesMsg}\n\n` +
+            `💰 지급된 기초 지원금: 1,000원\n\n` +
+            `⚠ 파산 기록이 남으며, 새로운 출발을 응원합니다!`
+        );
+    }
+
     if (interaction.commandName === '초기화') {
         if (!interaction.member.permissions.has('Administrator')) {
             return interaction.reply({ content: '❌ 관리자만 사용 가능', flags: 64 });
@@ -2865,6 +3007,7 @@ ${text}
                 stockAvgPrice: {},
                 buyCooldowns: {},
                 lastTax: 0,
+                lastTaxDate: null,
                 deleteCost: 1000,
                 blackjackWins: 0,
                 gambleWins: 0,
@@ -2884,6 +3027,9 @@ ${text}
                 crimeCount: 0,
                 loanAmount: 0,
                 loanDueAt: null,
+                isBankrupt: false,
+                bankruptBanUntil: null,
+                minusBalance: 0,
             }
         });
 
