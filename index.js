@@ -910,56 +910,54 @@ setInterval(async () => {
 }, 60 * 60 * 1000); // 1시간마다 체크하되 하루 1회만 징수
 
 // ★ 변경: 세율 실제 한국의 1/2 적용
+// ★ 변경: 세율 실제 한국의 1/4 적용
 function calcTax(m) {
-    // 한국 실제 세율의 절반 적용
-    // 원래: 6%, 15%, 24%, 35%, 38%, 40%, 42%, 45%
-    // 적용: 3%, 7.5%, 12%, 17.5%, 19%, 20%, 21%, 22.5%
     let tax = 0;
 
     if (m > 100000) {
-        tax += Math.floor((m - 100000) * 0.075);        // 7.5% (원래 15%)
-        tax += Math.floor((100000 - 50000) * 0.07);     // 7% (원래 14%)
-        tax += Math.floor((50000 - 30000) * 0.0665);    // 6.65% (원래 13.3%)
-        tax += Math.floor((30000 - 15000) * 0.0635);    // 6.35% (원래 12.7%)
-        tax += Math.floor((15000 - 8800) * 0.0585);     // 5.85% (원래 11.7%)
-        tax += Math.floor((8800 - 5000) * 0.04);        // 4% (원래 8%)
-        tax += Math.floor((5000 - 1400) * 0.025);       // 2.5% (원래 5%)
-        tax += Math.floor(1400 * 0.01);                 // 1% (원래 2%)
+        tax += Math.floor((m - 100000) * 0.0375);       // 3.75%
+        tax += Math.floor((100000 - 50000) * 0.035);    // 3.5%
+        tax += Math.floor((50000 - 30000) * 0.0333);    // 3.33%
+        tax += Math.floor((30000 - 15000) * 0.0318);    // 3.18%
+        tax += Math.floor((15000 - 8800) * 0.0293);     // 2.93%
+        tax += Math.floor((8800 - 5000) * 0.02);        // 2%
+        tax += Math.floor((5000 - 1400) * 0.0125);      // 1.25%
+        tax += Math.floor(1400 * 0.005);                // 0.5%
     } else if (m > 50000) {
-        tax += Math.floor((m - 50000) * 0.07);
-        tax += Math.floor((50000 - 30000) * 0.0665);
-        tax += Math.floor((30000 - 15000) * 0.0635);
-        tax += Math.floor((15000 - 8800) * 0.0585);
-        tax += Math.floor((8800 - 5000) * 0.04);
-        tax += Math.floor((5000 - 1400) * 0.025);
-        tax += Math.floor(1400 * 0.01);
+        tax += Math.floor((m - 50000) * 0.035);
+        tax += Math.floor((50000 - 30000) * 0.0333);
+        tax += Math.floor((30000 - 15000) * 0.0318);
+        tax += Math.floor((15000 - 8800) * 0.0293);
+        tax += Math.floor((8800 - 5000) * 0.02);
+        tax += Math.floor((5000 - 1400) * 0.0125);
+        tax += Math.floor(1400 * 0.005);
     } else if (m > 30000) {
-        tax += Math.floor((m - 30000) * 0.0665);
-        tax += Math.floor((30000 - 15000) * 0.0635);
-        tax += Math.floor((15000 - 8800) * 0.0585);
-        tax += Math.floor((8800 - 5000) * 0.04);
-        tax += Math.floor((5000 - 1400) * 0.025);
-        tax += Math.floor(1400 * 0.01);
+        tax += Math.floor((m - 30000) * 0.0333);
+        tax += Math.floor((30000 - 15000) * 0.0318);
+        tax += Math.floor((15000 - 8800) * 0.0293);
+        tax += Math.floor((8800 - 5000) * 0.02);
+        tax += Math.floor((5000 - 1400) * 0.0125);
+        tax += Math.floor(1400 * 0.005);
     } else if (m > 15000) {
-        tax += Math.floor((m - 15000) * 0.0635);
-        tax += Math.floor((15000 - 8800) * 0.0585);
-        tax += Math.floor((8800 - 5000) * 0.04);
-        tax += Math.floor((5000 - 1400) * 0.025);
-        tax += Math.floor(1400 * 0.01);
+        tax += Math.floor((m - 15000) * 0.0318);
+        tax += Math.floor((15000 - 8800) * 0.0293);
+        tax += Math.floor((8800 - 5000) * 0.02);
+        tax += Math.floor((5000 - 1400) * 0.0125);
+        tax += Math.floor(1400 * 0.005);
     } else if (m > 8800) {
-        tax += Math.floor((m - 8800) * 0.0585);
-        tax += Math.floor((8800 - 5000) * 0.04);
-        tax += Math.floor((5000 - 1400) * 0.025);
-        tax += Math.floor(1400 * 0.01);
+        tax += Math.floor((m - 8800) * 0.0293);
+        tax += Math.floor((8800 - 5000) * 0.02);
+        tax += Math.floor((5000 - 1400) * 0.0125);
+        tax += Math.floor(1400 * 0.005);
     } else if (m > 5000) {
-        tax += Math.floor((m - 5000) * 0.04);
-        tax += Math.floor((5000 - 1400) * 0.025);
-        tax += Math.floor(1400 * 0.01);
+        tax += Math.floor((m - 5000) * 0.02);
+        tax += Math.floor((5000 - 1400) * 0.0125);
+        tax += Math.floor(1400 * 0.005);
     } else if (m > 1400) {
-        tax += Math.floor((m - 1400) * 0.025);
-        tax += Math.floor(1400 * 0.01);
+        tax += Math.floor((m - 1400) * 0.0125);
+        tax += Math.floor(1400 * 0.005);
     } else {
-        tax += Math.floor(m * 0.01);
+        tax += Math.floor(m * 0.005);
     }
 
     return tax;
