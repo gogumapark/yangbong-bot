@@ -55,7 +55,6 @@ const moneySchema = new mongoose.Schema({
     },
 
     lastTax: { type: Number, default: 0 },
-    // ★ 변경: 마지막 세금 징수 날짜 (하루 1회)
     lastTaxDate: { type: String, default: null },
 
     lastSubsidyDate: { type: String, default: null },
@@ -73,10 +72,9 @@ const moneySchema = new mongoose.Schema({
     loanAmount: { type: Number, default: 0 },
     loanDueAt: { type: Date, default: null },
 
-    // ★ 변경: 마이너스 통장 / 파산 관련 필드
     isBankrupt: { type: Boolean, default: false },
     bankruptBanUntil: { type: Date, default: null },
-    minusBalance: { type: Number, default: 0 }, // 마이너스 통장 잔액(빚)
+    minusBalance: { type: Number, default: 0 },
 });
 
 const stockSchema = new mongoose.Schema({
@@ -137,7 +135,6 @@ function formatMoney(num) {
     return num.toLocaleString('ko-KR') + '원';
 }
 
-// 한글/영문 혼용 열 맞춤: 한글 1자 = 2칸, 영문 1자 = 1칸
 function padKo(str, len) {
     let width = 0;
     for (const ch of str) {
@@ -263,6 +260,7 @@ const client = new Client({
 });
 
 const newsPages = new Map();
+const stockPages = new Map(); // 주식 목록 페이지네이션
 const blackjackGames = new Map();
 const tttGames = new Map();
 const deletedMessages = new Map();
@@ -516,7 +514,6 @@ const commands = [
         .setName('상환')
         .setDescription('양봉장에 빌린 돈을 갚습니다'),
 
-    // ★ 변경: 파산신청 커맨드 추가
     new SlashCommandBuilder()
         .setName('파산신청')
         .setDescription('마이너스 통장 상태에서 파산을 신청합니다. 보유 회사가 모두 삭제됩니다.'),
@@ -867,7 +864,7 @@ setInterval(async () => {
 }, 600000);
 
 // =========================
-// ★ 변경: 세금 징수 - 하루 1회 (24시간 간격), 실제 한국 세율의 1/2
+// 세금 징수 - 하루 1회
 // =========================
 setInterval(async () => {
 
@@ -876,7 +873,6 @@ setInterval(async () => {
 
     for (const user of users) {
 
-        // 오늘 이미 세금 징수됐으면 스킵
         if (user.lastTaxDate === today) continue;
 
         if (user.taxEvasionActive) {
@@ -907,22 +903,20 @@ setInterval(async () => {
         console.log(`[세금] ${user.userId} -${formatMoney(tax)}`);
     }
 
-}, 60 * 60 * 1000); // 1시간마다 체크하되 하루 1회만 징수
+}, 60 * 60 * 1000);
 
-// ★ 변경: 세율 실제 한국의 1/2 적용
-// ★ 변경: 세율 실제 한국의 1/4 적용
 function calcTax(m) {
     let tax = 0;
 
     if (m > 100000) {
-        tax += Math.floor((m - 100000) * 0.0375);       // 3.75%
-        tax += Math.floor((100000 - 50000) * 0.035);    // 3.5%
-        tax += Math.floor((50000 - 30000) * 0.0333);    // 3.33%
-        tax += Math.floor((30000 - 15000) * 0.0318);    // 3.18%
-        tax += Math.floor((15000 - 8800) * 0.0293);     // 2.93%
-        tax += Math.floor((8800 - 5000) * 0.02);        // 2%
-        tax += Math.floor((5000 - 1400) * 0.0125);      // 1.25%
-        tax += Math.floor(1400 * 0.005);                // 0.5%
+        tax += Math.floor((m - 100000) * 0.0375);
+        tax += Math.floor((100000 - 50000) * 0.035);
+        tax += Math.floor((50000 - 30000) * 0.0333);
+        tax += Math.floor((30000 - 15000) * 0.0318);
+        tax += Math.floor((15000 - 8800) * 0.0293);
+        tax += Math.floor((8800 - 5000) * 0.02);
+        tax += Math.floor((5000 - 1400) * 0.0125);
+        tax += Math.floor(1400 * 0.005);
     } else if (m > 50000) {
         tax += Math.floor((m - 50000) * 0.035);
         tax += Math.floor((50000 - 30000) * 0.0333);
@@ -964,7 +958,7 @@ function calcTax(m) {
 }
 
 // =========================
-// ★ 변경: 대출 만기 처리 - 마이너스 통장 + 거래정지 + 파산신청 유도
+// 대출 만기 처리
 // =========================
 setInterval(async () => {
     const users = await Money.find({ loanAmount: { $gt: 0 } });
@@ -972,33 +966,28 @@ setInterval(async () => {
         if (!user.loanDueAt) continue;
         const now = new Date();
         if (now > user.loanDueAt) {
-            // 마이너스 통장 처리: 잔액에서 차감, 부족하면 마이너스 잔액 기록
             const debt = user.loanAmount;
             const remainingAfterPay = user.money - debt;
 
             if (remainingAfterPay >= 0) {
-                // 충분한 돈이 있으면 그냥 징수
                 user.money = remainingAfterPay;
                 user.loanAmount = 0;
                 user.loanDueAt = null;
                 await user.save();
                 console.log(`[대출만기] ${user.userId} 자동 징수 완료`);
             } else {
-                // 돈이 부족 → 마이너스 통장 처리
-                user.minusBalance = Math.abs(remainingAfterPay); // 빚 기록
+                user.minusBalance = Math.abs(remainingAfterPay);
                 user.money = 0;
                 user.loanAmount = 0;
                 user.loanDueAt = null;
                 user.isBankrupt = true;
 
-                // 거래 정지 기간: 최소 1일 ~ 최대 3일 랜덤
                 const banDays = Math.floor(Math.random() * 3) + 1;
                 user.bankruptBanUntil = new Date(Date.now() + banDays * 24 * 60 * 60 * 1000);
 
                 await user.save();
                 console.log(`[대출만기] ${user.userId} 마이너스 통장 발생! 빚: ${debt}원, 거래정지 ${banDays}일`);
 
-                // 알림 시도 (DM)
                 try {
                     const discordUser = await client.users.fetch(user.userId);
                     await discordUser.send(
@@ -1025,6 +1014,7 @@ client.on('interactionCreate', async interaction => {
 
         if (interaction.isButton()) {
 
+            // ── 뉴스 페이지네이션 ──
             if (
                 interaction.customId.startsWith('news_prev_') ||
                 interaction.customId.startsWith('news_next_')
@@ -1076,6 +1066,55 @@ client.on('interactionCreate', async interaction => {
                 }
             }
 
+            // ── 주식 목록 페이지네이션 ──
+            if (
+                interaction.customId.startsWith('stock_prev_') ||
+                interaction.customId.startsWith('stock_next_')
+            ) {
+                await interaction.deferUpdate();
+
+                try {
+                    const pageId = interaction.customId.split('_')[2];
+                    const data = stockPages.get(pageId);
+
+                    if (!data) {
+                        return interaction.editReply({ content: '❌ 목록이 만료됐습니다. 다시 `/주식` 을 입력해주세요.', components: [] });
+                    }
+
+                    if (interaction.customId.startsWith('stock_prev_')) {
+                        data.page = Math.max(0, data.page - 1);
+                    } else {
+                        data.page = Math.min(data.pages.length - 1, data.page + 1);
+                    }
+
+                    const totalPages = data.pages.length;
+                    const page = data.page;
+
+                    const row = new ActionRowBuilder().addComponents(
+                        new ButtonBuilder()
+                            .setCustomId(`stock_prev_${pageId}`)
+                            .setLabel('◀')
+                            .setStyle(ButtonStyle.Secondary)
+                            .setDisabled(page === 0),
+                        new ButtonBuilder()
+                            .setCustomId(`stock_next_${pageId}`)
+                            .setLabel('▶')
+                            .setStyle(ButtonStyle.Secondary)
+                            .setDisabled(page >= totalPages - 1)
+                    );
+
+                    return interaction.editReply({
+                        content: `🏢 상장 회사 목록 (${page + 1}/${totalPages}페이지)\n\`\`\`\n${data.pages[page]}\`\`\``,
+                        components: [row]
+                    });
+
+                } catch (err) {
+                    console.error(err);
+                    return interaction.followUp({ content: '❌ 오류 발생', flags: 64 });
+                }
+            }
+
+            // ── 블랙잭 ──
             if (
                 interaction.customId === 'blackjack_hit' ||
                 interaction.customId === 'blackjack_stand'
@@ -1136,6 +1175,7 @@ client.on('interactionCreate', async interaction => {
                 });
             }
 
+            // ── 편지 열람 ──
             if (interaction.customId.startsWith('letter_')) {
                 const id = interaction.customId.split('_')[1];
                 const letter = await Letter.findById(id);
@@ -1166,6 +1206,7 @@ client.on('interactionCreate', async interaction => {
                 return interaction.reply({ embeds: [embed], flags: 64 });
             }
 
+            // ── 편지함 페이지네이션 ──
             if (
                 interaction.customId.startsWith('letters_prev_') ||
                 interaction.customId.startsWith('letters_next_')
@@ -1209,6 +1250,7 @@ client.on('interactionCreate', async interaction => {
                 return interaction.update({ content: `📬 편지함 (${allLetters.length}개)`, components: rows });
             }
 
+            // ── 편지 삭제 ──
             if (interaction.customId.startsWith('deleteletter_')) {
                 const id = interaction.customId.split('_')[1];
                 const letter = await Letter.findById(id);
@@ -1221,6 +1263,7 @@ client.on('interactionCreate', async interaction => {
                 return interaction.update({ content: '🗑 편지가 삭제되었습니다.', embeds: [], components: [] });
             }
 
+            // ── 틱택토 ──
             if (interaction.customId.startsWith('ttt_')) {
                 const [, gameId, index] = interaction.customId.split('_');
                 const game = tttGames.get(gameId);
@@ -1256,6 +1299,7 @@ client.on('interactionCreate', async interaction => {
             return;
         }
 
+        // ── 셀렉트 메뉴 ──
         if (interaction.isStringSelectMenu()) {
             if (interaction.customId === 'help_menu') {
                 const value = interaction.values[0];
@@ -1770,7 +1814,6 @@ ai의 성격혹은 말투, 등 을 설정합니다.
 
         const user = await getUser(interaction.user.id);
 
-        // ★ 변경: 마이너스 통장 / 파산 거래 정지 체크
         if (user.isBankrupt && user.bankruptBanUntil && user.bankruptBanUntil > new Date()) {
             const remain = user.bankruptBanUntil - new Date();
             const days = Math.floor(remain / 1000 / 60 / 60 / 24);
@@ -1791,7 +1834,6 @@ ai의 성격혹은 말투, 등 을 설정합니다.
 
         if (lastBuy) {
             const diff = Date.now() - new Date(lastBuy).getTime();
-            // ★ 변경: 쿨타임 10분 → 1분
             const cooldown = 1 * 60 * 1000;
 
             if (diff < cooldown) {
@@ -1871,7 +1913,6 @@ ai의 성격혹은 말투, 등 을 설정합니다.
 
         const user = await getUser(interaction.user.id);
 
-        // ★ 변경: 마이너스 통장 거래 정지 체크
         if (user.isBankrupt && user.bankruptBanUntil && user.bankruptBanUntil > new Date()) {
             const remain = user.bankruptBanUntil - new Date();
             const days = Math.floor(remain / 1000 / 60 / 60 / 24);
@@ -2034,6 +2075,9 @@ ai의 성격혹은 말투, 등 을 설정합니다.
         }
     }
 
+    // =========================
+    // /주식 - 페이지네이션 (8개씩)
+    // =========================
     if (interaction.commandName === '주식') {
         await interaction.deferReply();
 
@@ -2041,54 +2085,80 @@ ai의 성격혹은 말투, 등 을 설정합니다.
 
         if (stocks.length === 0) return interaction.editReply('현재 상장된 회사가 없습니다.');
 
-        let companyTable =
-            padKo('회사명', 18) +
-            padKo('가격', 14) +
-            padKo('다음변동', 20) +
-            '대표\n' +
-            '─'.repeat(62) + '\n';
+        const PER_PAGE = 8;
 
-        for (const s of stocks) {
-            let nextStr = '알 수 없음';
-            if (s.nextChangeAt) {
-                const diffMs = s.nextChangeAt - new Date();
-                if (diffMs > 0) {
-                    const diffMin = Math.floor(diffMs / 1000 / 60);
-                    const diffSec = Math.floor((diffMs / 1000) % 60);
-                    nextStr = `${diffMin}분 ${diffSec}초 후`;
-                } else {
-                    nextStr = '곧 변동';
+        const buildPageText = async (pageStocks) => {
+            let table =
+                padKo('회사명', 18) +
+                padKo('가격', 14) +
+                padKo('다음변동', 20) +
+                '대표\n' +
+                '─'.repeat(62) + '\n';
+
+            for (const s of pageStocks) {
+                let nextStr = '알 수 없음';
+                if (s.nextChangeAt) {
+                    const diffMs = s.nextChangeAt - new Date();
+                    if (diffMs > 0) {
+                        const diffMin = Math.floor(diffMs / 1000 / 60);
+                        const diffSec = Math.floor((diffMs / 1000) % 60);
+                        nextStr = `${diffMin}분 ${diffSec}초 후`;
+                    } else {
+                        nextStr = '곧 변동';
+                    }
                 }
+
+                let ownerName = '?';
+                try {
+                    const ownerUser = await client.users.fetch(s.owner);
+                    ownerName = ownerUser.username;
+                } catch { }
+
+                const bearMark = s.bearMarket ? ' 📉' : '';
+
+                table +=
+                    padKo(s.name, 18) +
+                    padKo(`${s.price.toLocaleString('ko-KR')}원`, 14) +
+                    padKo(nextStr, 20) +
+                    ownerName + bearMark + '\n';
+
+                if (s.news && s.news.length > 0) {
+                    table += `  📰 ${s.news[0]}\n`;
+                }
+
+                table += '─'.repeat(62) + '\n';
             }
 
-            let ownerName = '?';
-            try {
-                const ownerUser = await client.users.fetch(s.owner);
-                ownerName = ownerUser.username;
-            } catch { }
+            return table;
+        };
 
-            const bearMark = s.bearMarket ? ' 📉' : '';
-
-            companyTable +=
-                padKo(s.name, 18) +
-                padKo(`${s.price.toLocaleString('ko-KR')}원`, 14) +
-                padKo(nextStr, 20) +
-                ownerName + bearMark + '\n';
-
-            if (s.news && s.news.length > 0) {
-                companyTable += `  📰 ${s.news[0]}\n`;
-            }
-
-            companyTable += '─'.repeat(62) + '\n';
+        const totalPages = Math.ceil(stocks.length / PER_PAGE);
+        const pages = [];
+        for (let i = 0; i < totalPages; i++) {
+            const slice = stocks.slice(i * PER_PAGE, (i + 1) * PER_PAGE);
+            pages.push(await buildPageText(slice));
         }
 
-        return interaction.editReply({
-            content:
-`🏢 현재 상장 회사 목록
+        const pageId = interaction.id;
+        stockPages.set(pageId, { pages, page: 0 });
+        setTimeout(() => stockPages.delete(pageId), 10 * 60 * 1000);
 
-\`\`\`
-${companyTable}
-\`\`\``
+        const buildRow = (page) => new ActionRowBuilder().addComponents(
+            new ButtonBuilder()
+                .setCustomId(`stock_prev_${pageId}`)
+                .setLabel('◀')
+                .setStyle(ButtonStyle.Secondary)
+                .setDisabled(page === 0),
+            new ButtonBuilder()
+                .setCustomId(`stock_next_${pageId}`)
+                .setLabel('▶')
+                .setStyle(ButtonStyle.Secondary)
+                .setDisabled(page >= totalPages - 1)
+        );
+
+        return interaction.editReply({
+            content: `🏢 상장 회사 목록 (1/${totalPages}페이지 · 전체 ${stocks.length}개)\n\`\`\`\n${pages[0]}\`\`\``,
+            components: totalPages > 1 ? [buildRow(0)] : []
         });
     }
 
@@ -2897,7 +2967,6 @@ ${text}
         if (amount > 500000) return interaction.editReply('❌ 최대 대출 한도는 500,000원입니다.');
 
         const repayAmount = Math.floor(amount * 1.1);
-        // ★ 변경: 상환 기간 24시간 → 3일
         const dueAt = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000);
 
         user.money += amount;
@@ -2934,7 +3003,6 @@ ${text}
         );
     }
 
-    // ★ 변경: 파산신청 커맨드
     if (interaction.commandName === '파산신청') {
         await interaction.deferReply({ flags: 64 });
 
@@ -2953,7 +3021,6 @@ ${text}
             );
         }
 
-        // 파산 처리: 보유 회사 모두 삭제, 빚 탕감
         const debt = user.minusBalance || 0;
         const myStocks = await Stock.find({
             owner: interaction.user.id,
@@ -2976,7 +3043,7 @@ ${text}
         user.isBankrupt = false;
         user.bankruptBanUntil = null;
         user.minusBalance = 0;
-        user.money = 1000; // 파산 후 기초 지원금 1,000원
+        user.money = 1000;
         await user.save();
 
         const companiesMsg = deletedCompanies.length > 0
