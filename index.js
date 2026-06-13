@@ -1003,6 +1003,36 @@ setInterval(async () => {
     }
 }, 60 * 60 * 1000);
 
+// =========================
+// 마이너스 통장 자동 해제 (10분마다 체크)
+// =========================
+setInterval(async () => {
+    const bankruptUsers = await Money.find({ isBankrupt: true });
+    for (const user of bankruptUsers) {
+        // 거래정지 기간이 끝났고, 빚을 갚을 돈이 충분한 경우 자동 해제
+        const banLifted = !user.bankruptBanUntil || user.bankruptBanUntil <= new Date();
+        if (banLifted && user.money >= user.minusBalance) {
+            const repaid = user.minusBalance;
+            user.money -= repaid;
+            user.minusBalance = 0;
+            user.isBankrupt = false;
+            user.bankruptBanUntil = null;
+            await user.save();
+            console.log(`[마이너스통장] ${user.userId} 잔액 충분으로 자동 해제 (빚 ${repaid}원 징수)`);
+
+            try {
+                const discordUser = await client.users.fetch(user.userId);
+                await discordUser.send(
+                    `✅ **마이너스 통장 자동 해제**\n\n` +
+                    `보유 잔액으로 빚 ${formatMoney(repaid)}이 자동 상환되었습니다.\n` +
+                    `💰 현재 잔액: ${formatMoney(user.money)}\n\n` +
+                    `이제 정상적으로 거래할 수 있습니다!`
+                );
+            } catch { }
+        }
+    }
+}, 10 * 60 * 1000);
+
 
 // =========================
 // interactionCreate
