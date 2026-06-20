@@ -37,7 +37,50 @@
   /* ── header ── */
   header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 28px; flex-wrap: wrap; gap: 16px; }
   .brand { display: flex; align-items: center; gap: 14px; }
-  .brand-icon { width: 46px; height: 46px; border-radius: 12px; background: linear-gradient(155deg, var(--gold), #c99a1e); display: flex; align-items: center; justify-content: center; font-size: 22px; flex-shrink: 0; }
+
+  /* ── 프로필 아이콘 (업로드 가능) ── */
+  .brand-icon-wrap {
+    position: relative;
+    width: 46px;
+    height: 46px;
+    flex-shrink: 0;
+    cursor: default;
+  }
+  .brand-icon {
+    width: 46px;
+    height: 46px;
+    border-radius: 12px;
+    background: linear-gradient(155deg, var(--gold), #c99a1e);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 22px;
+    overflow: hidden;
+    transition: filter 0.15s;
+  }
+  .brand-icon img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    border-radius: 12px;
+  }
+  /* 편집 모드일 때만 오버레이 보임 */
+  .brand-icon-overlay {
+    position: absolute;
+    inset: 0;
+    border-radius: 12px;
+    background: rgba(0,0,0,0.55);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+    pointer-events: none;
+  }
+  .brand-icon-wrap.editable { cursor: pointer; }
+  .brand-icon-wrap.editable .brand-icon-overlay { display: flex; }
+  .brand-icon-wrap.editable:hover .brand-icon { filter: brightness(0.7); }
+  #profileFileInput { display: none; }
+
   .brand-name { font-size: 22px; font-weight: 600; letter-spacing: -0.01em; outline: none; border-radius: 6px; padding: 2px 6px; margin-left: -6px; }
   .brand-name[contenteditable="true"] { cursor: text; }
   .brand-name[contenteditable="true"]:hover { background: rgba(255,255,255,0.04); }
@@ -64,14 +107,93 @@
   .tick.up { color: var(--green); }
   .tick.down { color: var(--red); }
 
-  /* ── editable boxes ── */
-  .box-label { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+  /* ── 마크다운 툴바 ── */
+  .editor-wrap { margin-bottom: 28px; }
+  .box-label { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; flex-wrap: wrap; gap: 8px; }
   .box-label-text { font-family: var(--mono); font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--gold); }
   .save-status { font-family: var(--mono); font-size: 11px; color: var(--text-faint); }
-  .box { background: var(--card); border: 1px solid var(--card-border); border-radius: 16px; padding: 28px; margin-bottom: 28px; min-height: 160px; }
+
+  .md-toolbar {
+    display: none;
+    align-items: center;
+    gap: 3px;
+    flex-wrap: wrap;
+    background: #0d0f13;
+    border: 1px solid var(--card-border);
+    border-bottom: none;
+    border-radius: 10px 10px 0 0;
+    padding: 7px 10px;
+  }
+  .md-toolbar.show { display: flex; }
+  .md-btn {
+    background: transparent;
+    border: 1px solid transparent;
+    color: var(--text-dim);
+    font-size: 13px;
+    font-family: var(--mono);
+    padding: 4px 8px;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: background 0.12s, color 0.12s, border-color 0.12s;
+    line-height: 1;
+    white-space: nowrap;
+  }
+  .md-btn:hover { background: rgba(245,197,66,0.08); border-color: var(--gold-dim); color: var(--gold); }
+  .md-btn[title] { position: relative; }
+  .md-sep { width: 1px; height: 18px; background: var(--card-border); margin: 0 3px; }
+
+  /* 툴바가 있을 때 box 위쪽 라운드 제거 */
+  .editor-wrap.toolbar-active .box {
+    border-radius: 0 0 16px 16px;
+    border-top: none;
+  }
+
+  .box { background: var(--card); border: 1px solid var(--card-border); border-radius: 16px; padding: 28px; min-height: 160px; }
   .box-content { font-size: 15px; line-height: 1.75; color: var(--text); outline: none; white-space: pre-wrap; border-radius: 8px; min-height: 80px; display: block; width: 100%; }
   .box-content:empty::before { content: attr(data-placeholder); color: var(--text-faint); }
   .box-content[contenteditable="true"]:focus { box-shadow: 0 0 0 1px rgba(245,197,66,0.3); background: rgba(255,255,255,0.015); padding: 4px; margin: -4px; }
+
+  /* 디스코드 마크다운 렌더 (프리뷰용) */
+  .box-content b, .box-content strong { font-weight: 700; color: var(--text); }
+  .box-content i, .box-content em { font-style: italic; }
+  .box-content u { text-decoration: underline; }
+  .box-content s, .box-content del { text-decoration: line-through; color: var(--text-dim); }
+  .box-content code { background: rgba(0,0,0,0.3); border-radius: 4px; padding: 1px 5px; font-family: var(--mono); font-size: 13px; color: #e06c75; }
+  .box-content .spoiler {
+    background: #2d2d2d;
+    color: #2d2d2d;
+    border-radius: 3px;
+    padding: 0 4px;
+    cursor: pointer;
+    transition: color 0.15s;
+    user-select: none;
+  }
+  .box-content .spoiler:hover, .box-content .spoiler.revealed { color: var(--text); }
+  .box-content blockquote { border-left: 4px solid var(--gold-dim); padding-left: 12px; margin: 4px 0; color: var(--text-dim); }
+  .box-content h1 { font-size: 26px; font-weight: 800; border-bottom: 1px solid var(--card-border); padding-bottom: 4px; margin-bottom: 4px; }
+  .box-content h2 { font-size: 20px; font-weight: 700; border-bottom: 1px solid var(--card-border); padding-bottom: 4px; margin-bottom: 4px; }
+  .box-content h3 { font-size: 16px; font-weight: 600; margin-bottom: 2px; }
+  .box-content .small-text { font-size: 11px; color: var(--text-faint); }
+
+  /* 미리보기 토글 */
+  .preview-toggle { font-family: var(--mono); font-size: 11px; color: var(--text-faint); cursor: pointer; padding: 3px 8px; border-radius: 6px; border: 1px solid transparent; transition: all 0.12s; white-space: nowrap; }
+  .preview-toggle:hover { border-color: var(--card-border); color: var(--text-dim); }
+  .preview-toggle.active { border-color: var(--gold-dim); color: var(--gold); background: rgba(245,197,66,0.06); }
+
+  /* 미리보기 영역 */
+  .preview-box {
+    display: none;
+    background: var(--card);
+    border: 1px solid var(--card-border);
+    border-radius: 0 0 16px 16px;
+    border-top: none;
+    padding: 28px;
+    min-height: 120px;
+    font-size: 15px;
+    line-height: 1.75;
+    color: var(--text);
+  }
+  .preview-box.show { display: block; }
 
   /* ── 초대주소 input ── */
   .invite-box { background: var(--card); border: 1px solid var(--card-border); border-radius: 16px; padding: 20px 28px; margin-bottom: 28px; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
@@ -112,12 +234,33 @@
   .modal-actions button { flex: 1; padding: 11px; border-radius: 10px; border: 1px solid var(--card-border); background: transparent; color: var(--text-dim); font-size: 13.5px; font-family: var(--sans); cursor: pointer; }
   .modal-actions button.confirm { background: var(--gold); border-color: var(--gold); color: #2b2305; font-weight: 600; }
 
+  /* ── 툴팁 ── */
+  [data-tip] { position: relative; }
+  [data-tip]:hover::after {
+    content: attr(data-tip);
+    position: absolute;
+    bottom: calc(100% + 6px);
+    left: 50%;
+    transform: translateX(-50%);
+    background: #1e2128;
+    border: 1px solid var(--card-border);
+    color: var(--text-dim);
+    font-size: 11px;
+    font-family: var(--sans);
+    padding: 4px 8px;
+    border-radius: 6px;
+    white-space: nowrap;
+    pointer-events: none;
+    z-index: 10;
+  }
+
   @media (max-width: 560px) {
     .nav-row { grid-template-columns: 1fr; }
     .wrap { padding: 36px 16px 60px; }
     .box { padding: 20px; }
     .cmd-item { flex-direction: column; gap: 4px; }
     .cmd-name { min-width: unset; }
+    .md-btn { font-size: 12px; padding: 3px 6px; }
   }
 </style>
 </head>
@@ -130,7 +273,14 @@
 <div class="wrap">
   <header>
     <div class="brand">
-      <div class="brand-icon">🐝</div>
+      <!-- 프로필 아이콘 (편집 모드에서 클릭 가능) -->
+      <div class="brand-icon-wrap" id="profileIconWrap" title="">
+        <div class="brand-icon" id="brandIcon">
+          <span id="brandIconEmoji">🐝</span>
+        </div>
+        <div class="brand-icon-overlay">📷</div>
+      </div>
+      <input type="file" id="profileFileInput" accept="image/*">
       <div><div class="brand-name" id="botName" spellcheck="false">양봉이</div></div>
     </div>
     <div class="header-right">
@@ -142,12 +292,38 @@
   <div class="ticker-label">봇의 주식현황</div>
   <div class="ticker-outer"><div class="ticker-track" id="ticker">불러오는 중...</div></div>
 
-  <div class="box-label">
-    <span class="box-label-text">봇 설명</span>
-    <span class="save-status" id="saveStatus"></span>
-  </div>
-  <div class="box">
-    <div class="box-content" id="botDescription" spellcheck="false" data-placeholder="여기에 봇 설명을 입력하세요."></div>
+  <!-- 봇 설명 에디터 -->
+  <div class="editor-wrap" id="botDescWrap">
+    <div class="box-label">
+      <span class="box-label-text">봇 설명</span>
+      <div style="display:flex;align-items:center;gap:8px;">
+        <span class="save-status" id="saveStatus"></span>
+        <span class="preview-toggle" id="botDescPreviewToggle" style="display:none;">미리보기</span>
+      </div>
+    </div>
+    <!-- 마크다운 툴바 -->
+    <div class="md-toolbar" id="botDescToolbar">
+      <button class="md-btn" data-tip="굵게 (Ctrl+B)" onclick="applyMd('botDescription','**','**')"><b>B</b></button>
+      <button class="md-btn" data-tip="기울기 (Ctrl+I)" onclick="applyMd('botDescription','*','*')"><i>I</i></button>
+      <button class="md-btn" data-tip="밑줄" onclick="applyMd('botDescription','__','__')"><u>U</u></button>
+      <button class="md-btn" data-tip="취소선" onclick="applyMd('botDescription','~~','~~')"><s>S</s></button>
+      <div class="md-sep"></div>
+      <button class="md-btn" data-tip="인라인 코드" onclick="applyMd('botDescription','`','`')">`코드`</button>
+      <button class="md-btn" data-tip="코드 블록" onclick="applyMdBlock('botDescription'))">```블록```</button>
+      <div class="md-sep"></div>
+      <button class="md-btn" data-tip="인용문" onclick="applyMdLine('botDescription','> ')">❝ 인용</button>
+      <button class="md-btn" data-tip="큰 제목 (# 제목)" onclick="applyMdLine('botDescription','# ')" style="font-size:15px;font-weight:800;">H1</button>
+      <button class="md-btn" data-tip="중간 제목 (## 제목)" onclick="applyMdLine('botDescription','## ')" style="font-size:13px;font-weight:700;">H2</button>
+      <button class="md-btn" data-tip="작은 제목 (### 제목)" onclick="applyMdLine('botDescription','### ')" style="font-size:11px;font-weight:600;">H3</button>
+      <button class="md-btn" data-tip="작은 텍스트 (-# 텍스트)" onclick="applyMdLine('botDescription','-# ')" style="font-size:10px;">-# 소</button>
+      <div class="md-sep"></div>
+      <button class="md-btn" data-tip="스포일러" onclick="applyMd('botDescription','||','||')">||스포||</button>
+      <button class="md-btn" data-tip="줄바꿈 삽입" onclick="insertNewline('botDescription')">↵</button>
+    </div>
+    <div class="box" id="botDescBox">
+      <div class="box-content" id="botDescription" spellcheck="false" data-placeholder="여기에 봇 설명을 입력하세요."></div>
+    </div>
+    <div class="preview-box" id="botDescPreview"></div>
   </div>
 
   <div class="nav-row">
@@ -159,11 +335,37 @@
     </button>
   </div>
 
-  <div class="box-label">
-    <span class="box-label-text">서버 설명</span>
-  </div>
-  <div class="box">
-    <div class="box-content" id="serverDescription" spellcheck="false" data-placeholder="여기에 서버 설명을 입력하세요."></div>
+  <!-- 서버 설명 에디터 -->
+  <div class="editor-wrap" id="serverDescWrap">
+    <div class="box-label">
+      <span class="box-label-text">서버 설명</span>
+      <div style="display:flex;align-items:center;gap:8px;">
+        <span class="preview-toggle" id="serverDescPreviewToggle" style="display:none;">미리보기</span>
+      </div>
+    </div>
+    <!-- 마크다운 툴바 -->
+    <div class="md-toolbar" id="serverDescToolbar">
+      <button class="md-btn" data-tip="굵게 (Ctrl+B)" onclick="applyMd('serverDescription','**','**')"><b>B</b></button>
+      <button class="md-btn" data-tip="기울기 (Ctrl+I)" onclick="applyMd('serverDescription','*','*')"><i>I</i></button>
+      <button class="md-btn" data-tip="밑줄" onclick="applyMd('serverDescription','__','__')"><u>U</u></button>
+      <button class="md-btn" data-tip="취소선" onclick="applyMd('serverDescription','~~','~~')"><s>S</s></button>
+      <div class="md-sep"></div>
+      <button class="md-btn" data-tip="인라인 코드" onclick="applyMd('serverDescription','`','`')">`코드`</button>
+      <button class="md-btn" data-tip="코드 블록" onclick="applyMdBlock('serverDescription')">```블록```</button>
+      <div class="md-sep"></div>
+      <button class="md-btn" data-tip="인용문" onclick="applyMdLine('serverDescription','> ')">❝ 인용</button>
+      <button class="md-btn" data-tip="큰 제목 (# 제목)" onclick="applyMdLine('serverDescription','# ')" style="font-size:15px;font-weight:800;">H1</button>
+      <button class="md-btn" data-tip="중간 제목 (## 제목)" onclick="applyMdLine('serverDescription','## ')" style="font-size:13px;font-weight:700;">H2</button>
+      <button class="md-btn" data-tip="작은 제목 (### 제목)" onclick="applyMdLine('serverDescription','### ')" style="font-size:11px;font-weight:600;">H3</button>
+      <button class="md-btn" data-tip="작은 텍스트 (-# 텍스트)" onclick="applyMdLine('serverDescription','-# ')" style="font-size:10px;">-# 소</button>
+      <div class="md-sep"></div>
+      <button class="md-btn" data-tip="스포일러" onclick="applyMd('serverDescription','||','||')">||스포||</button>
+      <button class="md-btn" data-tip="줄바꿈 삽입" onclick="insertNewline('serverDescription')">↵</button>
+    </div>
+    <div class="box" id="serverDescBox">
+      <div class="box-content" id="serverDescription" spellcheck="false" data-placeholder="여기에 서버 설명을 입력하세요."></div>
+    </div>
+    <div class="preview-box" id="serverDescPreview"></div>
   </div>
 
   <footer id="footerHint">양봉이 봇</footer>
@@ -179,7 +381,11 @@
 
   <header>
     <div class="brand">
-      <div class="brand-icon">🐝</div>
+      <div class="brand-icon-wrap">
+        <div class="brand-icon" id="cmdPageIcon">
+          <span id="cmdPageIconInner">🐝</span>
+        </div>
+      </div>
       <div><div class="brand-name">양봉이 명령어 목록</div></div>
     </div>
   </header>
@@ -288,7 +494,11 @@
 
   <header>
     <div class="brand">
-      <div class="brand-icon">🐝</div>
+      <div class="brand-icon-wrap">
+        <div class="brand-icon" id="invitePageIcon">
+          <span id="invitePageIconInner">🐝</span>
+        </div>
+      </div>
       <div><div class="brand-name">서버 초대 주소</div></div>
     </div>
     <div class="header-right">
@@ -340,6 +550,7 @@
 // ════════════════════════════
 let adminPassword = null;
 let isEditing = false;
+let profileImageData = null; // base64 저장
 
 const $ = id => document.getElementById(id);
 
@@ -360,6 +571,42 @@ $('inviteBtn').addEventListener('click', () => {
   syncInviteAdminState();
 });
 $('backFromInvite').addEventListener('click', () => showPage('page-main'));
+
+// ════════════════════════════
+// 프로필 이미지 업로드
+// ════════════════════════════
+function applyProfileImage(dataUrl) {
+  profileImageData = dataUrl;
+
+  // 모든 페이지의 아이콘 동기화
+  ['brandIcon','cmdPageIcon','invitePageIcon'].forEach(id => {
+    const el = $(id);
+    if (!el) return;
+    const existing = el.querySelector('img');
+    if (existing) existing.remove();
+    const span = el.querySelector('span');
+    if (span) span.style.display = 'none';
+    const img = document.createElement('img');
+    img.src = dataUrl;
+    el.appendChild(img);
+  });
+}
+
+$('profileIconWrap').addEventListener('click', () => {
+  if (!isEditing) return;
+  $('profileFileInput').click();
+});
+
+$('profileFileInput').addEventListener('change', (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = (ev) => {
+    applyProfileImage(ev.target.result);
+  };
+  reader.readAsDataURL(file);
+  e.target.value = '';
+});
 
 // ════════════════════════════
 // 주식 티커 — 실제 DB 연동
@@ -389,7 +636,6 @@ async function loadTicker() {
 
     $('ticker').innerHTML = items;
   } catch {
-    // 로드 실패 시 더미 유지
     const dummy = [
       { name: '꽁치그룹', price: 12400, dir: 'up', pct: '+3.2%' },
       { name: '고굼박홀딩스', price: 8950, dir: 'down', pct: '-1.1%' },
@@ -406,7 +652,7 @@ async function loadTicker() {
 }
 
 loadTicker();
-setInterval(loadTicker, 60000); // 1분마다 갱신
+setInterval(loadTicker, 60000);
 
 // ════════════════════════════
 // 콘텐츠 로드
@@ -421,6 +667,7 @@ async function loadContent() {
     $('serverDescription').textContent = data.serverDescription || '';
     $('inviteUrlInput').value       = data.inviteUrl      || '';
     $('inviteEditInput').value      = data.inviteUrl      || '';
+    if (data.profileImage) applyProfileImage(data.profileImage);
   } catch {
     $('footerHint').textContent = '⚠ 서버 연결 실패 — 기본 내용으로 표시 중입니다';
   }
@@ -441,6 +688,35 @@ function setEditable(on) {
   $('footerHint').textContent = on
     ? '편집 중입니다. 수정 후 "저장하고 종료"를 눌러주세요'
     : '양봉이 봇';
+
+  // 프로필 아이콘 편집 가능 여부
+  const wrap = $('profileIconWrap');
+  if (on) {
+    wrap.classList.add('editable');
+    wrap.title = '클릭하여 프로필 이미지 변경';
+  } else {
+    wrap.classList.remove('editable');
+    wrap.title = '';
+  }
+
+  // 마크다운 툴바 & 미리보기 토글 표시
+  $('botDescToolbar').classList.toggle('show', on);
+  $('serverDescToolbar').classList.toggle('show', on);
+  $('botDescWrap').classList.toggle('toolbar-active', on);
+  $('serverDescWrap').classList.toggle('toolbar-active', on);
+  $('botDescPreviewToggle').style.display = on ? 'inline-block' : 'none';
+  $('serverDescPreviewToggle').style.display = on ? 'inline-block' : 'none';
+
+  // 편집 종료 시 미리보기도 닫기
+  if (!on) {
+    $('botDescPreview').classList.remove('show');
+    $('serverDescPreview').classList.remove('show');
+    $('botDescPreviewToggle').classList.remove('active');
+    $('serverDescPreviewToggle').classList.remove('active');
+    $('botDescBox').style.display = 'block';
+    $('serverDescBox').style.display = 'block';
+  }
+
   syncInviteAdminState();
 }
 
@@ -460,6 +736,209 @@ $('editToggleBtn').addEventListener('click', async () => {
 });
 
 // ════════════════════════════
+// 미리보기 토글
+// ════════════════════════════
+function setupPreviewToggle(toggleId, editorId, previewId, boxId) {
+  $(toggleId).addEventListener('click', () => {
+    const toggle = $(toggleId);
+    const preview = $(previewId);
+    const box = $(boxId);
+    const isActive = toggle.classList.toggle('active');
+
+    if (isActive) {
+      const raw = $(editorId).textContent;
+      preview.innerHTML = renderDiscordMarkdown(raw);
+      preview.classList.add('show');
+      box.style.display = 'none';
+      // 스포일러 클릭 이벤트
+      preview.querySelectorAll('.spoiler').forEach(sp => {
+        sp.addEventListener('click', () => sp.classList.toggle('revealed'));
+      });
+    } else {
+      preview.classList.remove('show');
+      box.style.display = 'block';
+    }
+  });
+}
+
+setupPreviewToggle('botDescPreviewToggle', 'botDescription', 'botDescPreview', 'botDescBox');
+setupPreviewToggle('serverDescPreviewToggle', 'serverDescription', 'serverDescPreview', 'serverDescBox');
+
+// ════════════════════════════
+// 디스코드 마크다운 렌더러
+// ════════════════════════════
+function renderDiscordMarkdown(text) {
+  if (!text) return '';
+
+  // HTML 이스케이프 먼저
+  let html = text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+
+  // 코드 블록 (```...```) — 줄바꿈 포함
+  html = html.replace(/```([\s\S]*?)```/g, (_, code) =>
+    `<pre style="background:rgba(0,0,0,0.3);border-radius:6px;padding:10px 14px;font-family:var(--mono);font-size:13px;color:#abb2bf;overflow-x:auto;margin:4px 0;">${code.trim()}</pre>`
+  );
+
+  // 인라인 코드
+  html = html.replace(/`([^`]+)`/g, '<code>$1</code>');
+
+  // 스포일러
+  html = html.replace(/\|\|([^|]+)\|\|/g, '<span class="spoiler">$1</span>');
+
+  // 제목 (줄 시작) — ### 먼저, 그 다음 ##, #
+  html = html.replace(/^-# (.+)$/gm, '<span class="small-text">$1</span>');
+  html = html.replace(/^### (.+)$/gm, '<h3>$1</h3>');
+  html = html.replace(/^## (.+)$/gm, '<h2>$1</h2>');
+  html = html.replace(/^# (.+)$/gm, '<h1>$1</h1>');
+
+  // 인용문
+  html = html.replace(/^&gt; (.+)$/gm, '<blockquote>$1</blockquote>');
+
+  // 굵게 기울기 (***...*** or ___...___) - 순서 중요
+  html = html.replace(/\*\*\*([^*]+)\*\*\*/g, '<b><i>$1</i></b>');
+  html = html.replace(/___([^_]+)___/g, '<b><i>$1</i></b>');
+
+  // 굵게
+  html = html.replace(/\*\*([^*]+)\*\*/g, '<b>$1</b>');
+  html = html.replace(/__([^_]+)__/g, '<u>$1</u>');  // 디스코드에서 __는 밑줄
+
+  // 기울기
+  html = html.replace(/\*([^*\n]+)\*/g, '<i>$1</i>');
+  html = html.replace(/_([^_\n]+)_/g, '<i>$1</i>');
+
+  // 취소선
+  html = html.replace(/~~([^~]+)~~/g, '<s>$1</s>');
+
+  // 줄바꿈
+  html = html.replace(/\n/g, '<br>');
+
+  return html;
+}
+
+// ════════════════════════════
+// 마크다운 삽입 헬퍼
+// ════════════════════════════
+
+// 선택된 텍스트를 prefix/suffix로 감싸기
+function applyMd(targetId, prefix, suffix) {
+  const el = $(targetId);
+  el.focus();
+  const sel = window.getSelection();
+  if (!sel || sel.rangeCount === 0) return;
+
+  const range = sel.getRangeAt(0);
+  const selectedText = range.toString();
+
+  // 이미 감싸져 있으면 제거
+  if (selectedText.startsWith(prefix.replace(/\*/g,'\\*')) || selectedText) {
+    const newText = selectedText
+      ? `${prefix}${selectedText}${suffix}`
+      : `${prefix}텍스트${suffix}`;
+
+    range.deleteContents();
+    const textNode = document.createTextNode(newText);
+    range.insertNode(textNode);
+
+    // 삽입 후 커서 위치 조정
+    const newRange = document.createRange();
+    if (selectedText) {
+      newRange.setStartAfter(textNode);
+      newRange.collapse(true);
+    } else {
+      // 빈 선택이면 "텍스트" 부분 선택
+      newRange.setStart(textNode, prefix.length);
+      newRange.setEnd(textNode, prefix.length + 3);
+    }
+    sel.removeAllRanges();
+    sel.addRange(newRange);
+  }
+}
+
+// 줄 시작에 prefix 추가
+function applyMdLine(targetId, prefix) {
+  const el = $(targetId);
+  el.focus();
+  const sel = window.getSelection();
+  if (!sel || sel.rangeCount === 0) return;
+
+  const range = sel.getRangeAt(0);
+  const node = range.startContainer;
+
+  if (node.nodeType === Node.TEXT_NODE) {
+    const text = node.textContent;
+    const offset = range.startOffset;
+    // 현재 줄의 시작 찾기
+    let lineStart = offset;
+    while (lineStart > 0 && text[lineStart - 1] !== '\n') lineStart--;
+    const before = text.slice(0, lineStart);
+    const after = text.slice(lineStart);
+    node.textContent = before + prefix + after;
+    const newRange = document.createRange();
+    newRange.setStart(node, lineStart + prefix.length);
+    newRange.collapse(true);
+    sel.removeAllRanges();
+    sel.addRange(newRange);
+  } else {
+    // 간단하게 앞에 삽입
+    range.collapse(true);
+    const textNode = document.createTextNode(prefix + '내용');
+    range.insertNode(textNode);
+    const newRange = document.createRange();
+    newRange.setStart(textNode, prefix.length);
+    newRange.setEnd(textNode, prefix.length + 2);
+    sel.removeAllRanges();
+    sel.addRange(newRange);
+  }
+}
+
+// 코드 블록 삽입
+function applyMdBlock(targetId) {
+  const el = $(targetId);
+  el.focus();
+  const sel = window.getSelection();
+  if (!sel || sel.rangeCount === 0) return;
+  const range = sel.getRangeAt(0);
+  const selectedText = range.toString() || '코드';
+  const newText = '```\n' + selectedText + '\n```';
+  range.deleteContents();
+  const textNode = document.createTextNode(newText);
+  range.insertNode(textNode);
+  const newRange = document.createRange();
+  newRange.setStart(textNode, 4);
+  newRange.setEnd(textNode, 4 + selectedText.length);
+  sel.removeAllRanges();
+  sel.addRange(newRange);
+}
+
+// 줄바꿈 삽입
+function insertNewline(targetId) {
+  const el = $(targetId);
+  el.focus();
+  document.execCommand('insertText', false, '\n');
+}
+
+// Ctrl+B / Ctrl+I 단축키
+['botDescription','serverDescription'].forEach(id => {
+  $(id).addEventListener('keydown', (e) => {
+    if (!isEditing) return;
+    if (e.ctrlKey || e.metaKey) {
+      if (e.key === 'b' || e.key === 'B') {
+        e.preventDefault();
+        applyMd(id, '**', '**');
+      } else if (e.key === 'i' || e.key === 'I') {
+        e.preventDefault();
+        applyMd(id, '*', '*');
+      } else if (e.key === 'u' || e.key === 'U') {
+        e.preventDefault();
+        applyMd(id, '__', '__');
+      }
+    }
+  });
+});
+
+// ════════════════════════════
 // 초대 링크 복사
 // ════════════════════════════
 $('inviteCopyBtn').addEventListener('click', () => {
@@ -471,7 +950,6 @@ $('inviteCopyBtn').addEventListener('click', () => {
   });
 });
 
-// 초대 링크 저장
 $('inviteSaveBtn').addEventListener('click', async () => {
   const newUrl = $('inviteEditInput').value.trim();
   $('inviteUrlInput').value = newUrl;
@@ -486,16 +964,20 @@ $('inviteSaveBtn').addEventListener('click', async () => {
 async function saveContent(extra = {}) {
   if (!adminPassword) return;
   try {
+    const body = {
+      password: adminPassword,
+      botName: $('botName').textContent,
+      botDescription: $('botDescription').textContent,
+      serverDescription: $('serverDescription').textContent,
+      inviteUrl: extra.inviteUrl ?? $('inviteUrlInput').value,
+    };
+    // 프로필 이미지가 있으면 포함
+    if (profileImageData) body.profileImage = profileImageData;
+
     const res = await fetch('/api/content', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        password: adminPassword,
-        botName: $('botName').textContent,
-        botDescription: $('botDescription').textContent,
-        serverDescription: $('serverDescription').textContent,
-        inviteUrl: extra.inviteUrl ?? $('inviteUrlInput').value,
-      })
+      body: JSON.stringify(body)
     });
     if (res.status === 401) {
       adminPassword = null;
