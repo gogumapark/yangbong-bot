@@ -205,6 +205,110 @@ async function generateStockChart(stock) {
     return await chartRenderer.renderToBuffer(config);
 }
 
+// =====================
+// 유저 활동시간(프레즌스) 유틸
+// =====================
+
+function kstDateString(date = new Date()) {
+    return date.toLocaleDateString('sv-SE', { timeZone: 'Asia/Seoul' });
+}
+
+function normalizeStatus(status) {
+    if (status === 'online' || status === 'idle' || status === 'dnd') return status;
+    return 'offline';
+}
+
+// 현재 상태로 누적되던 시간을 history에 적립하고 새 상태로 전환
+async function applyPresenceTransition(presenceDoc, newStatus, now = new Date()) {
+    const oldStatus = normalizeStatus(presenceDoc.currentStatus);
+    const since = presenceDoc.statusSince ? new Date(presenceDoc.statusSince) : now;
+    const elapsedMs = Math.max(0, now - since);
+
+    if (elapsedMs > 0) {
+        const dateKey = kstDateString(now);
+        let entry = presenceDoc.history.find(h => h.date === dateKey);
+        if (!entry) {
+            entry = { date: dateKey, online: 0, idle: 0, dnd: 0, offline: 0 };
+            presenceDoc.history.push(entry);
+        }
+        entry[oldStatus] += elapsedMs;
+    }
+
+    presenceDoc.currentStatus = normalizeStatus(newStatus);
+    presenceDoc.statusSince = now;
+
+    // 7일치만 보관
+    presenceDoc.history = presenceDoc.history.slice(-7);
+    presenceDoc.markModified('history');
+}
+
+async function generatePresenceChart(presenceDoc, days = 3) {
+    const now = new Date();
+    const dateKeys = [];
+    for (let i = days - 1; i >= 0; i--) {
+        dateKeys.push(kstDateString(new Date(now.getTime() - i * 86400000)));
+    }
+
+    // history를 복사하고, 오늘 날짜는 진행중인 현재 상태 시간도 더해서 보여줌
+    const historyMap = new Map((presenceDoc.history || []).map(h => [h.date, { ...h }]));
+    const todayKey = kstDateString(now);
+    const liveElapsedMs = Math.max(0, now - new Date(presenceDoc.statusSince));
+    const liveStatus = normalizeStatus(presenceDoc.currentStatus);
+
+    if (liveElapsedMs > 0) {
+        const todayEntry = historyMap.get(todayKey) || { date: todayKey, online: 0, idle: 0, dnd: 0, offline: 0 };
+        todayEntry[liveStatus] = (todayEntry[liveStatus] || 0) + liveElapsedMs;
+        historyMap.set(todayKey, todayEntry);
+    }
+
+    const labels = dateKeys.map(d => d.slice(5)); // MM-DD
+    const buckets = { online: [], idle: [], dnd: [], offline: [] };
+
+    for (const key of dateKeys) {
+        const entry = historyMap.get(key) || { online: 0, idle: 0, dnd: 0, offline: 0 };
+        buckets.online.push(+(entry.online / 3600000).toFixed(2));
+        buckets.idle.push(+(entry.idle / 3600000).toFixed(2));
+        buckets.dnd.push(+(entry.dnd / 3600000).toFixed(2));
+        buckets.offline.push(+(entry.offline / 3600000).toFixed(2));
+    }
+
+    const config = {
+        type: 'bar',
+        data: {
+            labels,
+            datasets: [
+                { label: '🟢 온라인', data: buckets.online, backgroundColor: '#57f287' },
+                { label: '🌙 자리비움', data: buckets.idle, backgroundColor: '#fee75c' },
+                { label: '⛔ 다른용무중', data: buckets.dnd, backgroundColor: '#ed4245' },
+                { label: '⚫ 오프라인', data: buckets.offline, backgroundColor: '#80848e' }
+            ]
+        },
+        options: {
+            animation: false,
+            plugins: {
+                legend: { labels: { color: '#ffffff', font: { size: 13 } } }
+            },
+            scales: {
+                x: {
+                    stacked: true,
+                    ticks: { color: '#aaaaaa' },
+                    grid: { color: '#3a3a3a' }
+                },
+                y: {
+                    stacked: true,
+                    ticks: {
+                        color: '#aaaaaa',
+                        callback: (v) => v + 'h'
+                    },
+                    grid: { color: '#3a3a3a' }
+                }
+            }
+        }
+    };
+
+    return { buffer: await chartRenderer.renderToBuffer(config), buckets, labels };
+}
+
 const Groq = require("groq-sdk");
 
 const groq = new Groq({
@@ -234,6 +338,38 @@ const letterSchema = new mongoose.Schema({
 
 const Letter = mongoose.model('Letter', letterSchema);
 
+// ── 채팅 순위 ──
+const chatCountSchema = new mongoose.Schema({
+    userId: { type: String, unique: true },
+    count: { type: Number, default: 0 }
+});
+const ChatCount = mongoose.model('ChatCount', chatCountSchema);
+
+// ── 유저 활동시간(프레즌스) 기록 ──
+const presenceSchema = new mongoose.Schema({
+    userId: { type: String, unique: true },
+    currentStatus: { type: String, default: 'offline' },
+    statusSince: { type: Date, default: Date.now },
+    history: {
+        type: [{
+            date: String, // YYYY-MM-DD (KST)
+            online: { type: Number, default: 0 },
+            idle: { type: Number, default: 0 },
+            dnd: { type: Number, default: 0 },
+            offline: { type: Number, default: 0 }
+        }],
+        default: []
+    }
+});
+const Presence = mongoose.model('Presence', presenceSchema);
+
+// ── 역할선택 풀 (관리자가 /역할설정 으로 등록한 역할들) ──
+const selectableRoleSchema = new mongoose.Schema({
+    roleId: { type: String, unique: true },
+    roleName: String
+});
+const SelectableRole = mongoose.model('SelectableRole', selectableRoleSchema);
+
 const {
     Client,
     GatewayIntentBits,
@@ -255,7 +391,9 @@ const client = new Client({
     intents: [
         GatewayIntentBits.Guilds,
         GatewayIntentBits.GuildMessages,
-        GatewayIntentBits.MessageContent
+        GatewayIntentBits.MessageContent,
+        GatewayIntentBits.GuildMembers,
+        GatewayIntentBits.GuildPresences
     ]
 });
 
@@ -519,6 +657,38 @@ const commands = [
         .setDescription('마이너스 통장 상태에서 파산을 신청합니다. 보유 회사가 모두 삭제됩니다.'),
 
     new SlashCommandBuilder()
+        .setName('유저활동시간')
+        .setDescription('최근 3일간 유저의 온라인/자리비움/다른용무중/오프라인 시간을 차트로 확인합니다')
+        .addUserOption(option =>
+            option.setName('유저').setDescription('조회할 유저').setRequired(true)
+        ),
+
+    new SlashCommandBuilder()
+        .setName('채팅순위')
+        .setDescription('서버 채팅 개수 순위를 확인합니다'),
+
+    new SlashCommandBuilder()
+        .setName('마법의굼박고동님')
+        .setDescription('마법의 굼박고동님에게 질문을 던져보세요')
+        .addStringOption(option =>
+            option.setName('질문').setDescription('굼박고동님께 물어볼 질문').setRequired(true)
+        ),
+
+    new SlashCommandBuilder()
+        .setName('역할선택')
+        .setDescription('선택 가능한 역할을 토글합니다 (있으면 제거, 없으면 부여)')
+        .addRoleOption(option =>
+            option.setName('역할').setDescription('선택할 역할').setRequired(true)
+        ),
+
+    new SlashCommandBuilder()
+        .setName('역할설정')
+        .setDescription('[관리자] 역할선택에서 고를 수 있는 역할 풀에 추가/제거합니다')
+        .addRoleOption(option =>
+            option.setName('역할').setDescription('역할 풀에 추가/제거할 역할').setRequired(true)
+        ),
+
+    new SlashCommandBuilder()
         .setName('초기화')
         .setDescription('[관리자] 모든 플레이어 자금과 회사를 초기화합니다'),
 
@@ -536,8 +706,60 @@ const rest = new REST({ version: '10' }).setToken(token);
     }
 })();
 
-client.once('clientReady', () => {
+client.once('clientReady', async () => {
     console.log(`${client.user.tag} 로그인 완료!`);
+
+    // 활동시간 추적 초기화: 길드 멤버들의 현재 상태를 기준으로 시작
+    try {
+        const guild = await client.guilds.fetch(guildId);
+        const members = await guild.members.fetch();
+
+        for (const member of members.values()) {
+            if (member.user.bot) continue;
+
+            const status = normalizeStatus(member.presence?.status);
+            const existing = await Presence.findOne({ userId: member.id });
+
+            if (!existing) {
+                await Presence.create({
+                    userId: member.id,
+                    currentStatus: status,
+                    statusSince: new Date(),
+                    history: []
+                });
+            }
+        }
+
+        console.log('[활동시간] 초기 프레즌스 동기화 완료');
+    } catch (err) {
+        console.error('[활동시간] 초기화 실패 (Presence Intent가 비활성화되어 있을 수 있습니다):', err.message);
+    }
+});
+
+client.on('presenceUpdate', async (oldPresence, newPresence) => {
+    try {
+        if (!newPresence || !newPresence.userId) return;
+        if (newPresence.guild?.id && newPresence.guild.id !== guildId) return;
+
+        const member = newPresence.member;
+        if (member?.user?.bot) return;
+
+        const newStatus = normalizeStatus(newPresence.status);
+
+        let presenceDoc = await Presence.findOne({ userId: newPresence.userId });
+        if (!presenceDoc) {
+            presenceDoc = new Presence({ userId: newPresence.userId, currentStatus: newStatus, statusSince: new Date(), history: [] });
+            await presenceDoc.save();
+            return;
+        }
+
+        if (normalizeStatus(presenceDoc.currentStatus) === newStatus) return;
+
+        await applyPresenceTransition(presenceDoc, newStatus);
+        await presenceDoc.save();
+    } catch (err) {
+        console.error('[활동시간] presenceUpdate 처리 오류:', err);
+    }
 });
 
 function createBoard(gameId) {
@@ -1369,8 +1591,8 @@ client.on('interactionCreate', async interaction => {
 \`/도박 금액:\`
 돈을 걸고 도박합니다. 50%!! (10분 쿨타임)
 
-\`/마법의굼박고동 질문:\`
-마법의 굼박고동에게 질문을 던져보세요!
+\`/마법의굼박고동님 질문:\`
+마법의 굼박고동님에게 질문을 던져보세요!
 `);
                 }
 
@@ -1463,6 +1685,18 @@ client.on('interactionCreate', async interaction => {
 `);
                 }
 
+                if (value === 'role') {
+                    embed = new EmbedBuilder()
+                        .setTitle('🎭 역할 도움말').setColor('Purple')
+                        .setDescription(`
+\`/역할선택 역할:\`
+선택 가능한 역할을 토글합니다 (있으면 제거, 없으면 부여)
+
+\`/역할설정 역할:\`
+[관리자] 역할선택에서 고를 수 있는 역할 풀에 추가/제거합니다
+`);
+                }
+
                 if (value === 'manage') {
                     embed = new EmbedBuilder()
                         .setTitle('🛠 관리 도움말').setColor('Red')
@@ -1479,11 +1713,11 @@ ai의 성격혹은 말투, 등 을 설정합니다.
 \`/삭제로그\`
 삭제 메시지 확인
 
-\`/온라인차트 유저: 기간:\`
-유저의 온라인/자리비움/다른용무중/오프라인 시간을 차트로 확인합니다.
+\`/유저활동시간 유저:\`
+최근 3일간 유저의 온라인/자리비움/다른용무중/오프라인 시간을 차트로 확인합니다.
 
-\`/유저채팅갯수 채널: 유저:\`
-채널별, 유저별 채팅 개수를 확인합니다.
+\`/채팅순위\`
+서버 채팅 개수 순위를 확인합니다.
 
 \`/초기화\`
 [관리자] 전체 초기화
@@ -1593,6 +1827,7 @@ ai의 성격혹은 말투, 등 을 설정합니다.
                 { label: '💰 경제', description: '돈/주식 명령어', value: 'economy' },
                 { label: '🔫 범죄', description: '범죄 명령어', value: 'crime' },
                 { label: '📨 편지', description: '편지 기능', value: 'letter' },
+                { label: '🎭 역할', description: '역할 선택 기능', value: 'role' },
                 { label: '🛠 관리', description: '관리 명령어', value: 'manage' }
             );
 
@@ -3097,6 +3332,147 @@ ${text}
         );
     }
 
+    if (interaction.commandName === '유저활동시간') {
+        await interaction.deferReply();
+
+        const targetUser = interaction.options.getUser('유저');
+        const presenceDoc = await Presence.findOne({ userId: targetUser.id });
+
+        if (!presenceDoc) {
+            return interaction.editReply('❌ 아직 활동 기록이 없습니다.\n(Presence Intent가 비활성화되어 있거나, 아직 상태 변화 기록이 쌓이지 않았을 수 있습니다)');
+        }
+
+        try {
+            const { buffer, buckets } = await generatePresenceChart(presenceDoc, 3);
+            const attachment = new AttachmentBuilder(buffer, { name: 'presence_chart.png' });
+
+            const totalOnline = buckets.online.reduce((a, b) => a + b, 0);
+            const totalIdle = buckets.idle.reduce((a, b) => a + b, 0);
+            const totalDnd = buckets.dnd.reduce((a, b) => a + b, 0);
+            const totalOffline = buckets.offline.reduce((a, b) => a + b, 0);
+
+            const embed = new EmbedBuilder()
+                .setTitle(`📊 ${targetUser.username}님의 활동시간 (최근 3일)`)
+                .setColor('Blue')
+                .addFields(
+                    { name: '🟢 온라인', value: `${totalOnline.toFixed(1)}시간`, inline: true },
+                    { name: '🌙 자리비움', value: `${totalIdle.toFixed(1)}시간`, inline: true },
+                    { name: '⛔ 다른용무중', value: `${totalDnd.toFixed(1)}시간`, inline: true },
+                    { name: '⚫ 오프라인', value: `${totalOffline.toFixed(1)}시간`, inline: true }
+                )
+                .setImage('attachment://presence_chart.png')
+                .setFooter({ text: '날짜는 한국 시간(KST) 기준이며, 오늘 데이터는 진행 중인 상태도 포함됩니다' });
+
+            return interaction.editReply({ embeds: [embed], files: [attachment] });
+        } catch (err) {
+            console.error(err);
+            return interaction.editReply('❌ 차트 생성 오류');
+        }
+    }
+
+    if (interaction.commandName === '채팅순위') {
+        await interaction.deferReply();
+
+        const top = await ChatCount.find().sort({ count: -1 }).limit(10);
+
+        if (top.length === 0) {
+            return interaction.editReply('아직 채팅 기록이 없습니다.');
+        }
+
+        let text =
+            padKo('순위', 6) +
+            padKo('채팅수', 12) +
+            '유저\n' +
+            '─'.repeat(40) + '\n';
+
+        for (let i = 0; i < top.length; i++) {
+            let username = '알 수 없음';
+            try {
+                const discordUser = await client.users.fetch(top[i].userId);
+                username = discordUser.username;
+            } catch { }
+
+            text +=
+                padKo(String(i + 1), 6) +
+                padKo(top[i].count.toLocaleString('ko-KR') + '개', 12) +
+                username + '\n';
+        }
+
+        return interaction.editReply({
+            content:
+`💬 채팅 순위
+
+\`\`\`
+${text}
+\`\`\``
+        });
+    }
+
+    if (interaction.commandName === '마법의굼박고동님') {
+        const question = interaction.options.getString('질문');
+
+        const answers = [
+            '그래',
+            '아니',
+            '안돼',
+            '당연하지',
+            '그럴리가',
+            '다시한번물어봐',
+            '**안 돼**',
+            '기모찌찌',
+            'ㅋㅋ 빸큐!'
+        ];
+
+        const answer = answers[Math.floor(Math.random() * answers.length)];
+
+        return interaction.reply(`🐚 "마법의 굼박고동님, ${question}"\n\n${answer}`);
+    }
+
+    if (interaction.commandName === '역할선택') {
+        await interaction.deferReply({ flags: 64 });
+
+        const role = interaction.options.getRole('역할');
+
+        const allowed = await SelectableRole.findOne({ roleId: role.id });
+        if (!allowed) {
+            return interaction.editReply('❌ 선택할 수 없는 역할입니다.\n관리자가 `/역할설정` 으로 등록한 역할만 선택 가능합니다.');
+        }
+
+        try {
+            const member = await interaction.guild.members.fetch(interaction.user.id);
+
+            if (member.roles.cache.has(role.id)) {
+                await member.roles.remove(role.id);
+                return interaction.editReply(`🗑 <@&${role.id}> 역할을 제거했습니다.`);
+            } else {
+                await member.roles.add(role.id);
+                return interaction.editReply(`✅ <@&${role.id}> 역할을 부여했습니다.`);
+            }
+        } catch (err) {
+            console.error(err);
+            return interaction.editReply('❌ 역할 변경 실패 (봇의 역할 권한/순서를 확인해주세요)');
+        }
+    }
+
+    if (interaction.commandName === '역할설정') {
+        if (!interaction.member.permissions.has('Administrator')) {
+            return interaction.reply({ content: '❌ 관리자만 사용 가능', flags: 64 });
+        }
+
+        await interaction.deferReply({ flags: 64 });
+
+        const role = interaction.options.getRole('역할');
+        const existing = await SelectableRole.findOne({ roleId: role.id });
+
+        if (existing) {
+            await SelectableRole.deleteOne({ roleId: role.id });
+            return interaction.editReply(`🗑 <@&${role.id}> 역할을 역할선택 풀에서 제거했습니다.`);
+        } else {
+            await SelectableRole.create({ roleId: role.id, roleName: role.name });
+            return interaction.editReply(`✅ <@&${role.id}> 역할을 역할선택 풀에 추가했습니다.\n이제 \`/역할선택\` 으로 부여/해제할 수 있습니다.`);
+        }
+    }
+
     if (interaction.commandName === '초기화') {
         if (!interaction.member.permissions.has('Administrator')) {
             return interaction.reply({ content: '❌ 관리자만 사용 가능', flags: 64 });
@@ -3153,6 +3529,21 @@ process.on('unhandledRejection', error => {
 
 process.on('uncaughtException', error => {
     console.error('Uncaught exception:', error);
+});
+
+client.on('messageCreate', async message => {
+    if (message.author.bot) return;
+    if (!message.guild) return;
+
+    try {
+        await ChatCount.findOneAndUpdate(
+            { userId: message.author.id },
+            { $inc: { count: 1 } },
+            { upsert: true }
+        );
+    } catch (err) {
+        console.error('[채팅순위] 카운트 오류:', err);
+    }
 });
 
 client.on('messageCreate', async message => {
