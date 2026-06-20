@@ -21,11 +21,18 @@
   }
   * { margin: 0; padding: 0; box-sizing: border-box; }
   body {
-    background: var(--bg); color: var(--text); font-family: var(--sans);
+    background: #0e0e14; color: var(--text); font-family: var(--sans);
     min-height: 100vh; -webkit-font-smoothing: antialiased;
     background-image:
-      radial-gradient(circle at 15% 0%, rgba(245,197,66,0.05), transparent 40%),
-      radial-gradient(circle at 85% 100%, rgba(87,242,135,0.04), transparent 40%);
+      /* 도트 패턴 */
+      radial-gradient(circle, rgba(255,255,255,0.07) 1px, transparent 1px),
+      /* 보라 빛 왼쪽 상단 */
+      radial-gradient(ellipse at 15% 10%, rgba(120,60,180,0.45), transparent 55%),
+      /* 초록 빛 오른쪽 하단 */
+      radial-gradient(ellipse at 88% 88%, rgba(20,120,80,0.4), transparent 50%),
+      /* 전체 어두운 베이스 */
+      linear-gradient(135deg, #0d0b14 0%, #0b0f10 100%);
+    background-size: 22px 22px, 100% 100%, 100% 100%, 100% 100%;
   }
 
   /* ── 페이지 전환 ── */
