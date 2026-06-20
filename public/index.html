@@ -19,354 +19,69 @@
     --mono: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
     --sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Apple SD Gothic Neo', sans-serif;
   }
-
   * { margin: 0; padding: 0; box-sizing: border-box; }
-
   body {
-    background: var(--bg);
-    color: var(--text);
-    font-family: var(--sans);
-    min-height: 100vh;
-    -webkit-font-smoothing: antialiased;
+    background: var(--bg); color: var(--text); font-family: var(--sans);
+    min-height: 100vh; -webkit-font-smoothing: antialiased;
     background-image:
-      radial-gradient(circle at 15% 0%, rgba(245, 197, 66, 0.05), transparent 40%),
-      radial-gradient(circle at 85% 100%, rgba(87, 242, 135, 0.04), transparent 40%);
+      radial-gradient(circle at 15% 0%, rgba(245,197,66,0.05), transparent 40%),
+      radial-gradient(circle at 85% 100%, rgba(87,242,135,0.04), transparent 40%);
   }
-
-  .wrap {
-    max-width: 760px;
-    margin: 0 auto;
-    padding: 48px 24px 80px;
-  }
-
-  /* ── header ── */
-  header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    margin-bottom: 28px;
-    flex-wrap: wrap;
-    gap: 16px;
-  }
-
-  .brand {
-    display: flex;
-    align-items: center;
-    gap: 14px;
-  }
-
-  .brand-icon {
-    width: 46px;
-    height: 46px;
-    border-radius: 12px;
-    background: linear-gradient(155deg, var(--gold), #c99a1e);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 22px;
-    flex-shrink: 0;
-  }
-
-  .brand-name {
-    font-size: 22px;
-    font-weight: 600;
-    letter-spacing: -0.01em;
-    outline: none;
-    border-radius: 6px;
-    padding: 2px 6px;
-    margin-left: -6px;
-  }
-
-  .brand-name[contenteditable="true"] {
-    cursor: text;
-  }
-
+  .wrap { max-width: 760px; margin: 0 auto; padding: 48px 24px 80px; }
+  header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 28px; flex-wrap: wrap; gap: 16px; }
+  .brand { display: flex; align-items: center; gap: 14px; }
+  .brand-icon { width: 46px; height: 46px; border-radius: 12px; background: linear-gradient(155deg, var(--gold), #c99a1e); display: flex; align-items: center; justify-content: center; font-size: 22px; flex-shrink: 0; }
+  .brand-name { font-size: 22px; font-weight: 600; letter-spacing: -0.01em; outline: none; border-radius: 6px; padding: 2px 6px; margin-left: -6px; }
+  .brand-name[contenteditable="true"] { cursor: text; }
   .brand-name[contenteditable="true"]:hover { background: rgba(255,255,255,0.04); }
-  .brand-name[contenteditable="true"]:focus {
-    background: rgba(245, 197, 66, 0.08);
-    box-shadow: 0 0 0 1px rgba(245, 197, 66, 0.4);
-  }
-
-  .header-right {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-  }
-
-  .admin-badge {
-    font-family: var(--mono);
-    font-size: 11px;
-    color: var(--green);
-    background: rgba(87, 242, 135, 0.08);
-    border: 1px solid rgba(87, 242, 135, 0.25);
-    padding: 6px 12px;
-    border-radius: 999px;
-    display: none;
-    align-items: center;
-    gap: 6px;
-  }
-
+  .brand-name[contenteditable="true"]:focus { background: rgba(245,197,66,0.08); box-shadow: 0 0 0 1px rgba(245,197,66,0.4); }
+  .header-right { display: flex; align-items: center; gap: 8px; }
+  .admin-badge { font-family: var(--mono); font-size: 11px; color: var(--green); background: rgba(87,242,135,0.08); border: 1px solid rgba(87,242,135,0.25); padding: 6px 12px; border-radius: 999px; display: none; align-items: center; gap: 6px; }
   .admin-badge.show { display: flex; }
-
-  .header-btn {
-    background: var(--card);
-    border: 1px solid var(--card-border);
-    color: var(--text-dim);
-    font-family: var(--mono);
-    font-size: 12.5px;
-    padding: 9px 16px;
-    border-radius: 999px;
-    cursor: pointer;
-    transition: border-color 0.15s ease, color 0.15s ease;
-  }
-
-  .header-btn:hover {
-    border-color: var(--gold-dim);
-    color: var(--gold);
-  }
-
-  .header-btn.primary {
-    border-color: var(--gold-dim);
-    color: var(--gold);
-  }
-
-  /* ── ticker bar ── */
-  .ticker-label {
-    font-family: var(--mono);
-    font-size: 11px;
-    text-transform: uppercase;
-    letter-spacing: 0.08em;
-    color: var(--text-faint);
-    margin-bottom: 6px;
-  }
-
-  .ticker-outer {
-    border: 1px solid var(--card-border);
-    border-radius: 10px;
-    overflow: hidden;
-    margin-bottom: 32px;
-    background: #0d0f13;
-  }
-
-  .ticker-track {
-    display: flex;
-    white-space: nowrap;
-    padding: 13px 0;
-    width: max-content;
-    animation: scroll 26s linear infinite;
-    font-family: var(--mono);
-    font-size: 12.5px;
-  }
-
-  @keyframes scroll {
-    from { transform: translateX(0); }
-    to   { transform: translateX(-50%); }
-  }
-
+  .header-btn { background: var(--card); border: 1px solid var(--card-border); color: var(--text-dim); font-family: var(--mono); font-size: 12.5px; padding: 9px 16px; border-radius: 999px; cursor: pointer; transition: border-color 0.15s ease, color 0.15s ease; }
+  .header-btn:hover { border-color: var(--gold-dim); color: var(--gold); }
+  .header-btn.primary { border-color: var(--gold-dim); color: var(--gold); }
+  .ticker-label { font-family: var(--mono); font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-faint); margin-bottom: 6px; }
+  .ticker-outer { border: 1px solid var(--card-border); border-radius: 10px; overflow: hidden; margin-bottom: 32px; background: #0d0f13; }
+  .ticker-track { display: flex; white-space: nowrap; padding: 13px 0; width: max-content; animation: scroll 26s linear infinite; font-family: var(--mono); font-size: 12.5px; }
+  @keyframes scroll { from { transform: translateX(0); } to { transform: translateX(-50%); } }
   .tick { color: var(--text-dim); padding-left: 36px; }
   .tick:first-child { padding-left: 0; }
   .tick b { color: var(--text); font-weight: 500; }
   .tick.up { color: var(--green); }
   .tick.down { color: var(--red); }
-
-  /* ── editable boxes ── */
-  .box-label {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    margin-bottom: 8px;
-  }
-
-  .box-label-text {
-    font-family: var(--mono);
-    font-size: 11px;
-    text-transform: uppercase;
-    letter-spacing: 0.08em;
-    color: var(--gold);
-  }
-
-  .save-status {
-    font-family: var(--mono);
-    font-size: 11px;
-    color: var(--text-faint);
-  }
-
-  .box {
-    background: var(--card);
-    border: 1px solid var(--card-border);
-    border-radius: 16px;
-    padding: 28px;
-    margin-bottom: 28px;
-    min-height: 220px;
-  }
-
-  .box-content {
-    font-size: 15px;
-    line-height: 1.75;
-    color: var(--text);
-    outline: none;
-    white-space: pre-wrap;
-    border-radius: 8px;
-  }
-
-  .box-content:empty::before {
-    content: attr(data-placeholder);
-    color: var(--text-faint);
-  }
-
-  .box-content[contenteditable="true"]:focus {
-    box-shadow: 0 0 0 1px rgba(245, 197, 66, 0.3);
-    background: rgba(255,255,255,0.015);
-    padding: 4px;
-    margin: -4px;
-  }
-
-  /* ── nav buttons ── */
-  .nav-row {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 12px;
-    margin-bottom: 28px;
-  }
-
-  .nav-btn {
-    background: var(--card);
-    border: 1px solid var(--card-border);
-    border-radius: 14px;
-    padding: 20px;
-    text-align: center;
-    font-size: 15px;
-    font-weight: 500;
-    color: var(--text);
-    text-decoration: none;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 10px;
-    transition: border-color 0.15s ease, transform 0.1s ease;
-    cursor: pointer;
-  }
-
-  .nav-btn:hover {
-    border-color: var(--gold-dim);
-    transform: translateY(-1px);
-  }
-
+  .box-label { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+  .box-label-text { font-family: var(--mono); font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--gold); }
+  .save-status { font-family: var(--mono); font-size: 11px; color: var(--text-faint); }
+  .box { background: var(--card); border: 1px solid var(--card-border); border-radius: 16px; padding: 28px; margin-bottom: 28px; min-height: 220px; }
+  .box-content { font-size: 15px; line-height: 1.75; color: var(--text); outline: none; white-space: pre-wrap; border-radius: 8px; }
+  .box-content:empty::before { content: attr(data-placeholder); color: var(--text-faint); }
+  .box-content[contenteditable="true"]:focus { box-shadow: 0 0 0 1px rgba(245,197,66,0.3); background: rgba(255,255,255,0.015); padding: 4px; margin: -4px; }
+  .nav-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 28px; }
+  .nav-btn { background: var(--card); border: 1px solid var(--card-border); border-radius: 14px; padding: 20px; text-align: center; font-size: 15px; font-weight: 500; color: var(--text); text-decoration: none; display: flex; align-items: center; justify-content: center; gap: 10px; transition: border-color 0.15s ease, transform 0.1s ease; cursor: pointer; }
+  .nav-btn:hover { border-color: var(--gold-dim); transform: translateY(-1px); }
   .nav-btn .icon { font-size: 17px; }
-
-  /* ── footer ── */
-  footer {
-    margin-top: 8px;
-    padding-top: 20px;
-    border-top: 1px solid var(--card-border);
-    font-size: 12px;
-    color: var(--text-faint);
-    font-family: var(--mono);
-    text-align: center;
-  }
-
-  /* ── 비밀번호 모달 ── */
-  .modal-overlay {
-    position: fixed;
-    inset: 0;
-    background: rgba(0,0,0,0.6);
-    display: none;
-    align-items: center;
-    justify-content: center;
-    z-index: 100;
-    padding: 20px;
-  }
-
+  footer { margin-top: 8px; padding-top: 20px; border-top: 1px solid var(--card-border); font-size: 12px; color: var(--text-faint); font-family: var(--mono); text-align: center; }
+  .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.6); display: none; align-items: center; justify-content: center; z-index: 100; padding: 20px; }
   .modal-overlay.show { display: flex; }
-
-  .modal {
-    background: var(--card);
-    border: 1px solid var(--card-border);
-    border-radius: 16px;
-    padding: 28px;
-    width: 100%;
-    max-width: 340px;
-  }
-
-  .modal h3 {
-    font-size: 16px;
-    font-weight: 600;
-    margin-bottom: 6px;
-  }
-
-  .modal p {
-    font-size: 13px;
-    color: var(--text-dim);
-    margin-bottom: 18px;
-    line-height: 1.5;
-  }
-
-  .modal input {
-    width: 100%;
-    background: #0d0f13;
-    border: 1px solid var(--card-border);
-    border-radius: 10px;
-    padding: 11px 14px;
-    color: var(--text);
-    font-family: var(--mono);
-    font-size: 14px;
-    outline: none;
-    margin-bottom: 8px;
-  }
-
-  .modal input:focus {
-    border-color: var(--gold-dim);
-  }
-
-  .modal-error {
-    font-size: 12.5px;
-    color: var(--red);
-    min-height: 18px;
-    margin-bottom: 10px;
-  }
-
-  .modal-actions {
-    display: flex;
-    gap: 8px;
-    margin-top: 8px;
-  }
-
-  .modal-actions button {
-    flex: 1;
-    padding: 11px;
-    border-radius: 10px;
-    border: 1px solid var(--card-border);
-    background: transparent;
-    color: var(--text-dim);
-    font-size: 13.5px;
-    font-family: var(--sans);
-    cursor: pointer;
-  }
-
-  .modal-actions button.confirm {
-    background: var(--gold);
-    border-color: var(--gold);
-    color: #2b2305;
-    font-weight: 600;
-  }
-
-  @media (max-width: 560px) {
-    .nav-row { grid-template-columns: 1fr; }
-    .wrap { padding: 36px 16px 60px; }
-    .box { padding: 20px; }
-  }
+  .modal { background: var(--card); border: 1px solid var(--card-border); border-radius: 16px; padding: 28px; width: 100%; max-width: 340px; }
+  .modal h3 { font-size: 16px; font-weight: 600; margin-bottom: 6px; }
+  .modal p { font-size: 13px; color: var(--text-dim); margin-bottom: 18px; line-height: 1.5; }
+  .modal input { width: 100%; background: #0d0f13; border: 1px solid var(--card-border); border-radius: 10px; padding: 11px 14px; color: var(--text); font-family: var(--mono); font-size: 14px; outline: none; margin-bottom: 8px; }
+  .modal input:focus { border-color: var(--gold-dim); }
+  .modal-error { font-size: 12.5px; color: var(--red); min-height: 18px; margin-bottom: 10px; }
+  .modal-actions { display: flex; gap: 8px; margin-top: 8px; }
+  .modal-actions button { flex: 1; padding: 11px; border-radius: 10px; border: 1px solid var(--card-border); background: transparent; color: var(--text-dim); font-size: 13.5px; font-family: var(--sans); cursor: pointer; }
+  .modal-actions button.confirm { background: var(--gold); border-color: var(--gold); color: #2b2305; font-weight: 600; }
+  @media (max-width: 560px) { .nav-row { grid-template-columns: 1fr; } .wrap { padding: 36px 16px 60px; } .box { padding: 20px; } }
 </style>
 </head>
 <body>
-
 <div class="wrap">
-
   <header>
     <div class="brand">
       <div class="brand-icon">🐝</div>
-      <div>
-        <div class="brand-name" id="botName" spellcheck="false">양봉이</div>
-      </div>
+      <div><div class="brand-name" id="botName" spellcheck="false">양봉이</div></div>
     </div>
     <div class="header-right">
       <span class="admin-badge" id="adminBadge"><span>🔓</span>관리자 모드</span>
@@ -375,26 +90,19 @@
   </header>
 
   <div class="ticker-label">봇의 주식현황</div>
-  <div class="ticker-outer">
-    <div class="ticker-track" id="ticker"></div>
-  </div>
+  <div class="ticker-outer"><div class="ticker-track" id="ticker"></div></div>
 
   <div class="box-label">
     <span class="box-label-text">봇 설명</span>
     <span class="save-status" id="botSaveStatus"></span>
   </div>
   <div class="box">
-    <div class="box-content" id="botDescription" spellcheck="false"
-      data-placeholder="여기에 봇 설명을 입력하세요."></div>
+    <div class="box-content" id="botDescription" spellcheck="false" data-placeholder="여기에 봇 설명을 입력하세요."></div>
   </div>
 
   <div class="nav-row">
-    <a class="nav-btn" href="#">
-      <span class="icon">📜</span>명령어 목록
-    </a>
-    <a class="nav-btn" href="#">
-      <span class="icon">🔗</span>서버 초대 주소
-    </a>
+    <a class="nav-btn" href="#"><span class="icon">📜</span>명령어 목록</a>
+    <a class="nav-btn" href="#"><span class="icon">🔗</span>서버 초대 주소</a>
   </div>
 
   <div class="box-label">
@@ -402,12 +110,10 @@
     <span class="save-status" id="serverSaveStatus"></span>
   </div>
   <div class="box">
-    <div class="box-content" id="serverDescription" spellcheck="false"
-      data-placeholder="여기에 서버 설명을 입력하세요."></div>
+    <div class="box-content" id="serverDescription" spellcheck="false" data-placeholder="여기에 서버 설명을 입력하세요."></div>
   </div>
 
   <footer id="footerHint">양봉이 봇</footer>
-
 </div>
 
 <div class="modal-overlay" id="modalOverlay">
@@ -425,13 +131,12 @@
 
 <script>
   const tickerData = [
-    { name: '꽁치그룹', price: '12,400원', dir: 'up', pct: '+3.2%' },
-    { name: '고굼박홀딩스', price: '8,950원', dir: 'down', pct: '-1.1%' },
-    { name: '양봉장식당', price: '1,020원', dir: 'up', pct: '+12.5%' },
-    { name: '드리미컴퍼니', price: '45,200원', dir: 'down', pct: '-0.4%' },
-    { name: '버튜버박모씨', price: '3,300원', dir: 'up', pct: '+7.8%' },
+    { name: '꽁치그룹',    price: '12,400원', dir: 'up',   pct: '+3.2%'  },
+    { name: '고굼박홀딩스', price: '8,950원',  dir: 'down', pct: '-1.1%'  },
+    { name: '양봉장식당',  price: '1,020원',  dir: 'up',   pct: '+12.5%' },
+    { name: '드리미컴퍼니', price: '45,200원', dir: 'down', pct: '-0.4%'  },
+    { name: '버튜버박모씨', price: '3,300원',  dir: 'up',   pct: '+7.8%'  },
   ];
-
   function buildTicker() {
     const track = document.getElementById('ticker');
     const items = [...tickerData, ...tickerData].map(t => {
@@ -442,150 +147,87 @@
   }
   buildTicker();
 
-  // ===== 상태 =====
-  let adminPassword = null; // 메모리에만 보관, 새로고침하면 사라짐
+  let adminPassword = null;
   let isEditing = false;
-
-  const botNameEl = document.getElementById('botName');
-  const botDescEl = document.getElementById('botDescription');
-  const serverDescEl = document.getElementById('serverDescription');
+  const botNameEl     = document.getElementById('botName');
+  const botDescEl     = document.getElementById('botDescription');
+  const serverDescEl  = document.getElementById('serverDescription');
   const editToggleBtn = document.getElementById('editToggleBtn');
-  const adminBadge = document.getElementById('adminBadge');
-  const modalOverlay = document.getElementById('modalOverlay');
+  const adminBadge    = document.getElementById('adminBadge');
+  const modalOverlay  = document.getElementById('modalOverlay');
   const passwordInput = document.getElementById('passwordInput');
-  const modalError = document.getElementById('modalError');
-  const modalConfirm = document.getElementById('modalConfirm');
-  const modalCancel = document.getElementById('modalCancel');
-  const footerHint = document.getElementById('footerHint');
+  const modalError    = document.getElementById('modalError');
+  const modalConfirm  = document.getElementById('modalConfirm');
+  const modalCancel   = document.getElementById('modalCancel');
+  const footerHint    = document.getElementById('footerHint');
 
-  // ===== 서버에서 콘텐츠 불러오기 =====
   async function loadContent() {
     try {
       const res = await fetch('/api/content');
-      if (!res.ok) throw new Error('불러오기 실패');
+      if (!res.ok) throw new Error();
       const data = await res.json();
-      botNameEl.textContent = data.botName || '양봉이';
-      botDescEl.textContent = data.botDescription || '';
+      botNameEl.textContent    = data.botName        || '양봉이';
+      botDescEl.textContent    = data.botDescription || '';
       serverDescEl.textContent = data.serverDescription || '';
-    } catch (err) {
-      console.error(err);
+    } catch {
       footerHint.textContent = '⚠ 서버 연결 실패 — 기본 내용으로 표시 중입니다';
     }
   }
   loadContent();
 
-  // ===== 편집 모드 토글 =====
   function setEditable(on) {
     isEditing = on;
-    [botNameEl, botDescEl, serverDescEl].forEach(el => {
-      el.contentEditable = on ? 'true' : 'false';
-    });
+    [botNameEl, botDescEl, serverDescEl].forEach(el => { el.contentEditable = on ? 'true' : 'false'; });
     adminBadge.classList.toggle('show', on);
     editToggleBtn.textContent = on ? '저장하고 종료' : '수정하기';
     editToggleBtn.classList.toggle('primary', on);
-    footerHint.textContent = on
-      ? '편집 중입니다. 내용을 클릭해서 수정한 뒤 "저장하고 종료"를 눌러주세요'
-      : '양봉이 봇';
+    footerHint.textContent = on ? '편집 중입니다. 내용을 클릭해서 수정한 뒤 "저장하고 종료"를 눌러주세요' : '양봉이 봇';
   }
 
   editToggleBtn.addEventListener('click', async () => {
-    if (!isEditing) {
-      if (adminPassword) {
-        setEditable(true);
-      } else {
-        openModal();
-      }
-    } else {
-      await saveContent();
-      setEditable(false);
-    }
+    if (!isEditing) { adminPassword ? setEditable(true) : openModal(); }
+    else { await saveContent(); setEditable(false); }
   });
 
-  // ===== 비밀번호 모달 =====
   function openModal() {
-    modalError.textContent = '';
-    passwordInput.value = '';
+    modalError.textContent = ''; passwordInput.value = '';
     modalOverlay.classList.add('show');
     setTimeout(() => passwordInput.focus(), 50);
   }
-
-  function closeModal() {
-    modalOverlay.classList.remove('show');
-  }
-
+  function closeModal() { modalOverlay.classList.remove('show'); }
   modalCancel.addEventListener('click', closeModal);
-  modalOverlay.addEventListener('click', (e) => {
-    if (e.target === modalOverlay) closeModal();
-  });
+  modalOverlay.addEventListener('click', e => { if (e.target === modalOverlay) closeModal(); });
 
   async function verifyPassword() {
     const pw = passwordInput.value;
-    if (!pw) {
-      modalError.textContent = '비밀번호를 입력해주세요.';
-      return;
-    }
-    // 더미 저장 요청으로 비밀번호 검증 (현재 값 그대로 재전송)
+    if (!pw) { modalError.textContent = '비밀번호를 입력해주세요.'; return; }
     try {
       const res = await fetch('/api/content', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          password: pw,
-          botName: botNameEl.textContent,
-          botDescription: botDescEl.textContent,
-          serverDescription: serverDescEl.textContent
-        })
+        body: JSON.stringify({ password: pw, botName: botNameEl.textContent, botDescription: botDescEl.textContent, serverDescription: serverDescEl.textContent })
       });
-      if (res.status === 401) {
-        modalError.textContent = '비밀번호가 올바르지 않습니다.';
-        return;
-      }
-      if (!res.ok) {
-        modalError.textContent = '서버 오류가 발생했습니다.';
-        return;
-      }
-      adminPassword = pw;
-      closeModal();
-      setEditable(true);
-    } catch (err) {
-      modalError.textContent = '서버에 연결할 수 없습니다.';
-    }
+      if (res.status === 401) { modalError.textContent = '비밀번호가 올바르지 않습니다.'; return; }
+      if (!res.ok) { modalError.textContent = '서버 오류가 발생했습니다.'; return; }
+      adminPassword = pw; closeModal(); setEditable(true);
+    } catch { modalError.textContent = '서버에 연결할 수 없습니다.'; }
   }
-
   modalConfirm.addEventListener('click', verifyPassword);
-  passwordInput.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') verifyPassword();
-  });
+  passwordInput.addEventListener('keydown', e => { if (e.key === 'Enter') verifyPassword(); });
 
-  // ===== 저장 =====
   async function saveContent() {
     if (!adminPassword) return;
     try {
       const res = await fetch('/api/content', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          password: adminPassword,
-          botName: botNameEl.textContent,
-          botDescription: botDescEl.textContent,
-          serverDescription: serverDescEl.textContent
-        })
+        body: JSON.stringify({ password: adminPassword, botName: botNameEl.textContent, botDescription: botDescEl.textContent, serverDescription: serverDescEl.textContent })
       });
-      if (res.status === 401) {
-        adminPassword = null;
-        alert('인증이 만료되었습니다. 다시 로그인해주세요.');
-        return;
-      }
-      if (!res.ok) {
-        alert('저장에 실패했습니다.');
-        return;
-      }
+      if (res.status === 401) { adminPassword = null; alert('인증이 만료되었습니다. 다시 로그인해주세요.'); return; }
+      if (!res.ok) { alert('저장에 실패했습니다.'); return; }
       footerHint.textContent = '✓ 저장되었습니다';
-    } catch (err) {
-      alert('서버에 연결할 수 없습니다.');
-    }
+    } catch { alert('서버에 연결할 수 없습니다.'); }
   }
 </script>
-
 </body>
 </html>

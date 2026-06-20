@@ -1,10 +1,10 @@
 const express = require('express');
 const app = express();
 
+const path = require('path');
 app.get('/', (req, res) => {
-    res.send('Bot is alive');
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
-
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
@@ -20,81 +20,6 @@ let aiChannelId = null;
 mongoose.connect(process.env.MONGO_URI)
     .then(() => console.log('MongoDB 연결 성공!'))
     .catch(err => console.error('MongoDB 연결 실패:', err));
-
-    // ============================================
-// 사이트 콘텐츠 (봇설명/서버설명) 저장 + 관리자 인증
-// 기존 index.js 파일의 'mongoose.connect(...)' 아래쪽,
-// 'app.listen(...)' 보다는 위쪽에 이 블록 전체를 붙여넣으세요.
-// ============================================
-
-const ADMIN_PASSWORD = process.env.SITE_ADMIN_PASSWORD;
-// .env 파일에 아래 줄을 추가하세요 (따옴표 없이):
-// SITE_ADMIN_PASSWORD=hogm009876
-
-const siteContentSchema = new mongoose.Schema({
-    key: { type: String, unique: true, default: 'main' },
-    botName: { type: String, default: '양봉이' },
-    botDescription: {
-        type: String,
-        default: '안녕하세요, 양봉장의 전용 봇 양봉이입니다.\n주식 거래, 도박, 편지, 활동시간 추적까지 — 서버를 더 재밌게 만들어드려요.'
-    },
-    serverDescription: { type: String, default: '서버 설명을 입력해주세요.' },
-    updatedAt: { type: Date, default: Date.now }
-});
-const SiteContent = mongoose.model('SiteContent', siteContentSchema);
-
-// 누구나 조회 가능 (페이지 표시용)
-app.get('/api/content', async (req, res) => {
-    try {
-        let content = await SiteContent.findOne({ key: 'main' });
-        if (!content) {
-            content = await SiteContent.create({ key: 'main' });
-        }
-        res.json({
-            botName: content.botName,
-            botDescription: content.botDescription,
-            serverDescription: content.serverDescription
-        });
-    } catch (err) {
-        console.error('[사이트 콘텐츠 조회 오류]', err);
-        res.status(500).json({ error: '조회 실패' });
-    }
-});
-
-// 비밀번호 인증된 경우에만 저장 가능
-app.post('/api/content', express.json(), async (req, res) => {
-    try {
-        const { password, botName, botDescription, serverDescription } = req.body;
-
-        if (!ADMIN_PASSWORD) {
-            return res.status(500).json({ error: '서버에 관리자 비밀번호가 설정되어 있지 않습니다.' });
-        }
-
-        if (!password || password !== ADMIN_PASSWORD) {
-            return res.status(401).json({ error: '비밀번호가 올바르지 않습니다.' });
-        }
-
-        const update = { updatedAt: new Date() };
-        if (typeof botName === 'string') update.botName = botName.slice(0, 50);
-        if (typeof botDescription === 'string') update.botDescription = botDescription.slice(0, 2000);
-        if (typeof serverDescription === 'string') update.serverDescription = serverDescription.slice(0, 2000);
-
-        const content = await SiteContent.findOneAndUpdate(
-            { key: 'main' },
-            { $set: update },
-            { upsert: true, returnDocument: 'after' }
-        );
-
-        res.json({
-            botName: content.botName,
-            botDescription: content.botDescription,
-            serverDescription: content.serverDescription
-        });
-    } catch (err) {
-        console.error('[사이트 콘텐츠 저장 오류]', err);
-        res.status(500).json({ error: '저장 실패' });
-    }
-});
 
 const moneySchema = new mongoose.Schema({
     userId: { type: String, unique: true },
