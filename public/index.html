@@ -27,7 +27,14 @@
       radial-gradient(circle at 15% 0%, rgba(245,197,66,0.05), transparent 40%),
       radial-gradient(circle at 85% 100%, rgba(87,242,135,0.04), transparent 40%);
   }
+
+  /* ── 페이지 전환 ── */
+  .page { display: none; }
+  .page.active { display: block; }
+
   .wrap { max-width: 760px; margin: 0 auto; padding: 48px 24px 80px; }
+
+  /* ── header ── */
   header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 28px; flex-wrap: wrap; gap: 16px; }
   .brand { display: flex; align-items: center; gap: 14px; }
   .brand-icon { width: 46px; height: 46px; border-radius: 12px; background: linear-gradient(155deg, var(--gold), #c99a1e); display: flex; align-items: center; justify-content: center; font-size: 22px; flex-shrink: 0; }
@@ -41,27 +48,58 @@
   .header-btn { background: var(--card); border: 1px solid var(--card-border); color: var(--text-dim); font-family: var(--mono); font-size: 12.5px; padding: 9px 16px; border-radius: 999px; cursor: pointer; transition: border-color 0.15s ease, color 0.15s ease; }
   .header-btn:hover { border-color: var(--gold-dim); color: var(--gold); }
   .header-btn.primary { border-color: var(--gold-dim); color: var(--gold); }
+
+  /* ── 뒤로가기 버튼 ── */
+  .back-btn { display: inline-flex; align-items: center; gap: 8px; background: none; border: 1px solid var(--card-border); color: var(--text-dim); font-size: 13px; padding: 8px 14px; border-radius: 999px; cursor: pointer; margin-bottom: 24px; transition: border-color 0.15s, color 0.15s; font-family: var(--sans); }
+  .back-btn:hover { border-color: var(--gold-dim); color: var(--gold); }
+
+  /* ── ticker bar ── */
   .ticker-label { font-family: var(--mono); font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-faint); margin-bottom: 6px; }
   .ticker-outer { border: 1px solid var(--card-border); border-radius: 10px; overflow: hidden; margin-bottom: 32px; background: #0d0f13; }
-  .ticker-track { display: flex; white-space: nowrap; padding: 13px 0; width: max-content; animation: scroll 26s linear infinite; font-family: var(--mono); font-size: 12.5px; }
+  .ticker-track { display: flex; white-space: nowrap; padding: 13px 0; width: max-content; animation: scroll 32s linear infinite; font-family: var(--mono); font-size: 12.5px; }
+  .ticker-track:hover { animation-play-state: paused; }
   @keyframes scroll { from { transform: translateX(0); } to { transform: translateX(-50%); } }
   .tick { color: var(--text-dim); padding-left: 36px; }
-  .tick:first-child { padding-left: 0; }
   .tick b { color: var(--text); font-weight: 500; }
   .tick.up { color: var(--green); }
   .tick.down { color: var(--red); }
+
+  /* ── editable boxes ── */
   .box-label { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
   .box-label-text { font-family: var(--mono); font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--gold); }
   .save-status { font-family: var(--mono); font-size: 11px; color: var(--text-faint); }
-  .box { background: var(--card); border: 1px solid var(--card-border); border-radius: 16px; padding: 28px; margin-bottom: 28px; min-height: 220px; }
-  .box-content { font-size: 15px; line-height: 1.75; color: var(--text); outline: none; white-space: pre-wrap; border-radius: 8px; }
+  .box { background: var(--card); border: 1px solid var(--card-border); border-radius: 16px; padding: 28px; margin-bottom: 28px; min-height: 160px; }
+  .box-content { font-size: 15px; line-height: 1.75; color: var(--text); outline: none; white-space: pre-wrap; border-radius: 8px; min-height: 80px; display: block; width: 100%; }
   .box-content:empty::before { content: attr(data-placeholder); color: var(--text-faint); }
   .box-content[contenteditable="true"]:focus { box-shadow: 0 0 0 1px rgba(245,197,66,0.3); background: rgba(255,255,255,0.015); padding: 4px; margin: -4px; }
+
+  /* ── 초대주소 input ── */
+  .invite-box { background: var(--card); border: 1px solid var(--card-border); border-radius: 16px; padding: 20px 28px; margin-bottom: 28px; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+  .invite-input { flex: 1; background: transparent; border: none; outline: none; color: var(--text); font-size: 15px; font-family: var(--sans); min-width: 200px; }
+  .invite-input::placeholder { color: var(--text-faint); }
+  .invite-input[disabled] { cursor: default; }
+  .invite-copy-btn { background: rgba(245,197,66,0.1); border: 1px solid var(--gold-dim); color: var(--gold); font-size: 12px; font-family: var(--mono); padding: 6px 14px; border-radius: 999px; cursor: pointer; white-space: nowrap; transition: background 0.15s; }
+  .invite-copy-btn:hover { background: rgba(245,197,66,0.2); }
+
+  /* ── nav buttons ── */
   .nav-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 28px; }
   .nav-btn { background: var(--card); border: 1px solid var(--card-border); border-radius: 14px; padding: 20px; text-align: center; font-size: 15px; font-weight: 500; color: var(--text); text-decoration: none; display: flex; align-items: center; justify-content: center; gap: 10px; transition: border-color 0.15s ease, transform 0.1s ease; cursor: pointer; }
   .nav-btn:hover { border-color: var(--gold-dim); transform: translateY(-1px); }
   .nav-btn .icon { font-size: 17px; }
+
+  /* ── 명령어 목록 페이지 ── */
+  .cmd-section { margin-bottom: 28px; }
+  .cmd-section-title { font-family: var(--mono); font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--gold); margin-bottom: 12px; padding-bottom: 8px; border-bottom: 1px solid var(--card-border); }
+  .cmd-list { display: flex; flex-direction: column; gap: 2px; }
+  .cmd-item { background: var(--card); border: 1px solid transparent; border-radius: 10px; padding: 14px 18px; display: flex; align-items: flex-start; gap: 14px; transition: border-color 0.12s; }
+  .cmd-item:hover { border-color: var(--card-border); }
+  .cmd-name { font-family: var(--mono); font-size: 13.5px; color: var(--gold); white-space: nowrap; min-width: 140px; }
+  .cmd-desc { font-size: 13.5px; color: var(--text-dim); line-height: 1.5; }
+
+  /* ── footer ── */
   footer { margin-top: 8px; padding-top: 20px; border-top: 1px solid var(--card-border); font-size: 12px; color: var(--text-faint); font-family: var(--mono); text-align: center; }
+
+  /* ── 모달 ── */
   .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.6); display: none; align-items: center; justify-content: center; z-index: 100; padding: 20px; }
   .modal-overlay.show { display: flex; }
   .modal { background: var(--card); border: 1px solid var(--card-border); border-radius: 16px; padding: 28px; width: 100%; max-width: 340px; }
@@ -73,10 +111,22 @@
   .modal-actions { display: flex; gap: 8px; margin-top: 8px; }
   .modal-actions button { flex: 1; padding: 11px; border-radius: 10px; border: 1px solid var(--card-border); background: transparent; color: var(--text-dim); font-size: 13.5px; font-family: var(--sans); cursor: pointer; }
   .modal-actions button.confirm { background: var(--gold); border-color: var(--gold); color: #2b2305; font-weight: 600; }
-  @media (max-width: 560px) { .nav-row { grid-template-columns: 1fr; } .wrap { padding: 36px 16px 60px; } .box { padding: 20px; } }
+
+  @media (max-width: 560px) {
+    .nav-row { grid-template-columns: 1fr; }
+    .wrap { padding: 36px 16px 60px; }
+    .box { padding: 20px; }
+    .cmd-item { flex-direction: column; gap: 4px; }
+    .cmd-name { min-width: unset; }
+  }
 </style>
 </head>
 <body>
+
+<!-- ══════════════════════════════
+     메인 페이지
+══════════════════════════════ -->
+<div id="page-main" class="page active">
 <div class="wrap">
   <header>
     <div class="brand">
@@ -90,24 +140,27 @@
   </header>
 
   <div class="ticker-label">봇의 주식현황</div>
-  <div class="ticker-outer"><div class="ticker-track" id="ticker"></div></div>
+  <div class="ticker-outer"><div class="ticker-track" id="ticker">불러오는 중...</div></div>
 
   <div class="box-label">
     <span class="box-label-text">봇 설명</span>
-    <span class="save-status" id="botSaveStatus"></span>
+    <span class="save-status" id="saveStatus"></span>
   </div>
   <div class="box">
     <div class="box-content" id="botDescription" spellcheck="false" data-placeholder="여기에 봇 설명을 입력하세요."></div>
   </div>
 
   <div class="nav-row">
-    <a class="nav-btn" href="#"><span class="icon">📜</span>명령어 목록</a>
-    <a class="nav-btn" href="#"><span class="icon">🔗</span>서버 초대 주소</a>
+    <button class="nav-btn" id="cmdPageBtn">
+      <span class="icon">📜</span>명령어 목록
+    </button>
+    <button class="nav-btn" id="inviteBtn">
+      <span class="icon">🔗</span>서버 초대 주소
+    </button>
   </div>
 
   <div class="box-label">
     <span class="box-label-text">서버 설명</span>
-    <span class="save-status" id="serverSaveStatus"></span>
   </div>
   <div class="box">
     <div class="box-content" id="serverDescription" spellcheck="false" data-placeholder="여기에 서버 설명을 입력하세요."></div>
@@ -115,7 +168,159 @@
 
   <footer id="footerHint">양봉이 봇</footer>
 </div>
+</div>
 
+<!-- ══════════════════════════════
+     명령어 목록 페이지
+══════════════════════════════ -->
+<div id="page-commands" class="page">
+<div class="wrap">
+  <button class="back-btn" id="backFromCmd">← 돌아가기</button>
+
+  <header>
+    <div class="brand">
+      <div class="brand-icon">🐝</div>
+      <div><div class="brand-name">양봉이 명령어 목록</div></div>
+    </div>
+  </header>
+
+  <div class="cmd-section">
+    <div class="cmd-section-title">👋 기본</div>
+    <div class="cmd-list">
+      <div class="cmd-item"><span class="cmd-name">/안녕</span><span class="cmd-desc">양봉이에게 인사합니다</span></div>
+      <div class="cmd-item"><span class="cmd-name">/주사위</span><span class="cmd-desc">주사위를 굴립니다</span></div>
+      <div class="cmd-item"><span class="cmd-name">/운세</span><span class="cmd-desc">오늘의 운세 확인 (하루 1회, 1,000원 보상)</span></div>
+      <div class="cmd-item"><span class="cmd-name">/유저정보</span><span class="cmd-desc">유저 정보를 확인합니다</span></div>
+      <div class="cmd-item"><span class="cmd-name">/도움말</span><span class="cmd-desc">양봉이 도움말 확인</span></div>
+    </div>
+  </div>
+
+  <div class="cmd-section">
+    <div class="cmd-section-title">💰 경제</div>
+    <div class="cmd-list">
+      <div class="cmd-item"><span class="cmd-name">/돈</span><span class="cmd-desc">현재 보유 금액 확인</span></div>
+      <div class="cmd-item"><span class="cmd-name">/돈순위</span><span class="cmd-desc">플레이어 자금 순위 TOP 10</span></div>
+      <div class="cmd-item"><span class="cmd-name">/구걸</span><span class="cmd-desc">10분마다 100~300원 획득</span></div>
+      <div class="cmd-item"><span class="cmd-name">/송금</span><span class="cmd-desc">다른 유저에게 돈을 송금합니다</span></div>
+      <div class="cmd-item"><span class="cmd-name">/지원금</span><span class="cmd-desc">저자금·창업·고굼박 지원금 조회 (3일마다)</span></div>
+      <div class="cmd-item"><span class="cmd-name">/대출</span><span class="cmd-desc">최대 500,000원 대출 (이자 10%, 3일 만기)</span></div>
+      <div class="cmd-item"><span class="cmd-name">/상환</span><span class="cmd-desc">대출금 상환</span></div>
+      <div class="cmd-item"><span class="cmd-name">/파산신청</span><span class="cmd-desc">마이너스 통장 상태에서 파산 — 보유 회사 삭제 후 빚 탕감</span></div>
+    </div>
+  </div>
+
+  <div class="cmd-section">
+    <div class="cmd-section-title">📈 주식</div>
+    <div class="cmd-list">
+      <div class="cmd-item"><span class="cmd-name">/주식</span><span class="cmd-desc">상장된 회사 목록 확인</span></div>
+      <div class="cmd-item"><span class="cmd-name">/내주식</span><span class="cmd-desc">보유 주식 현황 및 평가손익 확인</span></div>
+      <div class="cmd-item"><span class="cmd-name">/매수</span><span class="cmd-desc">주식 구매 (1분 쿨타임, 최대 200주)</span></div>
+      <div class="cmd-item"><span class="cmd-name">/매도</span><span class="cmd-desc">주식 판매 (수수료 1.5%)</span></div>
+      <div class="cmd-item"><span class="cmd-name">/시가총액</span><span class="cmd-desc">회사 시가총액·상태·소식 확인</span></div>
+      <div class="cmd-item"><span class="cmd-name">/차트</span><span class="cmd-desc">회사 주가 차트 확인 (10분마다 갱신)</span></div>
+      <div class="cmd-item"><span class="cmd-name">/뉴스</span><span class="cmd-desc">다음 주식 변동 예측 뉴스 확인</span></div>
+      <div class="cmd-item"><span class="cmd-name">/회사생성</span><span class="cmd-desc">주식 회사 생성 (1,000원, 최대 2개)</span></div>
+      <div class="cmd-item"><span class="cmd-name">/회사삭제</span><span class="cmd-desc">회사 삭제 (삭제할수록 비용 증가)</span></div>
+      <div class="cmd-item"><span class="cmd-name">/회사홍보</span><span class="cmd-desc">회사 홍보 (1시간 쿨타임, 10회 초과 시 2배)</span></div>
+    </div>
+  </div>
+
+  <div class="cmd-section">
+    <div class="cmd-section-title">🎮 게임</div>
+    <div class="cmd-list">
+      <div class="cmd-item"><span class="cmd-name">/도박</span><span class="cmd-desc">50% 확률 도박 (10분 쿨타임)</span></div>
+      <div class="cmd-item"><span class="cmd-name">/홀짝</span><span class="cmd-desc">홀짝 도박</span></div>
+      <div class="cmd-item"><span class="cmd-name">/슬롯</span><span class="cmd-desc">슬롯머신</span></div>
+      <div class="cmd-item"><span class="cmd-name">/블랙잭</span><span class="cmd-desc">블랙잭 게임</span></div>
+      <div class="cmd-item"><span class="cmd-name">/틱택토</span><span class="cmd-desc">틱택토 게임</span></div>
+      <div class="cmd-item"><span class="cmd-name">/마법의굼박고동님</span><span class="cmd-desc">고굼박고동님에게 질문을 던져보세요</span></div>
+    </div>
+  </div>
+
+  <div class="cmd-section">
+    <div class="cmd-section-title">🔫 범죄</div>
+    <div class="cmd-list">
+      <div class="cmd-item"><span class="cmd-name">/범죄 탈세</span><span class="cmd-desc">10,000원 / 보유 100,000원 이상 필요 — 세금 1회 면제</span></div>
+      <div class="cmd-item"><span class="cmd-name">/범죄 주가조작</span><span class="cmd-desc">1,000,000원 — 대상 회사 다음 변동 강제 상승</span></div>
+      <div class="cmd-item"><span class="cmd-name">/범죄 허위뉴스</span><span class="cmd-desc">10,000,000원 — 대상 회사 뉴스 방향 3시간 반전</span></div>
+    </div>
+  </div>
+
+  <div class="cmd-section">
+    <div class="cmd-section-title">📨 편지</div>
+    <div class="cmd-list">
+      <div class="cmd-item"><span class="cmd-name">/편지</span><span class="cmd-desc">우정의 편지 · 러브레터 · 결투신청서 전송</span></div>
+      <div class="cmd-item"><span class="cmd-name">/편지함</span><span class="cmd-desc">받은 편지 확인</span></div>
+    </div>
+  </div>
+
+  <div class="cmd-section">
+    <div class="cmd-section-title">🎭 역할</div>
+    <div class="cmd-list">
+      <div class="cmd-item"><span class="cmd-name">/역할선택</span><span class="cmd-desc">역할 부여 / 제거 토글</span></div>
+      <div class="cmd-item"><span class="cmd-name">/역할설정</span><span class="cmd-desc">[관리자] 선택 가능한 역할 풀 추가/제거</span></div>
+    </div>
+  </div>
+
+  <div class="cmd-section">
+    <div class="cmd-section-title">🛠 관리</div>
+    <div class="cmd-list">
+      <div class="cmd-item"><span class="cmd-name">/청소</span><span class="cmd-desc">메시지 삭제 (1~100개)</span></div>
+      <div class="cmd-item"><span class="cmd-name">/삭제로그</span><span class="cmd-desc">최근 삭제된 메시지 확인</span></div>
+      <div class="cmd-item"><span class="cmd-name">/ai설정</span><span class="cmd-desc">[관리자] AI 채널 설정</span></div>
+      <div class="cmd-item"><span class="cmd-name">/성격설정</span><span class="cmd-desc">[관리자] AI 성격/말투 설정</span></div>
+      <div class="cmd-item"><span class="cmd-name">/유저활동시간</span><span class="cmd-desc">최근 3일 온라인/자리비움/방해금지/오프라인 차트</span></div>
+      <div class="cmd-item"><span class="cmd-name">/채팅순위</span><span class="cmd-desc">서버 채팅 개수 순위</span></div>
+      <div class="cmd-item"><span class="cmd-name">/초기화</span><span class="cmd-desc">[관리자] 전체 자금·회사 초기화</span></div>
+    </div>
+  </div>
+
+  <footer>양봉이 봇 — 명령어 목록</footer>
+</div>
+</div>
+
+<!-- ══════════════════════════════
+     서버 초대 페이지
+══════════════════════════════ -->
+<div id="page-invite" class="page">
+<div class="wrap">
+  <button class="back-btn" id="backFromInvite">← 돌아가기</button>
+
+  <header>
+    <div class="brand">
+      <div class="brand-icon">🐝</div>
+      <div><div class="brand-name">서버 초대 주소</div></div>
+    </div>
+    <div class="header-right">
+      <span class="admin-badge" id="inviteAdminBadge"><span>🔓</span>관리자 모드</span>
+    </div>
+  </header>
+
+  <div class="box-label">
+    <span class="box-label-text">초대 링크</span>
+    <span class="save-status" id="inviteSaveStatus"></span>
+  </div>
+  <div class="invite-box">
+    <span style="font-size:18px">🔗</span>
+    <input type="text" class="invite-input" id="inviteUrlInput" placeholder="초대 링크가 설정되지 않았습니다" disabled>
+    <button class="invite-copy-btn" id="inviteCopyBtn">복사</button>
+  </div>
+
+  <div id="inviteEditArea" style="display:none; margin-bottom:28px;">
+    <div class="box-label">
+      <span class="box-label-text">링크 수정</span>
+    </div>
+    <div style="display:flex; gap:10px; flex-wrap:wrap;">
+      <input type="text" id="inviteEditInput" placeholder="https://discord.gg/..." style="flex:1; background:#0d0f13; border:1px solid var(--card-border); border-radius:10px; padding:11px 14px; color:var(--text); font-size:14px; outline:none; min-width:200px;">
+      <button id="inviteSaveBtn" style="background:var(--gold); border:none; color:#2b2305; font-weight:600; font-size:13.5px; padding:11px 20px; border-radius:10px; cursor:pointer;">저장</button>
+    </div>
+  </div>
+
+  <footer>양봉이 봇</footer>
+</div>
+</div>
+
+<!-- 비밀번호 모달 -->
 <div class="modal-overlay" id="modalOverlay">
   <div class="modal">
     <h3>관리자 인증</h3>
@@ -130,104 +335,222 @@
 </div>
 
 <script>
-  const tickerData = [
-    { name: '꽁치그룹',    price: '12,400원', dir: 'up',   pct: '+3.2%'  },
-    { name: '고굼박홀딩스', price: '8,950원',  dir: 'down', pct: '-1.1%'  },
-    { name: '양봉장식당',  price: '1,020원',  dir: 'up',   pct: '+12.5%' },
-    { name: '드리미컴퍼니', price: '45,200원', dir: 'down', pct: '-0.4%'  },
-    { name: '버튜버박모씨', price: '3,300원',  dir: 'up',   pct: '+7.8%'  },
-  ];
-  function buildTicker() {
-    const track = document.getElementById('ticker');
-    const items = [...tickerData, ...tickerData].map(t => {
-      const arrow = t.dir === 'up' ? '▲' : '▼';
-      return `<span class="tick ${t.dir}"><b>${t.name}</b> ${t.price} ${arrow} ${t.pct}</span>`;
-    }).join('');
-    track.innerHTML = items;
-  }
-  buildTicker();
+// ════════════════════════════
+// 상태
+// ════════════════════════════
+let adminPassword = null;
+let isEditing = false;
 
-  let adminPassword = null;
-  let isEditing = false;
-  const botNameEl     = document.getElementById('botName');
-  const botDescEl     = document.getElementById('botDescription');
-  const serverDescEl  = document.getElementById('serverDescription');
-  const editToggleBtn = document.getElementById('editToggleBtn');
-  const adminBadge    = document.getElementById('adminBadge');
-  const modalOverlay  = document.getElementById('modalOverlay');
-  const passwordInput = document.getElementById('passwordInput');
-  const modalError    = document.getElementById('modalError');
-  const modalConfirm  = document.getElementById('modalConfirm');
-  const modalCancel   = document.getElementById('modalCancel');
-  const footerHint    = document.getElementById('footerHint');
+const $ = id => document.getElementById(id);
 
-  async function loadContent() {
-    try {
-      const res = await fetch('/api/content');
-      if (!res.ok) throw new Error();
-      const data = await res.json();
-      botNameEl.textContent    = data.botName        || '양봉이';
-      botDescEl.textContent    = data.botDescription || '';
-      serverDescEl.textContent = data.serverDescription || '';
-    } catch {
-      footerHint.textContent = '⚠ 서버 연결 실패 — 기본 내용으로 표시 중입니다';
+// ════════════════════════════
+// 페이지 전환
+// ════════════════════════════
+function showPage(id) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  $(id).classList.add('active');
+  window.scrollTo(0, 0);
+}
+
+$('cmdPageBtn').addEventListener('click', () => showPage('page-commands'));
+$('backFromCmd').addEventListener('click', () => showPage('page-main'));
+
+$('inviteBtn').addEventListener('click', () => {
+  showPage('page-invite');
+  syncInviteAdminState();
+});
+$('backFromInvite').addEventListener('click', () => showPage('page-main'));
+
+// ════════════════════════════
+// 주식 티커 — 실제 DB 연동
+// ════════════════════════════
+async function loadTicker() {
+  try {
+    const res = await fetch('/api/stocks');
+    if (!res.ok) throw new Error();
+    const stocks = await res.json();
+
+    if (!stocks || stocks.length === 0) {
+      $('ticker').innerHTML = '<span class="tick">상장된 회사가 없습니다</span>';
+      return;
     }
-  }
-  loadContent();
 
-  function setEditable(on) {
-    isEditing = on;
-    [botNameEl, botDescEl, serverDescEl].forEach(el => { el.contentEditable = on ? 'true' : 'false'; });
-    adminBadge.classList.toggle('show', on);
-    editToggleBtn.textContent = on ? '저장하고 종료' : '수정하기';
-    editToggleBtn.classList.toggle('primary', on);
-    footerHint.textContent = on ? '편집 중입니다. 내용을 클릭해서 수정한 뒤 "저장하고 종료"를 눌러주세요' : '양봉이 봇';
-  }
+    const items = [...stocks, ...stocks].map(s => {
+      const prev = s.priceHistory && s.priceHistory.length > 0
+        ? s.priceHistory[s.priceHistory.length - 1]
+        : s.price;
+      const diff = s.price - prev;
+      const pct = prev > 0 ? ((diff / prev) * 100).toFixed(1) : '0.0';
+      const dir = diff >= 0 ? 'up' : 'down';
+      const arrow = diff >= 0 ? '▲' : '▼';
+      const sign = diff >= 0 ? '+' : '';
+      return `<span class="tick ${dir}"><b>${s.name}</b> ${s.price.toLocaleString('ko-KR')}원 ${arrow} ${sign}${pct}%</span>`;
+    }).join('');
 
-  editToggleBtn.addEventListener('click', async () => {
-    if (!isEditing) { adminPassword ? setEditable(true) : openModal(); }
-    else { await saveContent(); setEditable(false); }
+    $('ticker').innerHTML = items;
+  } catch {
+    // 로드 실패 시 더미 유지
+    const dummy = [
+      { name: '꽁치그룹', price: 12400, dir: 'up', pct: '+3.2%' },
+      { name: '고굼박홀딩스', price: 8950, dir: 'down', pct: '-1.1%' },
+      { name: '양봉장식당', price: 1020, dir: 'up', pct: '+12.5%' },
+      { name: '드리미컴퍼니', price: 45200, dir: 'down', pct: '-0.4%' },
+      { name: '버튜버박모씨', price: 3300, dir: 'up', pct: '+7.8%' },
+    ];
+    const items = [...dummy, ...dummy].map(t => {
+      const arrow = t.dir === 'up' ? '▲' : '▼';
+      return `<span class="tick ${t.dir}"><b>${t.name}</b> ${t.price.toLocaleString('ko-KR')}원 ${arrow} ${t.pct}</span>`;
+    }).join('');
+    $('ticker').innerHTML = items;
+  }
+}
+
+loadTicker();
+setInterval(loadTicker, 60000); // 1분마다 갱신
+
+// ════════════════════════════
+// 콘텐츠 로드
+// ════════════════════════════
+async function loadContent() {
+  try {
+    const res = await fetch('/api/content');
+    if (!res.ok) throw new Error();
+    const data = await res.json();
+    $('botName').textContent        = data.botName        || '양봉이';
+    $('botDescription').textContent = data.botDescription || '';
+    $('serverDescription').textContent = data.serverDescription || '';
+    $('inviteUrlInput').value       = data.inviteUrl      || '';
+    $('inviteEditInput').value      = data.inviteUrl      || '';
+  } catch {
+    $('footerHint').textContent = '⚠ 서버 연결 실패 — 기본 내용으로 표시 중입니다';
+  }
+}
+loadContent();
+
+// ════════════════════════════
+// 편집 모드
+// ════════════════════════════
+function setEditable(on) {
+  isEditing = on;
+  [$('botName'), $('botDescription'), $('serverDescription')].forEach(el => {
+    el.contentEditable = on ? 'true' : 'false';
   });
+  $('adminBadge').classList.toggle('show', on);
+  $('editToggleBtn').textContent = on ? '저장하고 종료' : '수정하기';
+  $('editToggleBtn').classList.toggle('primary', on);
+  $('footerHint').textContent = on
+    ? '편집 중입니다. 수정 후 "저장하고 종료"를 눌러주세요'
+    : '양봉이 봇';
+  syncInviteAdminState();
+}
 
-  function openModal() {
-    modalError.textContent = ''; passwordInput.value = '';
-    modalOverlay.classList.add('show');
-    setTimeout(() => passwordInput.focus(), 50);
-  }
-  function closeModal() { modalOverlay.classList.remove('show'); }
-  modalCancel.addEventListener('click', closeModal);
-  modalOverlay.addEventListener('click', e => { if (e.target === modalOverlay) closeModal(); });
+function syncInviteAdminState() {
+  const on = !!adminPassword;
+  $('inviteAdminBadge').classList.toggle('show', on);
+  $('inviteEditArea').style.display = on ? 'block' : 'none';
+}
 
-  async function verifyPassword() {
-    const pw = passwordInput.value;
-    if (!pw) { modalError.textContent = '비밀번호를 입력해주세요.'; return; }
-    try {
-      const res = await fetch('/api/content', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ password: pw, botName: botNameEl.textContent, botDescription: botDescEl.textContent, serverDescription: serverDescEl.textContent })
-      });
-      if (res.status === 401) { modalError.textContent = '비밀번호가 올바르지 않습니다.'; return; }
-      if (!res.ok) { modalError.textContent = '서버 오류가 발생했습니다.'; return; }
-      adminPassword = pw; closeModal(); setEditable(true);
-    } catch { modalError.textContent = '서버에 연결할 수 없습니다.'; }
+$('editToggleBtn').addEventListener('click', async () => {
+  if (!isEditing) {
+    adminPassword ? setEditable(true) : openModal();
+  } else {
+    await saveContent();
+    setEditable(false);
   }
-  modalConfirm.addEventListener('click', verifyPassword);
-  passwordInput.addEventListener('keydown', e => { if (e.key === 'Enter') verifyPassword(); });
+});
 
-  async function saveContent() {
-    if (!adminPassword) return;
-    try {
-      const res = await fetch('/api/content', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ password: adminPassword, botName: botNameEl.textContent, botDescription: botDescEl.textContent, serverDescription: serverDescEl.textContent })
-      });
-      if (res.status === 401) { adminPassword = null; alert('인증이 만료되었습니다. 다시 로그인해주세요.'); return; }
-      if (!res.ok) { alert('저장에 실패했습니다.'); return; }
-      footerHint.textContent = '✓ 저장되었습니다';
-    } catch { alert('서버에 연결할 수 없습니다.'); }
+// ════════════════════════════
+// 초대 링크 복사
+// ════════════════════════════
+$('inviteCopyBtn').addEventListener('click', () => {
+  const url = $('inviteUrlInput').value;
+  if (!url) return;
+  navigator.clipboard.writeText(url).then(() => {
+    $('inviteCopyBtn').textContent = '복사됨!';
+    setTimeout(() => { $('inviteCopyBtn').textContent = '복사'; }, 1500);
+  });
+});
+
+// 초대 링크 저장
+$('inviteSaveBtn').addEventListener('click', async () => {
+  const newUrl = $('inviteEditInput').value.trim();
+  $('inviteUrlInput').value = newUrl;
+  await saveContent({ inviteUrl: newUrl });
+  $('inviteSaveStatus').textContent = '✓ 저장됨';
+  setTimeout(() => { $('inviteSaveStatus').textContent = ''; }, 2000);
+});
+
+// ════════════════════════════
+// 저장
+// ════════════════════════════
+async function saveContent(extra = {}) {
+  if (!adminPassword) return;
+  try {
+    const res = await fetch('/api/content', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        password: adminPassword,
+        botName: $('botName').textContent,
+        botDescription: $('botDescription').textContent,
+        serverDescription: $('serverDescription').textContent,
+        inviteUrl: extra.inviteUrl ?? $('inviteUrlInput').value,
+      })
+    });
+    if (res.status === 401) {
+      adminPassword = null;
+      alert('인증이 만료되었습니다. 다시 로그인해주세요.');
+      return;
+    }
+    if (!res.ok) { alert('저장에 실패했습니다.'); return; }
+    $('saveStatus').textContent = '✓ 저장됨';
+    setTimeout(() => { $('saveStatus').textContent = ''; }, 2000);
+  } catch {
+    alert('서버에 연결할 수 없습니다.');
   }
+}
+
+// ════════════════════════════
+// 비밀번호 모달
+// ════════════════════════════
+function openModal() {
+  $('modalError').textContent = '';
+  $('passwordInput').value = '';
+  $('modalOverlay').classList.add('show');
+  setTimeout(() => $('passwordInput').focus(), 50);
+}
+function closeModal() { $('modalOverlay').classList.remove('show'); }
+
+$('modalCancel').addEventListener('click', closeModal);
+$('modalOverlay').addEventListener('click', e => { if (e.target === $('modalOverlay')) closeModal(); });
+
+async function verifyPassword() {
+  const pw = $('passwordInput').value;
+  if (!pw) { $('modalError').textContent = '비밀번호를 입력해주세요.'; return; }
+  try {
+    const res = await fetch('/api/content', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        password: pw,
+        botName: $('botName').textContent,
+        botDescription: $('botDescription').textContent,
+        serverDescription: $('serverDescription').textContent,
+        inviteUrl: $('inviteUrlInput').value,
+      })
+    });
+    if (res.status === 401) { $('modalError').textContent = '비밀번호가 올바르지 않습니다.'; return; }
+    if (!res.ok) { $('modalError').textContent = '서버 오류가 발생했습니다.'; return; }
+    adminPassword = pw;
+    closeModal();
+    setEditable(true);
+  } catch {
+    $('modalError').textContent = '서버에 연결할 수 없습니다.';
+  }
+}
+
+$('modalConfirm').addEventListener('click', verifyPassword);
+$('passwordInput').addEventListener('keydown', e => { if (e.key === 'Enter') verifyPassword(); });
 </script>
 </body>
 </html>

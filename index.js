@@ -1,6 +1,66 @@
 const express = require('express');
 const app = express();
 
+// ════════════════════════════════════════
+// 웹 대시보드 API — index.js 상단에 추가
+// app.get('/') 바로 위에 붙여넣으세요
+// ════════════════════════════════════════
+
+const fs = require('fs');
+app.use(express.json());
+
+const CONTENT_FILE = './content.json';
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'admin1234'; // ← Render 환경변수로 설정 권장
+
+// content.json 없으면 초기화
+if (!fs.existsSync(CONTENT_FILE)) {
+    fs.writeFileSync(CONTENT_FILE, JSON.stringify({
+        botName: '양봉이',
+        botDescription: '',
+        serverDescription: '',
+        inviteUrl: ''
+    }, null, 2));
+}
+
+// ── 콘텐츠 불러오기 ──
+app.get('/api/content', (req, res) => {
+    try {
+        const data = JSON.parse(fs.readFileSync(CONTENT_FILE, 'utf-8'));
+        res.json(data);
+    } catch {
+        res.status(500).json({ error: '파일 읽기 실패' });
+    }
+});
+
+// ── 콘텐츠 저장 (비밀번호 검증) ──
+app.post('/api/content', (req, res) => {
+    const { password, botName, botDescription, serverDescription, inviteUrl } = req.body;
+    if (password !== ADMIN_PASSWORD) return res.status(401).json({ error: '비밀번호 오류' });
+    try {
+        fs.writeFileSync(CONTENT_FILE, JSON.stringify(
+            { botName, botDescription, serverDescription, inviteUrl }, null, 2
+        ));
+        res.json({ ok: true });
+    } catch {
+        res.status(500).json({ error: '저장 실패' });
+    }
+});
+
+// ── 주식 현황 (티커용) ──
+app.get('/api/stocks', async (req, res) => {
+    try {
+        // Stock 모델은 index.js 아래쪽에 정의되어 있으므로
+        // 이 라우트는 mongoose 연결 후에도 정상 동작합니다
+        const stocks = await Stock.find(
+            { listed: true, deleted: { $ne: true } },
+            { name: 1, price: 1, priceHistory: 1 }
+        ).lean();
+        res.json(stocks);
+    } catch (err) {
+        res.status(500).json({ error: '주식 조회 실패' });
+    }
+});
+
 const path = require('path');
 app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
