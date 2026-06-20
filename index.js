@@ -5,6 +5,78 @@ app.get('/', (req, res) => {
     res.send('Bot is alive');
 });
 
+
+const ADMIN_PASSWORD = process.env.SITE_ADMIN_PASSWORD;
+// .env 파일에 아래 줄을 추가하세요 (따옴표 없이):
+// SITE_ADMIN_PASSWORD=hogm009876
+
+const siteContentSchema = new mongoose.Schema({
+    key: { type: String, unique: true, default: 'main' },
+    botName: { type: String, default: '양봉이' },
+    botDescription: {
+        type: String,
+        default: '안녕하세요, 양봉장의 전용 봇 양봉이입니다.\n주식 거래, 도박, 편지, 활동시간 추적까지 — 서버를 더 재밌게 만들어드려요.'
+    },
+    serverDescription: { type: String, default: '서버 설명을 입력해주세요.' },
+    updatedAt: { type: Date, default: Date.now }
+});
+const SiteContent = mongoose.model('SiteContent', siteContentSchema);
+
+// 누구나 조회 가능 (페이지 표시용)
+app.get('/api/content', async (req, res) => {
+    try {
+        let content = await SiteContent.findOne({ key: 'main' });
+        if (!content) {
+            content = await SiteContent.create({ key: 'main' });
+        }
+        res.json({
+            botName: content.botName,
+            botDescription: content.botDescription,
+            serverDescription: content.serverDescription
+        });
+    } catch (err) {
+        console.error('[사이트 콘텐츠 조회 오류]', err);
+        res.status(500).json({ error: '조회 실패' });
+    }
+});
+
+// 비밀번호 인증된 경우에만 저장 가능
+app.post('/api/content', express.json(), async (req, res) => {
+    try {
+        const { password, botName, botDescription, serverDescription } = req.body;
+
+        if (!ADMIN_PASSWORD) {
+            return res.status(500).json({ error: '서버에 관리자 비밀번호가 설정되어 있지 않습니다.' });
+        }
+
+        if (!password || password !== ADMIN_PASSWORD) {
+            return res.status(401).json({ error: '비밀번호가 올바르지 않습니다.' });
+        }
+
+        const update = { updatedAt: new Date() };
+        if (typeof botName === 'string') update.botName = botName.slice(0, 50);
+        if (typeof botDescription === 'string') update.botDescription = botDescription.slice(0, 2000);
+        if (typeof serverDescription === 'string') update.serverDescription = serverDescription.slice(0, 2000);
+
+        const content = await SiteContent.findOneAndUpdate(
+            { key: 'main' },
+            { $set: update },
+            { upsert: true, returnDocument: 'after' }
+        );
+
+        res.json({
+            botName: content.botName,
+            botDescription: content.botDescription,
+            serverDescription: content.serverDescription
+        });
+    } catch (err) {
+        console.error('[사이트 콘텐츠 저장 오류]', err);
+        res.status(500).json({ error: '저장 실패' });
+    }
+});
+
+
+
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
     console.log(`Server running on ${PORT}`);
@@ -279,7 +351,7 @@ async function generatePresenceChart(presenceDoc, days = 3) {
             datasets: [
                 { label: '🟢 온라인', data: buckets.online, backgroundColor: '#57f287' },
                 { label: '🌙 자리비움', data: buckets.idle, backgroundColor: '#fee75c' },
-                { label: '⛔ 다른용무중', data: buckets.dnd, backgroundColor: '#ed4245' },
+                { label: '⛔ 방해금지', data: buckets.dnd, backgroundColor: '#ed4245' },
                 { label: '⚫ 오프라인', data: buckets.offline, backgroundColor: '#80848e' }
             ]
         },
@@ -658,7 +730,7 @@ const commands = [
 
     new SlashCommandBuilder()
         .setName('유저활동시간')
-        .setDescription('최근 3일간 유저의 온라인/자리비움/다른용무중/오프라인 시간을 차트로 확인합니다')
+        .setDescription('최근 3일간 유저의 온라인/자리비움/방해금지/오프라인 시간을 차트로 확인합니다')
         .addUserOption(option =>
             option.setName('유저').setDescription('조회할 유저').setRequired(true)
         ),
@@ -669,21 +741,21 @@ const commands = [
 
     new SlashCommandBuilder()
         .setName('마법의굼박고동님')
-        .setDescription('마법의 굼박고동님에게 질문을 던져보세요')
+        .setDescription('고굼박님 이(가) 미소를지으며 온화한 목소리로 말씀하십니다. 그래 무엇이 고민이더냐')
         .addStringOption(option =>
-            option.setName('질문').setDescription('굼박고동님께 물어볼 질문').setRequired(true)
+            option.setName('질문').setDescription('질문이 무엇이냐').setRequired(true)
         ),
 
     new SlashCommandBuilder()
         .setName('역할선택')
-        .setDescription('선택 가능한 역할을 토글합니다 (있으면 제거, 없으면 부여)')
+        .setDescription('역할을 쏙!쏙! 선택합니다. (있으면 제거, 없으면 부여)')
         .addRoleOption(option =>
             option.setName('역할').setDescription('선택할 역할').setRequired(true)
         ),
 
     new SlashCommandBuilder()
         .setName('역할설정')
-        .setDescription('[관리자] 역할선택에서 고를 수 있는 역할 풀에 추가/제거합니다')
+        .setDescription('[관리자] 역할선택에서 고를 수 있는 역할을 추가/제거합니다')
         .addRoleOption(option =>
             option.setName('역할').setDescription('역할 풀에 추가/제거할 역할').setRequired(true)
         ),
@@ -1714,7 +1786,7 @@ ai의 성격혹은 말투, 등 을 설정합니다.
 삭제 메시지 확인
 
 \`/유저활동시간 유저:\`
-최근 3일간 유저의 온라인/자리비움/다른용무중/오프라인 시간을 차트로 확인합니다.
+최근 3일간 유저의 온라인/자리비움/방해금지/오프라인 시간을 차트로 확인합니다.
 
 \`/채팅순위\`
 서버 채팅 개수 순위를 확인합니다.
@@ -3357,7 +3429,7 @@ ${text}
                 .addFields(
                     { name: '🟢 온라인', value: `${totalOnline.toFixed(1)}시간`, inline: true },
                     { name: '🌙 자리비움', value: `${totalIdle.toFixed(1)}시간`, inline: true },
-                    { name: '⛔ 다른용무중', value: `${totalDnd.toFixed(1)}시간`, inline: true },
+                    { name: '⛔ 방해금지', value: `${totalDnd.toFixed(1)}시간`, inline: true },
                     { name: '⚫ 오프라인', value: `${totalOffline.toFixed(1)}시간`, inline: true }
                 )
                 .setImage('attachment://presence_chart.png')
