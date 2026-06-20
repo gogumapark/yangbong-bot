@@ -6,6 +6,27 @@ app.get('/', (req, res) => {
 });
 
 
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => {
+    console.log(`Server running on ${PORT}`);
+});
+
+const mongoose = require('mongoose');
+const { ChartJSNodeCanvas } = require('chartjs-node-canvas');
+const { AttachmentBuilder } = require('discord.js');
+
+let aiChannelId = null;
+
+mongoose.connect(process.env.MONGO_URI)
+    .then(() => console.log('MongoDB 연결 성공!'))
+    .catch(err => console.error('MongoDB 연결 실패:', err));
+
+    // ============================================
+// 사이트 콘텐츠 (봇설명/서버설명) 저장 + 관리자 인증
+// 기존 index.js 파일의 'mongoose.connect(...)' 아래쪽,
+// 'app.listen(...)' 보다는 위쪽에 이 블록 전체를 붙여넣으세요.
+// ============================================
+
 const ADMIN_PASSWORD = process.env.SITE_ADMIN_PASSWORD;
 // .env 파일에 아래 줄을 추가하세요 (따옴표 없이):
 // SITE_ADMIN_PASSWORD=hogm009876
@@ -74,23 +95,6 @@ app.post('/api/content', express.json(), async (req, res) => {
         res.status(500).json({ error: '저장 실패' });
     }
 });
-
-
-
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-    console.log(`Server running on ${PORT}`);
-});
-
-const mongoose = require('mongoose');
-const { ChartJSNodeCanvas } = require('chartjs-node-canvas');
-const { AttachmentBuilder } = require('discord.js');
-
-let aiChannelId = null;
-
-mongoose.connect(process.env.MONGO_URI)
-    .then(() => console.log('MongoDB 연결 성공!'))
-    .catch(err => console.error('MongoDB 연결 실패:', err));
 
 const moneySchema = new mongoose.Schema({
     userId: { type: String, unique: true },
