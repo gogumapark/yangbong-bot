@@ -18,6 +18,7 @@ if (!fs.existsSync(CONTENT_FILE)) {
         botName: '양봉이',
         botDescription: '',
         serverDescription: '',
+        patchDescription: '',
         inviteUrl: ''
     }, null, 2));
 }
@@ -34,12 +35,21 @@ app.get('/api/content', (req, res) => {
 
 // ── 콘텐츠 저장 (비밀번호 검증) ──
 app.post('/api/content', (req, res) => {
-    const { password, botName, botDescription, serverDescription, inviteUrl } = req.body;
+    const { password, botName, botDescription, serverDescription, patchDescription, inviteUrl, profileImage } = req.body;
     if (password !== ADMIN_PASSWORD) return res.status(401).json({ error: '비밀번호 오류' });
     try {
-        fs.writeFileSync(CONTENT_FILE, JSON.stringify(
-            { botName, botDescription, serverDescription, inviteUrl }, null, 2
-        ));
+        const existing = fs.existsSync(CONTENT_FILE)
+            ? JSON.parse(fs.readFileSync(CONTENT_FILE, 'utf-8'))
+            : {};
+        const data = {
+            botName: botName ?? existing.botName ?? '양봉이',
+            botDescription: botDescription ?? existing.botDescription ?? '',
+            serverDescription: serverDescription ?? existing.serverDescription ?? '',
+            patchDescription: patchDescription ?? existing.patchDescription ?? '',
+            inviteUrl: inviteUrl ?? existing.inviteUrl ?? '',
+            profileImage: profileImage ?? existing.profileImage ?? null,
+        };
+        fs.writeFileSync(CONTENT_FILE, JSON.stringify(data, null, 2));
         res.json({ ok: true });
     } catch {
         res.status(500).json({ error: '저장 실패' });
