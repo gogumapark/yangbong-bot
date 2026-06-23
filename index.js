@@ -7,7 +7,7 @@ const app = express();
 // ════════════════════════════════════════
 
 const fs = require('fs');
-app.use(express.json());
+app.use(express.json({ limit: '10mb' }));
 
 const CONTENT_FILE = './content.json';
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'admin1234'; // ← Render 환경변수로 설정 권장
@@ -35,7 +35,7 @@ app.get('/api/content', (req, res) => {
 
 // ── 콘텐츠 저장 (비밀번호 검증) ──
 app.post('/api/content', (req, res) => {
-    const { password, botName, botDescription, serverDescription, patchDescription, inviteUrl, profileImage } = req.body;
+    const { password, botName, botDescription, serverDescription, patchDescription, inviteUrl, profileImage, botImage } = req.body;
     if (password !== ADMIN_PASSWORD) return res.status(401).json({ error: '비밀번호 오류' });
     try {
         const existing = fs.existsSync(CONTENT_FILE)
@@ -48,6 +48,7 @@ app.post('/api/content', (req, res) => {
             patchDescription: patchDescription ?? existing.patchDescription ?? '',
             inviteUrl: inviteUrl ?? existing.inviteUrl ?? '',
             profileImage: profileImage ?? existing.profileImage ?? null,
+            botImage: botImage ?? existing.botImage ?? null,
         };
         fs.writeFileSync(CONTENT_FILE, JSON.stringify(data, null, 2));
         res.json({ ok: true });
