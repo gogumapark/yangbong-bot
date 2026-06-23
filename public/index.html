@@ -240,7 +240,7 @@
 
   /* 02 style - right aligned */
   .banner-02 {
-    background: #000;
+    background: #fff;
     border-radius: 60px 0 0 60px;
     width: 90%;
     height: 100%;
@@ -251,6 +251,8 @@
     margin-left: auto;
     position: relative;
   }
+
+  .banner-02 .banner-num { color: #000; }
 
   /* 03 style - left aligned smaller */
   .banner-03 {
@@ -272,14 +274,8 @@
     letter-spacing: -0.02em;
   }
 
-  /* left accent bar */
-  .section-banner::before {
-    content: '';
-    position: absolute;
-    left: 0; top: 0; bottom: 0;
-    width: 6px;
-    background: var(--gold);
-  }
+  /* left accent bar — removed */
+  .section-banner::before { display: none; }
 
   /* ── CONTENT WRAP ── */
   .wrap {
@@ -618,6 +614,76 @@
   }
 
   .cmd-desc { font-size: 13px; color: var(--text-dim); line-height: 1.5; }
+
+  /* ── FILM STRIP ── */
+  .film-strip-wrap {
+    width: 100%;
+    overflow: hidden;
+    background: #0d0f11;
+    padding: 0;
+    margin-top: 60px;
+    position: relative;
+  }
+
+  .film-strip {
+    display: flex;
+    width: max-content;
+    animation: filmScroll 18s linear infinite;
+  }
+
+  .film-strip:hover { animation-play-state: paused; }
+
+  @keyframes filmScroll {
+    0%   { transform: translateX(0); }
+    100% { transform: translateX(-50%); }
+  }
+
+  .film-reel {
+    display: flex;
+    flex-direction: column;
+    background: #111316;
+    border: 2px solid #2a2d33;
+  }
+
+  .film-holes {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 6px 10px;
+    background: #0d0f11;
+  }
+
+  .film-hole {
+    width: 22px;
+    height: 14px;
+    background: #0d0f11;
+    border: 2px solid #2a2d33;
+    border-radius: 5px;
+    flex-shrink: 0;
+  }
+
+  .film-frames {
+    display: flex;
+    gap: 0;
+  }
+
+  .film-frame {
+    width: 140px;
+    height: 160px;
+    border-right: 2px solid #2a2d33;
+    background: #0a0b0d;
+    flex-shrink: 0;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .film-frame:last-child { border-right: none; }
+
+  .film-frame-inner {
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(135deg, #0f1115 0%, #161920 50%, #0c0d10 100%);
+  }
 
   /* ── FOOTER ── */
   .site-footer {
@@ -1113,6 +1179,13 @@
 
 </div>
 
+<!-- 영화 필름 스트립 -->
+<div class="film-strip-wrap">
+  <div class="film-strip" id="filmStrip">
+    <!-- JS로 생성 -->
+  </div>
+</div>
+
 <!-- 공통 푸터 — 페이지 맨 아래 -->
 <footer class="site-footer">
   <div class="footer-left">
@@ -1448,7 +1521,53 @@ async function saveContent(extra = {}) {
   } catch { alert('서버 연결 실패'); }
 }
 
-// ══ SCROLL OBSERVER — highlight active section dot ══
+// ══ FILM STRIP ══
+(function buildFilmStrip() {
+  const strip = document.getElementById('filmStrip');
+  if (!strip) return;
+
+  function makeReel(frameCount) {
+    const reel = document.createElement('div');
+    reel.className = 'film-reel';
+
+    function makeHoles(count) {
+      const row = document.createElement('div');
+      row.className = 'film-holes';
+      for (let i = 0; i < count; i++) {
+        const h = document.createElement('div');
+        h.className = 'film-hole';
+        row.appendChild(h);
+      }
+      return row;
+    }
+
+    const framesRow = document.createElement('div');
+    framesRow.className = 'film-frames';
+    for (let i = 0; i < frameCount; i++) {
+      const frame = document.createElement('div');
+      frame.className = 'film-frame';
+      const inner = document.createElement('div');
+      inner.className = 'film-frame-inner';
+      frame.appendChild(inner);
+      framesRow.appendChild(frame);
+    }
+
+    reel.appendChild(makeHoles(frameCount + 2));
+    reel.appendChild(framesRow);
+    reel.appendChild(makeHoles(frameCount + 2));
+    return reel;
+  }
+
+  // 한 세트 = 8프레임 릴 2개
+  for (let s = 0; s < 4; s++) {
+    strip.appendChild(makeReel(8));
+  }
+  // 무한 스크롤을 위해 동일 복사본 추가
+  const clone = strip.innerHTML;
+  strip.innerHTML = clone + clone;
+})();
+
+ — highlight active section dot ══
 const sections = ['page-server', 'page-bot', 'page-patch', 'page-cmd'];
 const observer = new IntersectionObserver((entries) => {
   entries.forEach(entry => {
