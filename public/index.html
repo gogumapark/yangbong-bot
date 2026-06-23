@@ -817,6 +817,7 @@
 </div>
 
 <input type="file" id="profileFileInput" accept="image/*">
+<input type="file" id="botImageFileInput" accept="image/*">
 
 <!-- ══════════════════════════
      PAGE 01 — 서버
@@ -841,7 +842,7 @@
         <div class="hero-icon-overlay">📷</div>
       </div>
       <div class="hero-label">Yang Bong Jang</div>
-      <div class="hero-bot-name" id="botNameEl" spellcheck="false">양봉이</div>
+      <div class="hero-bot-name" id="botNameEl" spellcheck="false">양봉장</div>
     </div>
 
     <!-- SERVER DESCRIPTION -->
@@ -880,13 +881,6 @@
 
   </div>
 
-  <footer class="site-footer">
-    <div class="footer-left">
-      양봉장
-      <div class="footer-sub">YANG BONG JANG</div>
-    </div>
-    <div class="footer-right" id="footer01">양봉이 봇</div>
-  </footer>
 </div>
 
 <!-- ══════════════════════════
@@ -902,12 +896,17 @@
   </div>
 
   <div class="wrap">
-    <!-- HERO -->
-    <div class="section-hero" style="align-items:flex-start;padding-bottom:20px;">
-      <div class="hero-icon-box" style="width:48px;height:48px;font-size:22px;" id="heroIconBox02">
-        <img id="heroImg02" src="" alt="">
-        <span class="hero-emoji">🐝</span>
+
+    <!-- HERO (봇 전용 아이콘 + 이름) -->
+    <div class="section-hero" style="align-items:center;flex-direction:row;gap:14px;padding-bottom:20px;">
+      <div class="hero-icon-wrap" id="heroIconWrap02">
+        <div class="hero-icon-box" style="width:48px;height:48px;font-size:22px;" id="heroIconBox02">
+          <img id="heroImg02" src="" alt="">
+          <span class="hero-emoji">🐝</span>
+        </div>
+        <div class="hero-icon-overlay">📷</div>
       </div>
+      <div class="hero-bot-name" style="font-size:22px;margin-top:0;">양봉이</div>
     </div>
 
     <!-- TICKER -->
@@ -949,13 +948,6 @@
     </div>
   </div>
 
-  <footer class="site-footer">
-    <div class="footer-left">
-      양봉장
-      <div class="footer-sub">YANG BONG JANG</div>
-    </div>
-    <div class="footer-right">양봉이 봇</div>
-  </footer>
 </div>
 
 <!-- ══════════════════════════
@@ -1010,13 +1002,6 @@
     </div>
   </div>
 
-  <footer class="site-footer">
-    <div class="footer-left">
-      양봉장
-      <div class="footer-sub">YANG BONG JANG</div>
-    </div>
-    <div class="footer-right">gogumapark choigo</div>
-  </footer>
 </div>
 
 <!-- ══════════════════════════
@@ -1125,14 +1110,16 @@
     </div>
   </div>
 
-  <footer class="site-footer">
-    <div class="footer-left">
-      양봉장
-      <div class="footer-sub">YANG BONG JANG</div>
-    </div>
-    <div class="footer-right">양봉이 봇 — 명령어 목록</div>
-  </footer>
 </div>
+
+<!-- 공통 푸터 — 페이지 맨 아래 -->
+<footer class="site-footer">
+  <div class="footer-left">
+    양봉장
+    <div class="footer-sub">YANG BONG JANG</div>
+  </div>
+  <div class="footer-right">gogumapark choigo</div>
+</footer>
 
 <!-- 비밀번호 모달 -->
 <div class="modal-overlay" id="modalOverlay">
@@ -1152,7 +1139,8 @@
 // ══ STATE ══
 let adminPassword = null;
 let isEditing = false;
-let profileImageData = null;
+let profileImageData = null;   // 서버(01) 아이콘
+let botImageData = null;       // 봇(02) 아이콘
 let rawBotDesc = '';
 let rawServerDesc = '';
 let rawPatchDesc = '';
@@ -1184,21 +1172,19 @@ function showPage(id) {
 }
 
 // ══ PROFILE IMAGE ══
-function applyProfileImage(dataUrl) {
+function applyServerImage(dataUrl) {
   profileImageData = dataUrl;
-
-  // nav logo
   const navImg = $('navLogoImg');
   navImg.src = dataUrl;
   $('navLogo').classList.add('has-image');
+  const img = $('heroImg01');
+  if (img) { img.src = dataUrl; img.parentElement.classList.add('has-image'); }
+}
 
-  // hero icons
-  ['heroImg01', 'heroImg02'].forEach(id => {
-    const img = $(id);
-    if (!img) return;
-    img.src = dataUrl;
-    img.parentElement.classList.add('has-image');
-  });
+function applyBotImage(dataUrl) {
+  botImageData = dataUrl;
+  const img = $('heroImg02');
+  if (img) { img.src = dataUrl; img.parentElement.classList.add('has-image'); }
 }
 
 $('heroIconWrap01').addEventListener('click', () => {
@@ -1210,7 +1196,21 @@ $('profileFileInput').addEventListener('change', e => {
   const file = e.target.files[0];
   if (!file) return;
   const reader = new FileReader();
-  reader.onload = ev => applyProfileImage(ev.target.result);
+  reader.onload = ev => applyServerImage(ev.target.result);
+  reader.readAsDataURL(file);
+  e.target.value = '';
+});
+
+$('heroIconWrap02').addEventListener('click', () => {
+  if (!isEditing) return;
+  $('botImageFileInput').click();
+});
+
+$('botImageFileInput').addEventListener('change', e => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = ev => applyBotImage(ev.target.result);
   reader.readAsDataURL(file);
   e.target.value = '';
 });
@@ -1283,22 +1283,26 @@ function switchToViewMode() {
 }
 
 async function loadContent() {
-  const cachedProfile = localStorage.getItem('yangbong_profile');
-  if (cachedProfile) applyProfileImage(cachedProfile);
+  const cachedServer = localStorage.getItem('yangbong_server_image');
+  if (cachedServer) applyServerImage(cachedServer);
+  const cachedBot = localStorage.getItem('yangbong_bot_image');
+  if (cachedBot) applyBotImage(cachedBot);
 
   try {
     const res = await fetch('/api/content');
     if (!res.ok) throw new Error();
     const data = await res.json();
-    $('botNameEl').textContent     = data.botName || '양봉이';
-    rawBotDesc                     = data.botDescription    || '';
-    rawServerDesc                  = data.serverDescription || '';
-    rawPatchDesc                   = data.patchDescription  || '';
-    $('inviteUrlInput').value      = data.inviteUrl || '';
-    $('inviteEditInput').value     = data.inviteUrl || '';
+    $('botNameEl').textContent = data.botName || '양봉장';
+    rawBotDesc    = data.botDescription    || '';
+    rawServerDesc = data.serverDescription || '';
+    rawPatchDesc  = data.patchDescription  || '';
     if (data.profileImage) {
-      applyProfileImage(data.profileImage);
-      localStorage.setItem('yangbong_profile', data.profileImage);
+      applyServerImage(data.profileImage);
+      localStorage.setItem('yangbong_server_image', data.profileImage);
+    }
+    if (data.botImage) {
+      applyBotImage(data.botImage);
+      localStorage.setItem('yangbong_bot_image', data.botImage);
     }
     renderView();
   } catch {
@@ -1331,6 +1335,8 @@ function setEditable(on) {
   // profile icon editable
   const wrap = $('heroIconWrap01');
   wrap.classList.toggle('editable', on);
+  const wrap02 = $('heroIconWrap02');
+  if (wrap02) wrap02.classList.toggle('editable', on);
 
   // toolbars
   ['botDescToolbar','serverDescToolbar','patchDescToolbar'].forEach(id => {
@@ -1418,6 +1424,7 @@ async function saveContent(extra = {}) {
       inviteUrl: extra.inviteUrl ?? ($('inviteUrlInput') ? $('inviteUrlInput').value : ''),
     };
     if (profileImageData) body.profileImage = profileImageData;
+    if (botImageData) body.botImage = botImageData;
 
     const res = await fetch('/api/content', {
       method: 'POST',
@@ -1430,7 +1437,8 @@ async function saveContent(extra = {}) {
     rawBotDesc    = currentBotDesc;
     rawServerDesc = currentServerDesc;
     rawPatchDesc  = currentPatchDesc;
-    if (profileImageData) localStorage.setItem('yangbong_profile', profileImageData);
+    if (profileImageData) localStorage.setItem('yangbong_server_image', profileImageData);
+    if (botImageData) localStorage.setItem('yangbong_bot_image', botImageData);
 
     ['saveStatus01','saveStatus02','saveStatus03'].forEach(id => {
       const el = $(id);
