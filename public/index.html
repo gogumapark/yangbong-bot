@@ -32,7 +32,7 @@
     font-family: var(--sans);
     min-height: 100vh;
     overflow-x: hidden;
-    padding-bottom: 110px;
+    padding-bottom: 80px;
     background-image:
       radial-gradient(circle, rgba(255,255,255,0.07) 1px, transparent 1px),
       radial-gradient(ellipse at 15% 10%, rgba(120,60,180,0.45), transparent 55%),
@@ -234,8 +234,9 @@
     width: 72%;
     height: 100%;
     display: flex;
-    align-items: center;
+    align-items: flex-end;
     padding-left: 40px;
+    padding-bottom: 10px;
     position: relative;
   }
 
@@ -246,9 +247,10 @@
     width: 90%;
     height: 100%;
     display: flex;
-    align-items: center;
-    justify-content: flex-end;
-    padding-right: 40px;
+    align-items: flex-end;
+    justify-content: flex-start;
+    padding-left: 40px;
+    padding-bottom: 10px;
     margin-left: auto;
     position: relative;
   }
@@ -262,8 +264,9 @@
     width: 58%;
     height: 100%;
     display: flex;
-    align-items: center;
+    align-items: flex-end;
     padding-left: 40px;
+    padding-bottom: 10px;
   }
 
   .banner-num {
@@ -274,6 +277,21 @@
     line-height: 1;
     letter-spacing: -0.02em;
   }
+
+  .banner-sub {
+    font-family: var(--display);
+    font-weight: 700;
+    font-size: 42px;
+    color: #fff;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    margin-left: 24px;
+    opacity: 0.75;
+    align-self: flex-end;
+    padding-bottom: 18px;
+  }
+
+  .banner-02 .banner-sub { color: #000; }
 
   /* left accent bar — removed */
   .section-banner::before { display: none; }
@@ -344,13 +362,7 @@
   }
 
   .box-label-text {
-    font-family: var(--mono);
-    font-size: 10px;
-    text-transform: uppercase;
-    letter-spacing: 0.1em;
-    color: var(--gold);
-    margin-bottom: 14px;
-    display: block;
+    display: none;
   }
 
   .box-content {
@@ -616,77 +628,106 @@
 
   .cmd-desc { font-size: 13px; color: var(--text-dim); line-height: 1.5; }
 
-  /* ── FILM STRIP ── */
+  /* ── BOTTOM TITLE BAR ── */
   .film-strip-wrap {
     position: fixed;
     bottom: 0; left: 0; right: 0;
     z-index: 100;
-    overflow: hidden;
-    background: #111316;
-    height: 110px;
-    border-top: 1px solid #1e2126;
-  }
-
-  .film-strip {
+    background: #0e0e0e;
+    height: 80px;
+    border-top: 1px solid #222;
     display: flex;
-    align-items: stretch;
-    height: 100%;
-    width: max-content;
-    animation: filmScroll 22s linear infinite;
+    flex-direction: column;
+    overflow: hidden;
   }
 
-  .film-strip:hover { animation-play-state: paused; }
+  /* 상단 구멍 줄 */
+  .film-bar-holes {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 6px;
+    height: 22px;
+    flex-shrink: 0;
+    background: #0e0e0e;
+  }
 
-  @keyframes filmScroll {
+  .film-bar-hole {
+    flex: 1;
+    height: 12px;
+    margin: 0 4px;
+    background: #050505;
+    border: 1.5px solid #2a2a2a;
+    border-radius: 5px;
+  }
+
+  /* 가운데 텍스트 영역 */
+  .film-bar-center {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    position: relative;
+  }
+
+  .film-bar-scroll {
+    display: flex;
+    align-items: center;
+    gap: 80px;
+    width: max-content;
+    animation: titleScroll 20s linear infinite;
+  }
+
+  .film-bar-scroll:hover { animation-play-state: paused; }
+
+  @keyframes titleScroll {
     0%   { transform: translateX(0); }
     100% { transform: translateX(-50%); }
   }
 
-  /* 필름 한 유닛 = 구멍줄 + 프레임들 + 구멍줄 세로 배치 */
-  .film-unit {
-    display: flex;
-    flex-direction: column;
-    height: 100%;
+  .film-title-text {
+    font-family: var(--display);
+    font-size: 28px;
+    font-weight: 700;
+    color: #fff;
+    letter-spacing: 0.3em;
+    text-transform: uppercase;
+    white-space: nowrap;
     flex-shrink: 0;
   }
 
-  .film-sprocket-row {
-    background: #111316;
-    display: flex;
+  .film-title-sep {
+    width: 1.5px;
+    height: 28px;
+    background: rgba(255,255,255,0.2);
+    border-radius: 0;
+    flex-shrink: 0;
+  }
+
+  /* ── CMD LINK BUTTON ── */
+  .cmd-link-btn {
+    display: inline-flex;
     align-items: center;
-    justify-content: space-between;
-    padding: 0 2px;
-    height: 18px;
-    flex-shrink: 0;
-    gap: 0;
+    gap: 8px;
+    margin-top: 24px;
+    padding: 10px 20px;
+    background: transparent;
+    border: 1px solid var(--gold-dim);
+    border-radius: 8px;
+    color: var(--gold);
+    font-family: var(--sans);
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    text-decoration: none;
+    transition: background 0.2s, border-color 0.2s;
+    letter-spacing: 0.03em;
   }
 
-  .film-sprocket {
-    flex: 1;
-    height: 10px;
-    background: #0a0b0d;
-    border: 1.5px solid #252830;
-    border-radius: 5px;
-    margin: 0 3px;
-  }
-
-  .film-frames-row {
-    display: flex;
-    flex: 1;
-    border-top: 1.5px solid #252830;
-    border-bottom: 1.5px solid #252830;
-  }
-
-  .film-frame {
-    width: 90px;
-    height: 100%;
-    background: #0a0b0d;
-    border-right: 1.5px solid #252830;
-    flex-shrink: 0;
-  }
-
-  .film-frame:first-child {
-    border-left: 1.5px solid #252830;
+  .cmd-link-btn:hover {
+    background: rgba(212,175,55,0.08);
+    border-color: var(--gold);
   }
 
   /* ── FOOTER ── */
@@ -695,13 +736,14 @@
     justify-content: space-between;
     align-items: center;
     padding: 24px 40px;
-    border-top: 1px solid var(--card-border);
+    border-top: 1px solid rgba(255,255,255,0.04);
     margin-top: 40px;
+    background: rgba(0,0,0,0.45);
   }
 
-  .footer-left { font-family: var(--display); font-size: 11px; letter-spacing: 0.15em; color: var(--text-dim); }
-  .footer-left .footer-sub { font-family: var(--display); font-size: 15px; font-weight: 700; color: var(--text); margin-top: 2px; letter-spacing: 0.1em; }
-  .footer-right { font-family: var(--mono); font-size: 11px; color: var(--text-faint); }
+  .footer-left { font-family: var(--display); font-size: 11px; letter-spacing: 0.15em; color: rgba(255,255,255,0.2); }
+  .footer-left .footer-sub { font-family: var(--display); font-size: 15px; font-weight: 700; color: rgba(255,255,255,0.3); margin-top: 2px; letter-spacing: 0.1em; }
+  .footer-right { font-family: var(--mono); font-size: 11px; color: rgba(255,255,255,0.15); }
 
   /* ── SAVE STATUS ── */
   .save-status { font-family: var(--mono); font-size: 11px; color: var(--text-faint); }
@@ -870,7 +912,6 @@
     <button class="nav-link active" id="nav-server" onclick="showPage('page-server')">서버</button>
     <button class="nav-link" id="nav-bot"    onclick="showPage('page-bot')">봇</button>
     <button class="nav-link" id="nav-patch"  onclick="showPage('page-patch')">패치노트</button>
-    <button class="nav-link" id="nav-cmd"    onclick="showPage('page-cmd')">명령어</button>
   </div>
 
   <div class="nav-status">
@@ -884,7 +925,6 @@
   <div class="page-dot active" data-page="page-server" onclick="showPage('page-server')"></div>
   <div class="page-dot" data-page="page-bot"    onclick="showPage('page-bot')"></div>
   <div class="page-dot" data-page="page-patch"  onclick="showPage('page-patch')"></div>
-  <div class="page-dot" data-page="page-cmd"    onclick="showPage('page-cmd')"></div>
 </div>
 
 <input type="file" id="profileFileInput" accept="image/*">
@@ -898,6 +938,7 @@
     <div class="section-banner-inner">
       <div class="banner-01">
         <span class="banner-num">01</span>
+        <span class="banner-sub">서버</span>
       </div>
     </div>
   </div>
@@ -962,6 +1003,7 @@
     <div class="section-banner-inner">
       <div class="banner-02">
         <span class="banner-num">02</span>
+        <span class="banner-sub">봇</span>
       </div>
     </div>
   </div>
@@ -1017,6 +1059,75 @@
         <div class="box-content" id="botDescription" spellcheck="false" data-placeholder="여기에 봇 설명을 입력하세요."></div>
       </div>
     </div>
+
+    <!-- 명령어 링크 -->
+    <a href="#page-cmd-inline" class="cmd-link-btn" id="cmdLinkBtn" onclick="document.getElementById('cmdInlineSection').style.display=document.getElementById('cmdInlineSection').style.display==='none'?'block':'none'; return false;">
+      📋 명령어 목록 보기
+    </a>
+
+    <!-- 인라인 명령어 섹션 -->
+    <div id="cmdInlineSection" style="display:none; margin-top:24px;">
+      <div class="cmd-section"><div class="cmd-section-title">👋 기본</div><div class="cmd-list">
+        <div class="cmd-item"><span class="cmd-name">/안녕</span><span class="cmd-desc">양봉이에게 인사합니다</span></div>
+        <div class="cmd-item"><span class="cmd-name">/주사위</span><span class="cmd-desc">주사위를 굴립니다</span></div>
+        <div class="cmd-item"><span class="cmd-name">/운세</span><span class="cmd-desc">오늘의 운세 확인 (하루 1회, 1,000원 보상)</span></div>
+        <div class="cmd-item"><span class="cmd-name">/유저정보</span><span class="cmd-desc">유저 정보를 확인합니다</span></div>
+        <div class="cmd-item"><span class="cmd-name">/도움말</span><span class="cmd-desc">양봉이 도움말 확인</span></div>
+      </div></div>
+      <div class="cmd-section"><div class="cmd-section-title">💰 경제</div><div class="cmd-list">
+        <div class="cmd-item"><span class="cmd-name">/돈</span><span class="cmd-desc">현재 보유 금액 확인</span></div>
+        <div class="cmd-item"><span class="cmd-name">/돈순위</span><span class="cmd-desc">플레이어 자금 순위 TOP 10</span></div>
+        <div class="cmd-item"><span class="cmd-name">/구걸</span><span class="cmd-desc">10분마다 100~300원 획득</span></div>
+        <div class="cmd-item"><span class="cmd-name">/송금</span><span class="cmd-desc">다른 유저에게 돈을 송금합니다</span></div>
+        <div class="cmd-item"><span class="cmd-name">/지원금</span><span class="cmd-desc">저자금·창업·고굼박 지원금 조회 (3일마다)</span></div>
+        <div class="cmd-item"><span class="cmd-name">/대출</span><span class="cmd-desc">최대 500,000원 대출 (이자 10%, 3일 만기)</span></div>
+        <div class="cmd-item"><span class="cmd-name">/상환</span><span class="cmd-desc">대출금 상환</span></div>
+        <div class="cmd-item"><span class="cmd-name">/파산신청</span><span class="cmd-desc">마이너스 통장 상태에서 파산 — 보유 회사 삭제 후 빚 탕감</span></div>
+      </div></div>
+      <div class="cmd-section"><div class="cmd-section-title">📈 주식</div><div class="cmd-list">
+        <div class="cmd-item"><span class="cmd-name">/주식</span><span class="cmd-desc">상장된 회사 목록 확인</span></div>
+        <div class="cmd-item"><span class="cmd-name">/내주식</span><span class="cmd-desc">보유 주식 현황 및 평가손익 확인</span></div>
+        <div class="cmd-item"><span class="cmd-name">/매수</span><span class="cmd-desc">주식 구매 (1분 쿨타임, 최대 200주)</span></div>
+        <div class="cmd-item"><span class="cmd-name">/매도</span><span class="cmd-desc">주식 판매 (수수료 1.5%)</span></div>
+        <div class="cmd-item"><span class="cmd-name">/시가총액</span><span class="cmd-desc">회사 시가총액·상태·소식 확인</span></div>
+        <div class="cmd-item"><span class="cmd-name">/차트</span><span class="cmd-desc">회사 주가 차트 확인 (10분마다 갱신)</span></div>
+        <div class="cmd-item"><span class="cmd-name">/뉴스</span><span class="cmd-desc">다음 주식 변동 예측 뉴스 확인</span></div>
+        <div class="cmd-item"><span class="cmd-name">/회사생성</span><span class="cmd-desc">주식 회사 생성 (1,000원, 최대 2개)</span></div>
+        <div class="cmd-item"><span class="cmd-name">/회사삭제</span><span class="cmd-desc">회사 삭제 (삭제할수록 비용 증가)</span></div>
+        <div class="cmd-item"><span class="cmd-name">/회사홍보</span><span class="cmd-desc">회사 홍보 (1시간 쿨타임, 10회 초과 시 2배)</span></div>
+      </div></div>
+      <div class="cmd-section"><div class="cmd-section-title">🎮 게임</div><div class="cmd-list">
+        <div class="cmd-item"><span class="cmd-name">/도박</span><span class="cmd-desc">50% 확률 도박 (10분 쿨타임)</span></div>
+        <div class="cmd-item"><span class="cmd-name">/홀짝</span><span class="cmd-desc">홀짝 도박</span></div>
+        <div class="cmd-item"><span class="cmd-name">/슬롯</span><span class="cmd-desc">슬롯머신</span></div>
+        <div class="cmd-item"><span class="cmd-name">/블랙잭</span><span class="cmd-desc">블랙잭 게임</span></div>
+        <div class="cmd-item"><span class="cmd-name">/틱택토</span><span class="cmd-desc">틱택토 게임</span></div>
+        <div class="cmd-item"><span class="cmd-name">/마법의굼박고동님</span><span class="cmd-desc">고굼박고동님에게 질문을 던져보세요</span></div>
+      </div></div>
+      <div class="cmd-section"><div class="cmd-section-title">🔫 범죄</div><div class="cmd-list">
+        <div class="cmd-item"><span class="cmd-name">/범죄 탈세</span><span class="cmd-desc">10,000원 / 보유 100,000원 이상 필요 — 세금 1회 면제</span></div>
+        <div class="cmd-item"><span class="cmd-name">/범죄 주가조작</span><span class="cmd-desc">1,000,000원 — 대상 회사 다음 변동 강제 상승</span></div>
+        <div class="cmd-item"><span class="cmd-name">/범죄 허위뉴스</span><span class="cmd-desc">10,000,000원 — 대상 회사 뉴스 방향 3시간 반전</span></div>
+      </div></div>
+      <div class="cmd-section"><div class="cmd-section-title">📨 편지</div><div class="cmd-list">
+        <div class="cmd-item"><span class="cmd-name">/편지</span><span class="cmd-desc">우정의 편지 · 러브레터 · 결투신청서 전송</span></div>
+        <div class="cmd-item"><span class="cmd-name">/편지함</span><span class="cmd-desc">받은 편지 확인</span></div>
+      </div></div>
+      <div class="cmd-section"><div class="cmd-section-title">🎭 역할</div><div class="cmd-list">
+        <div class="cmd-item"><span class="cmd-name">/역할선택</span><span class="cmd-desc">역할 부여 / 제거 토글</span></div>
+        <div class="cmd-item"><span class="cmd-name">/역할설정</span><span class="cmd-desc">[관리자] 선택 가능한 역할 풀 추가/제거</span></div>
+      </div></div>
+      <div class="cmd-section"><div class="cmd-section-title">🛠 관리</div><div class="cmd-list">
+        <div class="cmd-item"><span class="cmd-name">/청소</span><span class="cmd-desc">메시지 삭제 (1~100개)</span></div>
+        <div class="cmd-item"><span class="cmd-name">/삭제로그</span><span class="cmd-desc">최근 삭제된 메시지 확인</span></div>
+        <div class="cmd-item"><span class="cmd-name">/ai설정</span><span class="cmd-desc">[관리자] AI 채널 설정</span></div>
+        <div class="cmd-item"><span class="cmd-name">/성격설정</span><span class="cmd-desc">[관리자] AI 성격/말투 설정</span></div>
+        <div class="cmd-item"><span class="cmd-name">/유저활동시간</span><span class="cmd-desc">최근 3일 온라인/자리비움/방해금지/오프라인 차트</span></div>
+        <div class="cmd-item"><span class="cmd-name">/채팅순위</span><span class="cmd-desc">서버 채팅 개수 순위</span></div>
+        <div class="cmd-item"><span class="cmd-name">/초기화</span><span class="cmd-desc">[관리자] 전체 자금·회사 초기화</span></div>
+      </div></div>
+    </div>
+
   </div>
 
 </div>
@@ -1029,6 +1140,7 @@
     <div class="section-banner-inner">
       <div class="banner-03">
         <span class="banner-num">03</span>
+        <span class="banner-sub">패치노트</span>
       </div>
     </div>
   </div>
@@ -1075,119 +1187,13 @@
 
 </div>
 
-<!-- ══════════════════════════
-     PAGE 04 — 명령어
-══════════════════════════ -->
-<div id="page-cmd" class="page">
-  <div class="section-banner">
-    <div class="section-banner-inner">
-      <div class="banner-01" style="width:85%;">
-        <span class="banner-num" style="font-size:100px;">명령어</span>
-      </div>
-    </div>
-  </div>
-
-  <div class="wrap" style="margin-top:40px;">
-
-    <div class="cmd-section">
-      <div class="cmd-section-title">👋 기본</div>
-      <div class="cmd-list">
-        <div class="cmd-item"><span class="cmd-name">/안녕</span><span class="cmd-desc">양봉이에게 인사합니다</span></div>
-        <div class="cmd-item"><span class="cmd-name">/주사위</span><span class="cmd-desc">주사위를 굴립니다</span></div>
-        <div class="cmd-item"><span class="cmd-name">/운세</span><span class="cmd-desc">오늘의 운세 확인 (하루 1회, 1,000원 보상)</span></div>
-        <div class="cmd-item"><span class="cmd-name">/유저정보</span><span class="cmd-desc">유저 정보를 확인합니다</span></div>
-        <div class="cmd-item"><span class="cmd-name">/도움말</span><span class="cmd-desc">양봉이 도움말 확인</span></div>
-      </div>
-    </div>
-
-    <div class="cmd-section">
-      <div class="cmd-section-title">💰 경제</div>
-      <div class="cmd-list">
-        <div class="cmd-item"><span class="cmd-name">/돈</span><span class="cmd-desc">현재 보유 금액 확인</span></div>
-        <div class="cmd-item"><span class="cmd-name">/돈순위</span><span class="cmd-desc">플레이어 자금 순위 TOP 10</span></div>
-        <div class="cmd-item"><span class="cmd-name">/구걸</span><span class="cmd-desc">10분마다 100~300원 획득</span></div>
-        <div class="cmd-item"><span class="cmd-name">/송금</span><span class="cmd-desc">다른 유저에게 돈을 송금합니다</span></div>
-        <div class="cmd-item"><span class="cmd-name">/지원금</span><span class="cmd-desc">저자금·창업·고굼박 지원금 조회 (3일마다)</span></div>
-        <div class="cmd-item"><span class="cmd-name">/대출</span><span class="cmd-desc">최대 500,000원 대출 (이자 10%, 3일 만기)</span></div>
-        <div class="cmd-item"><span class="cmd-name">/상환</span><span class="cmd-desc">대출금 상환</span></div>
-        <div class="cmd-item"><span class="cmd-name">/파산신청</span><span class="cmd-desc">마이너스 통장 상태에서 파산 — 보유 회사 삭제 후 빚 탕감</span></div>
-      </div>
-    </div>
-
-    <div class="cmd-section">
-      <div class="cmd-section-title">📈 주식</div>
-      <div class="cmd-list">
-        <div class="cmd-item"><span class="cmd-name">/주식</span><span class="cmd-desc">상장된 회사 목록 확인</span></div>
-        <div class="cmd-item"><span class="cmd-name">/내주식</span><span class="cmd-desc">보유 주식 현황 및 평가손익 확인</span></div>
-        <div class="cmd-item"><span class="cmd-name">/매수</span><span class="cmd-desc">주식 구매 (1분 쿨타임, 최대 200주)</span></div>
-        <div class="cmd-item"><span class="cmd-name">/매도</span><span class="cmd-desc">주식 판매 (수수료 1.5%)</span></div>
-        <div class="cmd-item"><span class="cmd-name">/시가총액</span><span class="cmd-desc">회사 시가총액·상태·소식 확인</span></div>
-        <div class="cmd-item"><span class="cmd-name">/차트</span><span class="cmd-desc">회사 주가 차트 확인 (10분마다 갱신)</span></div>
-        <div class="cmd-item"><span class="cmd-name">/뉴스</span><span class="cmd-desc">다음 주식 변동 예측 뉴스 확인</span></div>
-        <div class="cmd-item"><span class="cmd-name">/회사생성</span><span class="cmd-desc">주식 회사 생성 (1,000원, 최대 2개)</span></div>
-        <div class="cmd-item"><span class="cmd-name">/회사삭제</span><span class="cmd-desc">회사 삭제 (삭제할수록 비용 증가)</span></div>
-        <div class="cmd-item"><span class="cmd-name">/회사홍보</span><span class="cmd-desc">회사 홍보 (1시간 쿨타임, 10회 초과 시 2배)</span></div>
-      </div>
-    </div>
-
-    <div class="cmd-section">
-      <div class="cmd-section-title">🎮 게임</div>
-      <div class="cmd-list">
-        <div class="cmd-item"><span class="cmd-name">/도박</span><span class="cmd-desc">50% 확률 도박 (10분 쿨타임)</span></div>
-        <div class="cmd-item"><span class="cmd-name">/홀짝</span><span class="cmd-desc">홀짝 도박</span></div>
-        <div class="cmd-item"><span class="cmd-name">/슬롯</span><span class="cmd-desc">슬롯머신</span></div>
-        <div class="cmd-item"><span class="cmd-name">/블랙잭</span><span class="cmd-desc">블랙잭 게임</span></div>
-        <div class="cmd-item"><span class="cmd-name">/틱택토</span><span class="cmd-desc">틱택토 게임</span></div>
-        <div class="cmd-item"><span class="cmd-name">/마법의굼박고동님</span><span class="cmd-desc">고굼박고동님에게 질문을 던져보세요</span></div>
-      </div>
-    </div>
-
-    <div class="cmd-section">
-      <div class="cmd-section-title">🔫 범죄</div>
-      <div class="cmd-list">
-        <div class="cmd-item"><span class="cmd-name">/범죄 탈세</span><span class="cmd-desc">10,000원 / 보유 100,000원 이상 필요 — 세금 1회 면제</span></div>
-        <div class="cmd-item"><span class="cmd-name">/범죄 주가조작</span><span class="cmd-desc">1,000,000원 — 대상 회사 다음 변동 강제 상승</span></div>
-        <div class="cmd-item"><span class="cmd-name">/범죄 허위뉴스</span><span class="cmd-desc">10,000,000원 — 대상 회사 뉴스 방향 3시간 반전</span></div>
-      </div>
-    </div>
-
-    <div class="cmd-section">
-      <div class="cmd-section-title">📨 편지</div>
-      <div class="cmd-list">
-        <div class="cmd-item"><span class="cmd-name">/편지</span><span class="cmd-desc">우정의 편지 · 러브레터 · 결투신청서 전송</span></div>
-        <div class="cmd-item"><span class="cmd-name">/편지함</span><span class="cmd-desc">받은 편지 확인</span></div>
-      </div>
-    </div>
-
-    <div class="cmd-section">
-      <div class="cmd-section-title">🎭 역할</div>
-      <div class="cmd-list">
-        <div class="cmd-item"><span class="cmd-name">/역할선택</span><span class="cmd-desc">역할 부여 / 제거 토글</span></div>
-        <div class="cmd-item"><span class="cmd-name">/역할설정</span><span class="cmd-desc">[관리자] 선택 가능한 역할 풀 추가/제거</span></div>
-      </div>
-    </div>
-
-    <div class="cmd-section">
-      <div class="cmd-section-title">🛠 관리</div>
-      <div class="cmd-list">
-        <div class="cmd-item"><span class="cmd-name">/청소</span><span class="cmd-desc">메시지 삭제 (1~100개)</span></div>
-        <div class="cmd-item"><span class="cmd-name">/삭제로그</span><span class="cmd-desc">최근 삭제된 메시지 확인</span></div>
-        <div class="cmd-item"><span class="cmd-name">/ai설정</span><span class="cmd-desc">[관리자] AI 채널 설정</span></div>
-        <div class="cmd-item"><span class="cmd-name">/성격설정</span><span class="cmd-desc">[관리자] AI 성격/말투 설정</span></div>
-        <div class="cmd-item"><span class="cmd-name">/유저활동시간</span><span class="cmd-desc">최근 3일 온라인/자리비움/방해금지/오프라인 차트</span></div>
-        <div class="cmd-item"><span class="cmd-name">/채팅순위</span><span class="cmd-desc">서버 채팅 개수 순위</span></div>
-        <div class="cmd-item"><span class="cmd-name">/초기화</span><span class="cmd-desc">[관리자] 전체 자금·회사 초기화</span></div>
-      </div>
-    </div>
-  </div>
-
-</div>
-
-<!-- 영화 필름 스트립 -->
+<!-- 하단 타이틀 바 -->
 <div class="film-strip-wrap">
-  <div class="film-strip" id="filmStrip">
-    <!-- JS로 생성 -->
+  <div class="film-bar-holes" id="filmHolesTop"></div>
+  <div class="film-bar-center">
+    <div class="film-bar-scroll" id="filmStrip"></div>
   </div>
+  <div class="film-bar-holes" id="filmHolesBot"></div>
 </div>
 
 <!-- 공통 푸터 — 페이지 맨 아래 -->
@@ -1525,55 +1531,39 @@ async function saveContent(extra = {}) {
   } catch { alert('서버 연결 실패'); }
 }
 
-// ══ FILM STRIP ══
-(function buildFilmStrip() {
+// ══ BOTTOM BAR ══
+(function buildBottomBar() {
+  // 구멍 줄 생성
+  function fillHoles(rowEl) {
+    const count = 28;
+    for (let i = 0; i < count; i++) {
+      const h = document.createElement('div');
+      h.className = 'film-bar-hole';
+      rowEl.appendChild(h);
+    }
+  }
+  fillHoles(document.getElementById('filmHolesTop'));
+  fillHoles(document.getElementById('filmHolesBot'));
+
+  // 텍스트 스크롤
   const strip = document.getElementById('filmStrip');
   if (!strip) return;
-
-  const FRAME_W = 90;
-  const FRAMES_PER_UNIT = 10;
-  const UNITS = 6;
-  const HOLE_COUNT = 30; // 구멍 촘촘하게
-
-  function makeUnit() {
-    const unit = document.createElement('div');
-    unit.className = 'film-unit';
-
-    // 구멍 개수 고정
-    const holeCount = HOLE_COUNT;
-
-    function makeSprocketRow() {
-      const row = document.createElement('div');
-      row.className = 'film-sprocket-row';
-      for (let i = 0; i < holeCount; i++) {
-        const s = document.createElement('div');
-        s.className = 'film-sprocket';
-        row.appendChild(s);
-      }
-      return row;
-    }
-
-    const framesRow = document.createElement('div');
-    framesRow.className = 'film-frames-row';
-    for (let i = 0; i < FRAMES_PER_UNIT; i++) {
-      const f = document.createElement('div');
-      f.className = 'film-frame';
-      framesRow.appendChild(f);
-    }
-
-    unit.appendChild(makeSprocketRow());
-    unit.appendChild(framesRow);
-    unit.appendChild(makeSprocketRow());
-    return unit;
-  }
-
-  for (let i = 0; i < UNITS; i++) strip.appendChild(makeUnit());
-  // 무한 루프용 복사
+  const words = ['YANG BONG JANG', 'YANG BONG JANG', 'YANG BONG JANG', 'YANG BONG JANG', 'YANG BONG JANG', 'YANG BONG JANG'];
+  words.forEach(w => {
+    const span = document.createElement('span');
+    span.className = 'film-title-text';
+    span.textContent = w;
+    strip.appendChild(span);
+    const sep = document.createElement('div');
+    sep.className = 'film-title-sep';
+    strip.appendChild(sep);
+  });
+  // 무한 루프 복사
   strip.innerHTML += strip.innerHTML;
 })();
 
  // ══ SCROLL OBSERVER — highlight active section dot ══
-const sections = ['page-server', 'page-bot', 'page-patch', 'page-cmd'];
+const sections = ['page-server', 'page-bot', 'page-patch'];
 const observer = new IntersectionObserver((entries) => {
   entries.forEach(entry => {
     if (entry.isIntersecting) {
