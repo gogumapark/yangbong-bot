@@ -32,6 +32,7 @@
     font-family: var(--sans);
     min-height: 100vh;
     overflow-x: hidden;
+    padding-bottom: 110px;
     background-image:
       radial-gradient(circle, rgba(255,255,255,0.07) 1px, transparent 1px),
       radial-gradient(ellipse at 15% 10%, rgba(120,60,180,0.45), transparent 55%),
@@ -211,7 +212,7 @@
 
   /* first section needs top offset for fixed navbar */
   #page-server .section-banner {
-    margin-top: 64px;
+    margin-top: 80px;
   }
 
   /* visual separator between sections */
@@ -617,18 +618,21 @@
 
   /* ── FILM STRIP ── */
   .film-strip-wrap {
-    width: 100%;
+    position: fixed;
+    bottom: 0; left: 0; right: 0;
+    z-index: 100;
     overflow: hidden;
-    background: #0d0f11;
-    padding: 0;
-    margin-top: 60px;
-    position: relative;
+    background: #111316;
+    height: 110px;
+    border-top: 1px solid #1e2126;
   }
 
   .film-strip {
     display: flex;
+    align-items: stretch;
+    height: 100%;
     width: max-content;
-    animation: filmScroll 18s linear infinite;
+    animation: filmScroll 22s linear infinite;
   }
 
   .film-strip:hover { animation-play-state: paused; }
@@ -638,51 +642,51 @@
     100% { transform: translateX(-50%); }
   }
 
-  .film-reel {
+  /* 필름 한 유닛 = 구멍줄 + 프레임들 + 구멍줄 세로 배치 */
+  .film-unit {
     display: flex;
     flex-direction: column;
-    background: #111316;
-    border: 2px solid #2a2d33;
-  }
-
-  .film-holes {
-    display: flex;
-    align-items: center;
-    gap: 14px;
-    padding: 6px 10px;
-    background: #0d0f11;
-  }
-
-  .film-hole {
-    width: 22px;
-    height: 14px;
-    background: #0d0f11;
-    border: 2px solid #2a2d33;
-    border-radius: 5px;
+    height: 100%;
     flex-shrink: 0;
   }
 
-  .film-frames {
+  .film-sprocket-row {
+    background: #111316;
     display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 2px;
+    height: 18px;
+    flex-shrink: 0;
     gap: 0;
   }
 
-  .film-frame {
-    width: 140px;
-    height: 160px;
-    border-right: 2px solid #2a2d33;
+  .film-sprocket {
+    flex: 1;
+    height: 10px;
     background: #0a0b0d;
-    flex-shrink: 0;
-    position: relative;
-    overflow: hidden;
+    border: 1.5px solid #252830;
+    border-radius: 5px;
+    margin: 0 3px;
   }
 
-  .film-frame:last-child { border-right: none; }
+  .film-frames-row {
+    display: flex;
+    flex: 1;
+    border-top: 1.5px solid #252830;
+    border-bottom: 1.5px solid #252830;
+  }
 
-  .film-frame-inner {
-    width: 100%;
+  .film-frame {
+    width: 90px;
     height: 100%;
-    background: linear-gradient(135deg, #0f1115 0%, #161920 50%, #0c0d10 100%);
+    background: #0a0b0d;
+    border-right: 1.5px solid #252830;
+    flex-shrink: 0;
+  }
+
+  .film-frame:first-child {
+    border-left: 1.5px solid #252830;
   }
 
   /* ── FOOTER ── */
@@ -833,7 +837,7 @@
 
   /* ── SCROLL SNAP ── */
   .page {
-    scroll-margin-top: 64px;
+    scroll-margin-top: 80px;
   }
 
   @media (max-width: 600px) {
@@ -1526,48 +1530,49 @@ async function saveContent(extra = {}) {
   const strip = document.getElementById('filmStrip');
   if (!strip) return;
 
-  function makeReel(frameCount) {
-    const reel = document.createElement('div');
-    reel.className = 'film-reel';
+  const FRAME_W = 90;
+  const FRAMES_PER_UNIT = 10;
+  const UNITS = 6;
+  const HOLE_COUNT = 30; // 구멍 촘촘하게
 
-    function makeHoles(count) {
+  function makeUnit() {
+    const unit = document.createElement('div');
+    unit.className = 'film-unit';
+
+    // 구멍 개수 고정
+    const holeCount = HOLE_COUNT;
+
+    function makeSprocketRow() {
       const row = document.createElement('div');
-      row.className = 'film-holes';
-      for (let i = 0; i < count; i++) {
-        const h = document.createElement('div');
-        h.className = 'film-hole';
-        row.appendChild(h);
+      row.className = 'film-sprocket-row';
+      for (let i = 0; i < holeCount; i++) {
+        const s = document.createElement('div');
+        s.className = 'film-sprocket';
+        row.appendChild(s);
       }
       return row;
     }
 
     const framesRow = document.createElement('div');
-    framesRow.className = 'film-frames';
-    for (let i = 0; i < frameCount; i++) {
-      const frame = document.createElement('div');
-      frame.className = 'film-frame';
-      const inner = document.createElement('div');
-      inner.className = 'film-frame-inner';
-      frame.appendChild(inner);
-      framesRow.appendChild(frame);
+    framesRow.className = 'film-frames-row';
+    for (let i = 0; i < FRAMES_PER_UNIT; i++) {
+      const f = document.createElement('div');
+      f.className = 'film-frame';
+      framesRow.appendChild(f);
     }
 
-    reel.appendChild(makeHoles(frameCount + 2));
-    reel.appendChild(framesRow);
-    reel.appendChild(makeHoles(frameCount + 2));
-    return reel;
+    unit.appendChild(makeSprocketRow());
+    unit.appendChild(framesRow);
+    unit.appendChild(makeSprocketRow());
+    return unit;
   }
 
-  // 한 세트 = 8프레임 릴 2개
-  for (let s = 0; s < 4; s++) {
-    strip.appendChild(makeReel(8));
-  }
-  // 무한 스크롤을 위해 동일 복사본 추가
-  const clone = strip.innerHTML;
-  strip.innerHTML = clone + clone;
+  for (let i = 0; i < UNITS; i++) strip.appendChild(makeUnit());
+  // 무한 루프용 복사
+  strip.innerHTML += strip.innerHTML;
 })();
 
- — highlight active section dot ══
+ // ══ SCROLL OBSERVER — highlight active section dot ══
 const sections = ['page-server', 'page-bot', 'page-patch', 'page-cmd'];
 const observer = new IntersectionObserver((entries) => {
   entries.forEach(entry => {
