@@ -389,6 +389,10 @@ const groq = new Groq({
 
 let aiPersonality = "너는 디스코드 봇이다. 반말로 짧게 답하되 과하지 않게 말한다.";
 
+// 채널별 대화 기록 (최근 20턴 유지)
+const aiChatHistory = new Map(); // channelId -> [{role, content}, ...]
+const AI_HISTORY_LIMIT = 50; // user+assistant 합산 메시지 수
+
 const Stock = mongoose.model('Stock', stockSchema);
 const Money = mongoose.model('Money', moneySchema);
 
@@ -2948,6 +2952,7 @@ ${text}
 
         const channel = interaction.options.getChannel('채널');
         aiChannelId = channel.id;
+        aiChatHistory.clear();
 
         return interaction.reply({ content: `🤖 AI 채널 설정 완료!\n채널: ${channel}`, flags: 64 });
     }
@@ -2958,7 +2963,9 @@ ${text}
         }
 
         aiPersonality = interaction.options.getString('프롬프트');
-        return interaction.reply({ content: `🤖 AI 성격 변경 완료!\n\n${aiPersonality}`, flags: 64 });
+        // 성격 바뀌면 기존 대화 기록 초기화
+        aiChatHistory.clear();
+        return interaction.reply({ content: `🤖 AI 성격 변경 완료! (대화 기록 초기화됨)\n\n${aiPersonality}`, flags: 64 });
     }
 
     if (interaction.commandName === '송금') {
@@ -3626,17 +3633,39 @@ client.on('messageCreate', async message => {
     try {
         await message.channel.sendTyping();
 
+        // 채널별 대화 기록 가져오기
+        if (!aiChatHistory.has(aiChannelId)) {
+            aiChatHistory.set(aiChannelId, []);
+        }
+        const history = aiChatHistory.get(aiChannelId);
+
+        // 새 유저 메시지 추가 (누가 보냈는지 포함)
+        history.push({ role: 'user', content: `${message.author.username}: ${message.content}` });
+
+        // 최근 AI_HISTORY_LIMIT개만 유지
+        while (history.length > AI_HISTORY_LIMIT) history.shift();
+
+        const systemPrompt =
+            aiPersonality +
+            '\n반드시 한국어로만 대답해. 절대 일본어, 영어, 중국어 등 다른 언어를 섞지 마.';
+
         const reply = await groq.chat.completions.create({
-            model: "llama-3.3-70b-versatile",
+            model: "openai/gpt-oss-120b",
             messages: [
-                { role: "system", content: aiPersonality },
-                { role: "user", content: message.content }
+                { role: "system", content: systemPrompt },
+                ...history
             ],
             temperature: 0.7,
             max_tokens: 500
         });
 
-        await message.reply(reply.choices[0].message.content);
+        const replyText = reply.choices[0].message.content;
+
+        // 봇 응답도 기록에 추가
+        history.push({ role: 'assistant', content: replyText });
+        while (history.length > AI_HISTORY_LIMIT) history.shift();
+
+        await message.reply(replyText);
     } catch (err) {
         console.error(err);
         await message.reply('❌ AI 오류');
