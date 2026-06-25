@@ -294,16 +294,26 @@ function normalizeStatus(status) {
 async function applyPresenceTransition(presenceDoc, newStatus, now = new Date()) {
     const oldStatus = normalizeStatus(presenceDoc.currentStatus);
     const since = presenceDoc.statusSince ? new Date(presenceDoc.statusSince) : now;
-    const elapsedMs = Math.max(0, now - since);
 
-    if (elapsedMs > 0) {
-        const dateKey = kstDateString(now);
-        let entry = presenceDoc.history.find(h => h.date === dateKey);
-        if (!entry) {
-            entry = { date: dateKey, online: 0, idle: 0, dnd: 0, offline: 0 };
-            presenceDoc.history.push(entry);
+    // KST 자정 기준으로 날짜 분리 적립
+    let cursor = new Date(since);
+    while (cursor < now) {
+        const cursorDateStr = kstDateString(cursor);
+        const nextMidnightKst = new Date(cursorDateStr + 'T00:00:00+09:00');
+        nextMidnightKst.setDate(nextMidnightKst.getDate() + 1);
+
+        const segmentEnd = nextMidnightKst < now ? nextMidnightKst : now;
+        const elapsedMs = Math.max(0, segmentEnd - cursor);
+
+        if (elapsedMs > 0) {
+            let entry = presenceDoc.history.find(h => h.date === cursorDateStr);
+            if (!entry) {
+                entry = { date: cursorDateStr, online: 0, idle: 0, dnd: 0, offline: 0 };
+                presenceDoc.history.push(entry);
+            }
+            entry[oldStatus] = (Number(entry[oldStatus] || 0)) + elapsedMs;
         }
-        entry[oldStatus] += elapsedMs;
+        cursor = segmentEnd;
     }
 
     presenceDoc.currentStatus = normalizeStatus(newStatus);
@@ -317,8 +327,11 @@ async function applyPresenceTransition(presenceDoc, newStatus, now = new Date())
 async function generatePresenceChart(presenceDoc, days = 3) {
     const now = new Date();
     const dateKeys = [];
+    // KST 기준 오늘 자정으로부터 날짜 계산
+    const todayKst = new Date(now.toLocaleDateString('sv-SE', { timeZone: 'Asia/Seoul' }) + 'T00:00:00+09:00');
     for (let i = days - 1; i >= 0; i--) {
-        dateKeys.push(kstDateString(new Date(now.getTime() - i * 86400000)));
+        const d = new Date(todayKst.getTime() - i * 86400000);
+        dateKeys.push(kstDateString(d));
     }
 
     // history를 복사하고, 오늘 날짜는 진행중인 현재 상태 시간도 더해서 보여줌
@@ -338,10 +351,10 @@ async function generatePresenceChart(presenceDoc, days = 3) {
 
     for (const key of dateKeys) {
         const entry = historyMap.get(key) || { online: 0, idle: 0, dnd: 0, offline: 0 };
-        buckets.online.push(+(entry.online / 3600000).toFixed(2));
-        buckets.idle.push(+(entry.idle / 3600000).toFixed(2));
-        buckets.dnd.push(+(entry.dnd / 3600000).toFixed(2));
-        buckets.offline.push(+(entry.offline / 3600000).toFixed(2));
+        buckets.online.push(+(Number(entry.online || 0) / 3600000).toFixed(2));
+        buckets.idle.push(+(Number(entry.idle || 0) / 3600000).toFixed(2));
+        buckets.dnd.push(+(Number(entry.dnd || 0) / 3600000).toFixed(2));
+        buckets.offline.push(+(Number(entry.offline || 0) / 3600000).toFixed(2));
     }
 
     const config = {
@@ -3425,10 +3438,10 @@ ${text}
             const { buffer, buckets } = await generatePresenceChart(presenceDoc, 3);
             const attachment = new AttachmentBuilder(buffer, { name: 'presence_chart.png' });
 
-            const totalOnline = buckets.online.reduce((a, b) => a + b, 0);
-            const totalIdle = buckets.idle.reduce((a, b) => a + b, 0);
-            const totalDnd = buckets.dnd.reduce((a, b) => a + b, 0);
-            const totalOffline = buckets.offline.reduce((a, b) => a + b, 0);
+            const totalOnline = buckets.online.reduce((a, b) => a + b, 0) || 0;
+            const totalIdle = buckets.idle.reduce((a, b) => a + b, 0) || 0;
+            const totalDnd = buckets.dnd.reduce((a, b) => a + b, 0) || 0;
+            const totalOffline = buckets.offline.reduce((a, b) => a + b, 0) || 0;
 
             const embed = new EmbedBuilder()
                 .setTitle(`📊 ${targetUser.username}님의 활동시간 (최근 3일)`)
