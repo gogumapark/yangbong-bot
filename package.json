@@ -14,10 +14,12 @@
     "@google/generative-ai": "^0.24.1",
     "chart.js": "^4.5.1",
     "chartjs-node-canvas": "^5.0.0",
+    "cheerio": "^1.2.0",
     "discord.js": "^14.26.4",
     "express": "^5.2.1",
     "groq-sdk": "^1.2.0",
     "mongoose": "^9.6.2",
-    "openai": "^6.39.0"
+    "openai": "^6.39.0",
+    "turndown": "^7.2.4"
   }
 }
