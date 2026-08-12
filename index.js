@@ -1,7 +1,5 @@
 const express = require('express');
 const app = express();
-const axios = require('axios');
-const cheerio = require('cheerio');
 
 // ════════════════════════════════════════
 // 웹 대시보드 API — index.js 상단에 추가
@@ -93,6 +91,130 @@ let aiChannelId = null;
 mongoose.connect(process.env.MONGO_URI)
     .then(() => console.log('MongoDB 연결 성공!'))
     .catch(err => console.error('MongoDB 연결 실패:', err));
+
+// ════════════════════════════════════════
+// 오버워치 패치노트 알리미
+// npm install cheerio turndown 필요 (Node 18+ 전역 fetch 사용)
+// ════════════════════════════════════════
+
+const cheerio = require('cheerio');
+const TurndownService = require('turndown');
+
+const OVERWATCH_PATCH_URL = 'https://overwatch.blizzard.com/ko-kr/news/patch-notes/live';
+const OVERWATCH_CHECK_INTERVAL = 10 * 60 * 1000; // 10분마다 확인
+
+const overwatchConfigSchema = new mongoose.Schema({
+    guildId: { type: String, unique: true },
+    channelId: String,
+    lastMessageId: { type: String, default: null },
+    lastPatchId: { type: String, default: null },
+});
+const OverwatchConfig = mongoose.model('OverwatchConfig', overwatchConfigSchema);
+
+// 페이지를 가져와 마크다운으로 변환 후, 가장 최신 패치노트 1개를 파싱합니다.
+// 실제 DOM 구조가 바뀌면 정규식을 조정해야 할 수 있습니다.
+async function fetchLatestOverwatchPatchNote() {
+    const res = await fetch(OVERWATCH_PATCH_URL, {
+        headers: { 'User-Agent': 'Mozilla/5.0 (compatible; YangbongBot/1.0)' }
+    });
+    if (!res.ok) throw new Error(`패치노트 페이지 요청 실패: ${res.status}`);
+    const html = await res.text();
+
+    const $ = cheerio.load(html);
+    // 광고/스크립트/스타일 등 불필요한 태그 제거
+    $('script, style, noscript, svg, img').remove();
+
+    const turndown = new TurndownService();
+    const markdown = turndown.turndown($.html());
+
+    // "# 패치 노트" 제목 이후부터 파싱 시작
+    const startIdx = markdown.indexOf('패치 노트');
+    const body = startIdx >= 0 ? markdown.slice(startIdx) : markdown;
+
+    // 각 항목은 보통 "위로 이동" 구분자로 끝남 → 첫 번째 항목이 최신 항목
+    const firstChunk = body.split('위로 이동')[0];
+
+    // 날짜 (예: 2026년 8월 11일)
+    const dateMatch = firstChunk.match(/\d{4}년\s*\d{1,2}월\s*\d{1,2}일/);
+    const date = dateMatch ? dateMatch[0] : null;
+
+    // 제목 (### 로 시작하는 첫 줄)
+    const titleMatch = firstChunk.match(/#{2,4}\s*(.+)/);
+    const title = titleMatch ? titleMatch[1].trim() : null;
+
+    if (!date || !title) {
+        throw new Error('패치노트 파싱 실패 (페이지 구조가 변경되었을 수 있습니다)');
+    }
+
+    // 제목 아래 본문에서 앞부분 몇 줄을 추려 소개글로 사용
+    const afterTitle = firstChunk.slice(firstChunk.indexOf(title) + title.length);
+    const excerpt = afterTitle
+        .split('\n')
+        .map(l => l.trim())
+        .filter(l => l && !l.startsWith('#') && !l.startsWith('!['))
+        .slice(0, 6)
+        .join(' ')
+        .replace(/\s+/g, ' ')
+        .slice(0, 800);
+
+    return {
+        id: `${date}__${title}`,
+        date,
+        title,
+        excerpt: excerpt || '자세한 내용은 아래 링크에서 확인하세요.',
+        url: OVERWATCH_PATCH_URL
+    };
+}
+
+// 등록된 모든 서버 채널을 돌며 최신 패치노트인지 확인하고,
+// 새 패치노트라면 이전 메시지를 지우고 새 메시지를 올립니다.
+async function checkOverwatchPatchNotes() {
+    let latest;
+    try {
+        latest = await fetchLatestOverwatchPatchNote();
+    } catch (err) {
+        console.error('[오버워치 패치노트] 조회 실패:', err.message);
+        return;
+    }
+
+    const configs = await OverwatchConfig.find({ channelId: { $ne: null } });
+
+    for (const config of configs) {
+        if (config.lastPatchId === latest.id) continue; // 새 패치노트 아님
+
+        try {
+            const channel = await client.channels.fetch(config.channelId);
+            if (!channel) continue;
+
+            // 기존 패치노트 메시지 삭제 (새 패치노트만 남기기)
+            if (config.lastMessageId) {
+                try {
+                    const oldMsg = await channel.messages.fetch(config.lastMessageId);
+                    await oldMsg.delete();
+                } catch { }
+            }
+
+            const embed = new EmbedBuilder()
+                .setTitle(`🎮 ${latest.title}`)
+                .setURL(latest.url)
+                .setDescription(latest.excerpt)
+                .addFields({ name: '📅 날짜', value: latest.date })
+                .setColor('Orange')
+                .setFooter({ text: '오버워치 공식 패치노트 · 10분마다 자동 확인' })
+                .setTimestamp();
+
+            const newMsg = await channel.send({ embeds: [embed] });
+
+            config.lastMessageId = newMsg.id;
+            config.lastPatchId = latest.id;
+            await config.save();
+
+            console.log(`[오버워치 패치노트] 새 패치노트 게시 완료 (채널: ${config.channelId})`);
+        } catch (err) {
+            console.error(`[오버워치 패치노트] 채널(${config.channelId}) 게시 실패:`, err.message);
+        }
+    }
+}
 
 const moneySchema = new mongoose.Schema({
     userId: { type: String, unique: true },
@@ -461,15 +583,6 @@ const selectableRoleSchema = new mongoose.Schema({
 });
 const SelectableRole = mongoose.model('SelectableRole', selectableRoleSchema);
 
-// ── 오버워치 패치노트 자동 게시 설정 ──
-const patchNoteConfigSchema = new mongoose.Schema({
-    guildId: { type: String, unique: true },
-    channelId: { type: String, default: null },
-    lastMessageId: { type: String, default: null },
-    lastPatchKey: { type: String, default: null }, // 날짜+제목 조합으로 변경 감지
-});
-const PatchNoteConfig = mongoose.model('PatchNoteConfig', patchNoteConfigSchema);
-
 const {
     Client,
     GatewayIntentBits,
@@ -511,160 +624,6 @@ client.on('messageDelete', message => {
         createdAt: new Date()
     });
 });
-
-// ─────────────────────────────
-// 오버워치 패치노트: 최신 패치노트 파싱
-// ─────────────────────────────
-const OW_PATCH_URL = 'https://overwatch.blizzard.com/ko-kr/news/patch-notes/live';
-
-async function fetchLatestOverwatchPatch() {
-    const { data: html } = await axios.get(OW_PATCH_URL, {
-        headers: {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36'
-        },
-        timeout: 15000
-    });
-
-    const $ = cheerio.load(html);
-
-    const headingRegex = /패치\s*노트|업데이트/; // "패치 노트" 또는 "업데이트" 제목 대응
-    const dateRegex = /\d{4}년\s*\d{1,2}월\s*\d{1,2}일/;
-
-    let titleEl = null;
-    let title = null;
-
-    // 페이지 내 헤딩(h1~h4)을 순서대로 훑어서 가장 먼저 나오는
-    // "패치 노트" 관련 제목을 찾음 (= 가장 최신 글)
-    const headings = $('h1, h2, h3, h4').toArray();
-    for (const el of headings) {
-        const text = $(el).text().trim();
-        if (headingRegex.test(text) && text.length > 3) {
-            title = text;
-            titleEl = el;
-            break;
-        }
-    }
-
-    if (!title || !titleEl) {
-        return null; // 파싱 실패 (사이트 구조가 바뀌었을 가능성)
-    }
-
-    // 제목 근처(형제 요소, 이전 요소들)에서 날짜 텍스트 탐색
-    let dateText = null;
-    const titleDateMatch = title.match(dateRegex);
-    if (titleDateMatch) {
-        dateText = titleDateMatch[0];
-    } else {
-        let prevEl = $(titleEl).prev();
-        let hops = 0;
-        while (prevEl.length && hops < 6 && !dateText) {
-            const t = prevEl.text().trim();
-            const m = t.match(dateRegex);
-            if (m) dateText = m[0];
-            prevEl = prevEl.prev();
-            hops++;
-        }
-    }
-
-    // 제목 다음에 이어지는 본문에서 다음 패치 제목이 나오기 전까지 텍스트를 모아 요약 생성
-    let summaryParts = [];
-    let cur = $(titleEl).next();
-    let totalLen = 0;
-    let count = 0;
-
-    while (cur.length && totalLen < 1200 && count < 40) {
-        const tagName = (cur.get(0).tagName || '').toLowerCase();
-
-        if (['h1', 'h2', 'h3', 'h4'].includes(tagName) && headingRegex.test(cur.text())) {
-            break; // 다음 패치 항목 시작 -> 중단
-        }
-
-        const t = cur.text().trim();
-        if (t) {
-            summaryParts.push(t);
-            totalLen += t.length;
-        }
-
-        cur = cur.next();
-        count++;
-    }
-
-    let summary = summaryParts.join('\n\n');
-    const truncated = summary.length > 1200;
-    if (truncated) summary = summary.slice(0, 1200) + '...';
-
-    if (!summary) summary = '(요약을 불러오지 못했습니다. 아래 링크에서 확인해주세요)';
-
-    return {
-        title,
-        date: dateText || '날짜 확인 불가',
-        summary,
-        url: OW_PATCH_URL
-    };
-}
-
-// ─────────────────────────────
-// 오버워치 패치노트: 모든 서버 채널에 새 패치노트 체크 & 게시
-// ─────────────────────────────
-async function checkAllOverwatchPatchNotes() {
-    let latest;
-    try {
-        latest = await fetchLatestOverwatchPatch();
-    } catch (err) {
-        console.error('[오버워치 패치노트] 페이지 요청 오류:', err.message);
-        return;
-    }
-
-    if (!latest) {
-        console.log('[오버워치 패치노트] 파싱 실패 - 사이트 구조가 변경되었을 수 있습니다.');
-        return;
-    }
-
-    const patchKey = `${latest.date}__${latest.title}`;
-
-    const configs = await PatchNoteConfig.find({ channelId: { $ne: null } });
-
-    for (const config of configs) {
-        if (config.lastPatchKey === patchKey) continue; // 이미 게시한 최신 패치노트
-
-        try {
-            const channel = await client.channels.fetch(config.channelId);
-            if (!channel) continue;
-
-            // 기존에 게시했던 메시지 삭제
-            if (config.lastMessageId) {
-                try {
-                    const oldMsg = await channel.messages.fetch(config.lastMessageId);
-                    if (oldMsg) await oldMsg.delete();
-                } catch {
-                    // 이미 삭제되었거나 찾을 수 없음 -> 무시하고 진행
-                }
-            }
-
-            const embed = new EmbedBuilder()
-                .setTitle(`🎮 ${latest.title}`)
-                .setURL(latest.url)
-                .setColor('Orange')
-                .setDescription(`${latest.summary}\n\n🔗 [전체 내용 보기](${latest.url})`)
-                .addFields({ name: '📅 날짜', value: latest.date })
-                .setFooter({ text: '오버워치 패치 노트 자동 알림' })
-                .setTimestamp();
-
-            const newMsg = await channel.send({ embeds: [embed] });
-
-            config.lastMessageId = newMsg.id;
-            config.lastPatchKey = patchKey;
-            await config.save();
-
-            console.log(`[오버워치 패치노트] 길드 ${config.guildId} 채널에 새 패치노트 게시 완료`);
-        } catch (err) {
-            console.error(`[오버워치 패치노트] 길드 ${config.guildId} 처리 중 오류:`, err.message);
-        }
-    }
-}
-
-// 30분마다 자동 체크
-setInterval(checkAllOverwatchPatchNotes, 30 * 60 * 1000);
 
 const commands = [
 
@@ -922,6 +881,13 @@ const commands = [
         .setDescription('서버 채팅 개수 순위를 확인합니다'),
 
     new SlashCommandBuilder()
+        .setName('오버워치패치노트')
+        .setDescription('[관리자] 오버워치 패치노트를 자동으로 올릴 채널을 지정합니다')
+        .addChannelOption(option =>
+            option.setName('채널').setDescription('패치노트를 올릴 채널').setRequired(true)
+        ),
+
+    new SlashCommandBuilder()
         .setName('마법의굼박고동님')
         .setDescription('고굼박님 이(가) 미소를지으며 온화한 목소리로 말씀하십니다. 그래 무엇이 고민이더냐')
         .addStringOption(option =>
@@ -940,13 +906,6 @@ const commands = [
         .setDescription('[관리자] 역할선택에서 고를 수 있는 역할을 추가/제거합니다')
         .addRoleOption(option =>
             option.setName('역할').setDescription('역할 풀에 추가/제거할 역할').setRequired(true)
-        ),
-
-    new SlashCommandBuilder()
-        .setName('오버워치패치노트')
-        .setDescription('오버워치 패치노트를 게시할 채널을 설정합니다')
-        .addChannelOption(option =>
-            option.setName('채널').setDescription('패치노트를 게시할 채널').setRequired(true)
         ),
 
     new SlashCommandBuilder()
@@ -996,8 +955,8 @@ client.once('clientReady', async () => {
         console.error('[활동시간] 초기화 실패 (Presence Intent가 비활성화되어 있을 수 있습니다):', err.message);
     }
 
-    // 봇 재시작 시 놓친 오버워치 패치노트 확인
-    checkAllOverwatchPatchNotes();
+    // 오버워치 패치노트 시작 시 1회 확인 (재시작 사이 새 패치노트 대비)
+    checkOverwatchPatchNotes().catch(err => console.error('[오버워치 패치노트] 시작 확인 오류:', err));
 });
 
 client.on('presenceUpdate', async (oldPresence, newPresence) => {
@@ -1519,6 +1478,13 @@ setInterval(async () => {
     }
 }, 10 * 60 * 1000);
 
+// =========================
+// 오버워치 패치노트 자동 확인 (10분마다)
+// =========================
+setInterval(() => {
+    checkOverwatchPatchNotes().catch(err => console.error('[오버워치 패치노트] 주기 확인 오류:', err));
+}, OVERWATCH_CHECK_INTERVAL);
+
 
 // =========================
 // interactionCreate
@@ -1984,7 +1950,7 @@ ai의 성격혹은 말투, 등 을 설정합니다.
 서버 채팅 개수 순위를 확인합니다.
 
 \`/오버워치패치노트 채널:\`
-오버워치 패치노트를 자동으로 게시할 채널을 설정합니다.
+[관리자] 지정한 채널에 오버워치 패치노트를 자동으로 올립니다. (10분마다 확인, 새 패치노트가 나오면 이전 글은 삭제됩니다)
 
 \`/초기화\`
 [관리자] 전체 초기화
@@ -3678,6 +3644,42 @@ ${text}
         });
     }
 
+    if (interaction.commandName === '오버워치패치노트') {
+        if (!interaction.member.permissions.has('Administrator')) {
+            return interaction.reply({ content: '❌ 관리자만 사용 가능', flags: 64 });
+        }
+
+        await interaction.deferReply({ flags: 64 });
+
+        const channel = interaction.options.getChannel('채널');
+        const guildId2 = interaction.guild.id;
+
+        let config = await OverwatchConfig.findOne({ guildId: guildId2 });
+
+        if (!config) {
+            config = await OverwatchConfig.create({ guildId: guildId2, channelId: channel.id });
+        } else {
+            // 채널이 바뀌면 이전 채널에 남아있던 패치노트 메시지는 그대로 두고,
+            // 새 채널부터 다시 최신 패치노트를 올리도록 초기화
+            config.channelId = channel.id;
+            config.lastMessageId = null;
+            config.lastPatchId = null;
+            await config.save();
+        }
+
+        await interaction.editReply(`✅ 오버워치 패치노트 채널을 ${channel} (으)로 설정했습니다!\n📰 최신 패치노트를 확인 중...`);
+
+        try {
+            await checkOverwatchPatchNotes();
+            await interaction.followUp({ content: '📢 최신 패치노트를 게시했습니다!', flags: 64 });
+        } catch (err) {
+            console.error(err);
+            await interaction.followUp({ content: '❌ 패치노트를 불러오지 못했습니다. 잠시 후 자동으로 다시 시도합니다.', flags: 64 });
+        }
+
+        return;
+    }
+
     if (interaction.commandName === '마법의굼박고동님') {
         const question = interaction.options.getString('질문');
 
@@ -3741,30 +3743,6 @@ ${text}
             await SelectableRole.create({ roleId: role.id, roleName: role.name });
             return interaction.editReply(`✅ <@&${role.id}> 역할을 역할선택 풀에 추가했습니다.\n이제 \`/역할선택\` 으로 부여/해제할 수 있습니다.`);
         }
-    }
-
-    if (interaction.commandName === '오버워치패치노트') {
-        if (!interaction.member.permissions.has('Administrator')) {
-            return interaction.reply({ content: '❌ 관리자만 사용 가능', flags: 64 });
-        }
-
-        await interaction.deferReply({ flags: 64 });
-
-        const channel = interaction.options.getChannel('채널');
-
-        await PatchNoteConfig.findOneAndUpdate(
-            { guildId: interaction.guild.id },
-            { channelId: channel.id },
-            { upsert: true }
-        );
-
-        await interaction.editReply(
-            `✅ 오버워치 패치노트 알림 채널을 ${channel} (으)로 설정했습니다!\n` +
-            `새 패치노트가 올라오면 자동으로 게시됩니다. (최대 30분 이내 반영, 지금 바로 1회 확인합니다)`
-        );
-
-        // 설정 직후 바로 1회 체크해서 최신 패치노트를 즉시 게시
-        checkAllOverwatchPatchNotes();
     }
 
     if (interaction.commandName === '초기화') {
