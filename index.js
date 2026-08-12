@@ -146,16 +146,42 @@ async function fetchLatestOverwatchPatchNote() {
         throw new Error('패치노트 파싱 실패 (페이지 구조가 변경되었을 수 있습니다)');
     }
 
-    // 제목 아래 본문에서 앞부분 몇 줄을 추려 소개글로 사용
+// 제목 아래 본문에서 구조(소제목/불릿)를 살려 소개글로 사용
     const afterTitle = firstChunk.slice(firstChunk.indexOf(title) + title.length);
-    const excerpt = afterTitle
-        .split('\n')
-        .map(l => l.trim())
-        .filter(l => l && !l.startsWith('#') && !l.startsWith('!['))
-        .slice(0, 6)
-        .join(' ')
-        .replace(/\s+/g, ' ')
-        .slice(0, 800);
+
+    const rawLines = afterTitle.split('\n').map(l => l.trim());
+    const excerptLines = [];
+
+    for (const line of rawLines) {
+        if (!line) continue;
+        if (line.startsWith('![')) continue; // 이미지 줄 제거
+
+        // 소제목 (##, ###, #### 등) → 굵게 표시 (예: Hero Updates, D.Mon, Plasma Saber)
+        if (/^#{2,6}\s+/.test(line)) {
+            const heading = line.replace(/^#{2,6}\s+/, '').trim();
+            if (heading) excerptLines.push(`**${heading}**`);
+            continue;
+        }
+
+        // 목록 항목 (* 또는 -) → 불릿으로 표시
+        if (/^[*\-]\s+/.test(line)) {
+            const bullet = line.replace(/^[*\-]\s+/, '').trim();
+            if (bullet) excerptLines.push(`• ${bullet}`);
+            continue;
+        }
+
+        excerptLines.push(line);
+
+        // 너무 길어지지 않도록 항목 개수 제한
+        if (excerptLines.length >= 40) break;
+    }
+
+    let excerpt = excerptLines.join('\n');
+    // 디스코드 임베드 description 최대 길이(4096자)를 넘지 않도록 여유있게 컷
+    if (excerpt.length > 3500) {
+        excerpt = excerpt.slice(0, 3500) + '\n...(자세한 내용은 아래 링크 참고)';
+    }
+    excerpt = excerpt || '자세한 내용은 아래 링크에서 확인하세요.';
 
     return {
         id: `${date}__${title}`,
