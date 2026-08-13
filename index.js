@@ -1643,9 +1643,9 @@ setInterval(() => {
 // 오버워치 공식 채널은 "OO 영웅 트레일러", "OO 스토리 타임", "OO 출시/시즌/시네마틱 트레일러" 같은
 // 고정된 제목 패턴을 사용하므로 키워드로 충분히 구분 가능합니다.
 function classifyOverwatchVideo(title) {
-    if (/영웅\s*(게임플레이\s*)?트레일러/.test(title)) return { type: 'hero', label: ' 영웅 트레일러' };
-    if (/스토리\s*타임/.test(title)) return { type: 'story', label: ' 스토리 타임' };
-    if (/트레일러/.test(title)) return { type: 'game', label: ' 게임 트레일러' }; // 출시/시즌/시네마틱 트레일러 등
+    if (/영웅\s*(게임플레이\s*)?트레일러/.test(title)) return { type: 'hero', label: '🦸 영웅 트레일러' };
+    if (/스토리\s*타임/.test(title)) return { type: 'story', label: '📖 스토리 타임' };
+    if (/트레일러/.test(title)) return { type: 'game', label: '🎬 게임 트레일러' }; // 출시/시즌/시네마틱 트레일러 등
     return null; // 분류 안 되면 라벨 없이 게시
 }
 
