@@ -110,6 +110,78 @@ const overwatchConfigSchema = new mongoose.Schema({
 });
 const OverwatchConfig = mongoose.model('OverwatchConfig', overwatchConfigSchema);
 
+// 영웅 밸런스 변경사항 파싱
+// 패치노트에서 영웅 아이콘 이미지(![영웅이름](url)) 바로 뒤에 붙는 "##### 영웅이름" 제목을 기준으로
+// 각 영웅 블록을 찾고, 다음 영웅이 나오거나 다음 #### 섹션이 시작되기 전까지를 해당 영웅의 변경사항으로 간주합니다.
+// 스타디움 전용 밸런스(별도 게임 모드)는 중복/혼동을 피하기 위해 기본적으로 제외합니다.
+function parseHeroChanges(chunkText) {
+    const stadiumIdx = chunkText.search(/####\s*(스타디움 업데이트|Stadium Update)/);
+    const scanText = stadiumIdx >= 0 ? chunkText.slice(0, stadiumIdx) : chunkText;
+
+    // 영웅 아이콘 이미지는 alt 텍스트가 영웅 이름과 동일함 (기술/특전 아이콘은 alt가 비어있어 자동 제외됨)
+    const heroRegex = /!\[([^\]]+)\]\((https?:\/\/[^)]+)\)\s*\n+#####\s*([^\n]+)/g;
+    const heroMatches = [];
+    let m;
+    while ((m = heroRegex.exec(scanText)) !== null) {
+        const altName = m[1].trim();
+        const headingName = m[3].trim();
+        if (altName !== headingName) continue;
+        heroMatches.push({
+            name: headingName,
+            imgUrl: m[2].trim(),
+            matchStart: m.index,
+            contentStart: m.index + m[0].length
+        });
+    }
+
+    if (heroMatches.length === 0) return [];
+
+    // #### 레벨 섹션 경계 (다음 영웅이 없어도 섹션이 끝나면 거기서 멈추기 위함)
+    const sectionRegex = /^####\s+.+$/gm;
+    const sectionStarts = [];
+    let sm;
+    while ((sm = sectionRegex.exec(scanText)) !== null) {
+        sectionStarts.push(sm.index);
+    }
+
+    const heroes = [];
+    for (let i = 0; i < heroMatches.length; i++) {
+        const cur = heroMatches[i];
+        const nextHeroStart = heroMatches[i + 1] ? heroMatches[i + 1].matchStart : scanText.length;
+        const nextSectionStart = sectionStarts.find(idx => idx > cur.contentStart);
+        const end = Math.min(nextHeroStart, nextSectionStart ?? scanText.length);
+
+        const raw = scanText.slice(cur.contentStart, end);
+        const lines = raw.split('\n').map(l => l.trim());
+        const out = [];
+
+        for (const line of lines) {
+            if (!line) continue;
+            if (line.startsWith('![')) continue; // 기술/특전 아이콘 이미지 줄 제거
+
+            if (/^[*\-]\s+/.test(line)) {
+                out.push(`• ${line.replace(/^[*\-]\s+/, '').trim()}`);
+                continue;
+            }
+
+            // 문장(설명 문단)인지, 기술/특전 이름 같은 라벨인지 대략 구분
+            if (/[.!?]$/.test(line) || line.length > 50) {
+                out.push(line);
+            } else {
+                out.push(`**${line}**`);
+            }
+        }
+
+        let text = out.join('\n');
+        if (!text) text = '변경 사항 없음';
+        if (text.length > 900) text = text.slice(0, 900) + '\n...(생략)';
+
+        heroes.push({ name: cur.name, imgUrl: cur.imgUrl, text });
+    }
+
+    return heroes.slice(0, 30); // 과도하게 많을 경우 대비
+}
+
 // 페이지를 가져와 마크다운으로 변환 후, 최근 항목들(핫픽스/정식 패치노트/공지)을 모두 파싱합니다.
 // 실제 DOM 구조가 바뀌면 정규식을 조정해야 할 수 있습니다.
 async function fetchOverwatchPatchEntries() {
@@ -120,8 +192,8 @@ async function fetchOverwatchPatchEntries() {
     const html = await res.text();
 
     const $ = cheerio.load(html);
-    // 광고/스크립트/스타일 등 불필요한 태그 제거
-    $('script, style, noscript, svg, img').remove();
+    // 광고/스크립트/스타일 등 불필요한 태그 제거 (영웅 아이콘 이미지는 밸런스 패치 파싱에 필요하므로 유지)
+    $('script, style, noscript, svg').remove();
 
     const turndown = new TurndownService();
     const markdown = turndown.turndown($.html());
@@ -189,12 +261,15 @@ async function fetchOverwatchPatchEntries() {
         }
         excerpt = excerpt || '자세한 내용은 아래 링크에서 확인하세요.';
 
+        const heroes = parseHeroChanges(chunk);
+
         entries.push({
             id: `${date}__${title}`,
             date,
             title,
             type,
             excerpt,
+            heroes,
             url: OVERWATCH_PATCH_URL
         });
     }
@@ -245,6 +320,27 @@ async function checkOverwatchPatchNotes() {
                     .setTimestamp();
 
                 await channel.send({ embeds: [embed] });
+
+                // 영웅별 밸런스 변경사항 - 사진 + 변경내역을 영웅 하나씩 임베드로 게시 (한 메시지당 최대 5개씩)
+                if (entry.heroes && entry.heroes.length > 0) {
+                    const groupSize = 5;
+                    for (let i = 0; i < entry.heroes.length; i += groupSize) {
+                        const group = entry.heroes.slice(i, i + groupSize);
+                        const heroEmbeds = group.map(h =>
+                            new EmbedBuilder()
+                                .setTitle(`🦸 ${h.name}`)
+                                .setThumbnail(h.imgUrl)
+                                .setDescription(h.text)
+                                .setColor('Purple')
+                        );
+
+                        await channel.send({
+                            content: i === 0 ? `📋 **${entry.title}** · 영웅 밸런스 변경사항` : undefined,
+                            embeds: heroEmbeds
+                        });
+                    }
+                }
+
                 config.postedPatchIds.push(entry.id);
             }
 
