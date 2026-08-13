@@ -106,14 +106,13 @@ const OVERWATCH_CHECK_INTERVAL = 10 * 60 * 1000; // 10분마다 확인
 const overwatchConfigSchema = new mongoose.Schema({
     guildId: { type: String, unique: true },
     channelId: String,
-    lastMessageId: { type: String, default: null },
-    lastPatchId: { type: String, default: null },
+    postedPatchIds: { type: [String], default: [] }, // 이미 게시한 핫픽스/패치노트 id 목록
 });
 const OverwatchConfig = mongoose.model('OverwatchConfig', overwatchConfigSchema);
 
-// 페이지를 가져와 마크다운으로 변환 후, 가장 최신 패치노트 1개를 파싱합니다.
+// 페이지를 가져와 마크다운으로 변환 후, 최근 항목들(핫픽스/정식 패치노트/공지)을 모두 파싱합니다.
 // 실제 DOM 구조가 바뀌면 정규식을 조정해야 할 수 있습니다.
-async function fetchLatestOverwatchPatchNote() {
+async function fetchOverwatchPatchEntries() {
     const res = await fetch(OVERWATCH_PATCH_URL, {
         headers: { 'User-Agent': 'Mozilla/5.0 (compatible; YangbongBot/1.0)' }
     });
@@ -131,111 +130,129 @@ async function fetchLatestOverwatchPatchNote() {
     const startIdx = markdown.indexOf('패치 노트');
     const body = startIdx >= 0 ? markdown.slice(startIdx) : markdown;
 
-    // 각 항목은 보통 "위로 이동" 구분자로 끝남 → 첫 번째 항목이 최신 항목
-    const firstChunk = body.split('위로 이동')[0];
+    // 각 항목은 보통 "위로 이동" 구분자로 끝남 → 최신 항목들부터 순서대로 나열됨
+    // 최신 5개 항목까지만 확인 (핫픽스 + 정식 패치노트 + 일반 공지 등)
+    const chunks = body.split('위로 이동').slice(0, 5);
 
-    // 날짜 (예: 2026년 8월 11일)
-    const dateMatch = firstChunk.match(/\d{4}년\s*\d{1,2}월\s*\d{1,2}일/);
-    const date = dateMatch ? dateMatch[0] : null;
+    const entries = [];
 
-    // 제목 (### 로 시작하는 첫 줄)
-    const titleMatch = firstChunk.match(/#{2,4}\s*(.+)/);
-    const title = titleMatch ? titleMatch[1].trim() : null;
+    for (const chunk of chunks) {
+        // 날짜 (예: 2026년 8월 11일)
+        const dateMatch = chunk.match(/\d{4}년\s*\d{1,2}월\s*\d{1,2}일/);
+        const date = dateMatch ? dateMatch[0] : null;
 
-    if (!date || !title) {
-        throw new Error('패치노트 파싱 실패 (페이지 구조가 변경되었을 수 있습니다)');
-    }
+        // 제목 (### 로 시작하는 첫 줄)
+        const titleMatch = chunk.match(/#{2,4}\s*(.+)/);
+        const title = titleMatch ? titleMatch[1].trim() : null;
 
-// 제목 아래 본문에서 구조(소제목/불릿)를 살려 소개글로 사용
-    const afterTitle = firstChunk.slice(firstChunk.indexOf(title) + title.length);
+        if (!date || !title) continue; // 날짜/제목 파싱 실패한 조각(네비게이션 등)은 건너뜀
 
-    const rawLines = afterTitle.split('\n').map(l => l.trim());
-    const excerptLines = [];
+        // 항목 타입 판별: 핫픽스 / 정식 패치노트 / 그 외 일반 공지
+        let type = 'notice';
+        if (/hotfix/i.test(chunk)) type = 'hotfix';
+        else if (title.includes('패치 노트')) type = 'patch';
 
-    for (const line of rawLines) {
-        if (!line) continue;
-        if (line.startsWith('![')) continue; // 이미지 줄 제거
+        // 제목 아래 본문에서 구조(소제목/불릿)를 살려 소개글로 사용
+        const afterTitle = chunk.slice(chunk.indexOf(title) + title.length);
 
-        // 소제목 (##, ###, #### 등) → 굵게 표시 (예: Hero Updates, D.Mon, Plasma Saber)
-        if (/^#{2,6}\s+/.test(line)) {
-            const heading = line.replace(/^#{2,6}\s+/, '').trim();
-            if (heading) excerptLines.push(`**${heading}**`);
-            continue;
+        const rawLines = afterTitle.split('\n').map(l => l.trim());
+        const excerptLines = [];
+
+        for (const line of rawLines) {
+            if (!line) continue;
+            if (line.startsWith('![')) continue; // 이미지 줄 제거
+
+            // 소제목 (##, ###, #### 등) → 굵게 표시 (예: Hero Updates, D.Mon, Plasma Saber)
+            if (/^#{2,6}\s+/.test(line)) {
+                const heading = line.replace(/^#{2,6}\s+/, '').trim();
+                if (heading) excerptLines.push(`**${heading}**`);
+                continue;
+            }
+
+            // 목록 항목 (* 또는 -) → 불릿으로 표시
+            if (/^[*\-]\s+/.test(line)) {
+                const bullet = line.replace(/^[*\-]\s+/, '').trim();
+                if (bullet) excerptLines.push(`• ${bullet}`);
+                continue;
+            }
+
+            excerptLines.push(line);
+
+            // 너무 길어지지 않도록 항목 개수 제한
+            if (excerptLines.length >= 40) break;
         }
 
-        // 목록 항목 (* 또는 -) → 불릿으로 표시
-        if (/^[*\-]\s+/.test(line)) {
-            const bullet = line.replace(/^[*\-]\s+/, '').trim();
-            if (bullet) excerptLines.push(`• ${bullet}`);
-            continue;
+        let excerpt = excerptLines.join('\n');
+        // 디스코드 임베드 description 최대 길이(4096자)를 넘지 않도록 여유있게 컷
+        if (excerpt.length > 3500) {
+            excerpt = excerpt.slice(0, 3500) + '\n...(자세한 내용은 아래 링크 참고)';
         }
+        excerpt = excerpt || '자세한 내용은 아래 링크에서 확인하세요.';
 
-        excerptLines.push(line);
-
-        // 너무 길어지지 않도록 항목 개수 제한
-        if (excerptLines.length >= 40) break;
+        entries.push({
+            id: `${date}__${title}`,
+            date,
+            title,
+            type,
+            excerpt,
+            url: OVERWATCH_PATCH_URL
+        });
     }
 
-    let excerpt = excerptLines.join('\n');
-    // 디스코드 임베드 description 최대 길이(4096자)를 넘지 않도록 여유있게 컷
-    if (excerpt.length > 3500) {
-        excerpt = excerpt.slice(0, 3500) + '\n...(자세한 내용은 아래 링크 참고)';
-    }
-    excerpt = excerpt || '자세한 내용은 아래 링크에서 확인하세요.';
-
-    return {
-        id: `${date}__${title}`,
-        date,
-        title,
-        excerpt: excerpt || '자세한 내용은 아래 링크에서 확인하세요.',
-        url: OVERWATCH_PATCH_URL
-    };
+    return entries; // 최신순으로 정렬되어 있음
 }
 
-// 등록된 모든 서버 채널을 돌며 최신 패치노트인지 확인하고,
-// 새 패치노트라면 이전 메시지를 지우고 새 메시지를 올립니다.
+// 등록된 모든 서버 채널을 돌며 아직 게시하지 않은 새 항목(핫픽스/정식 패치노트/공지)을 찾아 게시합니다.
 async function checkOverwatchPatchNotes() {
-    let latest;
+    let entries;
     try {
-        latest = await fetchLatestOverwatchPatchNote();
+        entries = await fetchOverwatchPatchEntries();
     } catch (err) {
         console.error('[오버워치 패치노트] 조회 실패:', err.message);
         return;
     }
 
+    if (entries.length === 0) return;
+
     const configs = await OverwatchConfig.find({ channelId: { $ne: null } });
 
     for (const config of configs) {
-        if (config.lastPatchId === latest.id) continue; // 새 패치노트 아님
+        const postedIds = new Set(config.postedPatchIds || []);
+        // entries는 최신순이므로, 오래된 것부터 게시되도록 뒤집기
+        const newEntries = entries.filter(e => !postedIds.has(e.id)).reverse();
+
+        if (newEntries.length === 0) continue; // 새 항목 없음
 
         try {
             const channel = await client.channels.fetch(config.channelId);
             if (!channel) continue;
 
-            // 기존 패치노트 메시지 삭제 (새 패치노트만 남기기)
-            if (config.lastMessageId) {
-                try {
-                    const oldMsg = await channel.messages.fetch(config.lastMessageId);
-                    await oldMsg.delete();
-                } catch { }
+            for (const entry of newEntries) {
+                const typeLabel = entry.type === 'hotfix' ? '🛠 핫픽스'
+                    : entry.type === 'patch' ? '🎮 패치 노트'
+                    : '📢 공지';
+                const color = entry.type === 'hotfix' ? 'Yellow'
+                    : entry.type === 'patch' ? 'Orange'
+                    : 'Blue';
+
+                const embed = new EmbedBuilder()
+                    .setTitle(`${typeLabel} · ${entry.title}`)
+                    .setURL(entry.url)
+                    .setDescription(entry.excerpt)
+                    .addFields({ name: '📅 날짜', value: entry.date })
+                    .setColor(color)
+                    .setFooter({ text: '오버워치 공식 패치노트 · 10분마다 자동 확인' })
+                    .setTimestamp();
+
+                await channel.send({ embeds: [embed] });
+                config.postedPatchIds.push(entry.id);
             }
 
-            const embed = new EmbedBuilder()
-                .setTitle(`🎮 ${latest.title}`)
-                .setURL(latest.url)
-                .setDescription(latest.excerpt)
-                .addFields({ name: '📅 날짜', value: latest.date })
-                .setColor('Orange')
-                .setFooter({ text: '오버워치 공식 패치노트 · 10분마다 자동 확인' })
-                .setTimestamp();
-
-            const newMsg = await channel.send({ embeds: [embed] });
-
-            config.lastMessageId = newMsg.id;
-            config.lastPatchId = latest.id;
+            // 최근 30개까지만 보관
+            config.postedPatchIds = config.postedPatchIds.slice(-30);
             await config.save();
 
-            console.log(`[오버워치 패치노트] 새 패치노트 게시 완료 (채널: ${config.channelId})`);
+            console.log(`[오버워치 패치노트] ${newEntries.length}개 새 게시물 게시 완료 (채널: ${config.channelId})`);
         } catch (err) {
             console.error(`[오버워치 패치노트] 채널(${config.channelId}) 게시 실패:`, err.message);
         }
@@ -1976,7 +1993,7 @@ ai의 성격혹은 말투, 등 을 설정합니다.
 서버 채팅 개수 순위를 확인합니다.
 
 \`/오버워치패치노트 채널:\`
-[관리자] 지정한 채널에 오버워치 패치노트를 자동으로 올립니다. (10분마다 확인, 새 패치노트가 나오면 이전 글은 삭제됩니다)
+[관리자] 지정한 채널에 오버워치 패치노트를 자동으로 올립니다. (10분마다 확인, 새 패치노트/핫픽스가 나오면 새 메시지로 게시됩니다)
 
 \`/초기화\`
 [관리자] 전체 초기화
@@ -3683,21 +3700,19 @@ ${text}
         let config = await OverwatchConfig.findOne({ guildId: guildId2 });
 
         if (!config) {
-            config = await OverwatchConfig.create({ guildId: guildId2, channelId: channel.id });
+            config = await OverwatchConfig.create({ guildId: guildId2, channelId: channel.id, postedPatchIds: [] });
         } else {
-            // 채널이 바뀌면 이전 채널에 남아있던 패치노트 메시지는 그대로 두고,
-            // 새 채널부터 다시 최신 패치노트를 올리도록 초기화
+            // 채널이 바뀌면 새 채널부터 최근 게시물을 다시 게시하도록 초기화
             config.channelId = channel.id;
-            config.lastMessageId = null;
-            config.lastPatchId = null;
+            config.postedPatchIds = [];
             await config.save();
         }
 
-        await interaction.editReply(`✅ 오버워치 패치노트 채널을 ${channel} (으)로 설정했습니다!\n📰 최신 패치노트를 확인 중...`);
+        await interaction.editReply(`✅ 오버워치 패치노트 채널을 ${channel} (으)로 설정했습니다!\n📰 최신 핫픽스/패치노트를 확인 중...`);
 
         try {
             await checkOverwatchPatchNotes();
-            await interaction.followUp({ content: '📢 최신 패치노트를 게시했습니다!', flags: 64 });
+            await interaction.followUp({ content: '📢 최신 소식을 게시했습니다!', flags: 64 });
         } catch (err) {
             console.error(err);
             await interaction.followUp({ content: '❌ 패치노트를 불러오지 못했습니다. 잠시 후 자동으로 다시 시도합니다.', flags: 64 });
