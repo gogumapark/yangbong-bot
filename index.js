@@ -470,6 +470,54 @@ function formatMoney(num) {
     return num.toLocaleString('ko-KR') + '원';
 }
 
+// 특정 유저가 서버 내에서 보낸 메시지들을 채널별로 최근순으로 수집
+async function collectUserMessages(guild, targetUserId, limit = 200) {
+    const collected = [];
+    const channels = guild.channels.cache.filter(
+        c => c.isTextBased?.() && !c.isThread?.() && c.viewable
+    );
+
+    for (const channel of channels.values()) {
+        if (collected.length >= limit) break;
+
+        try {
+            let lastId;
+            let scannedInChannel = 0;
+
+            // 채널당 최대 500개까지만 훑어봄 (레이트리밋/시간 방지)
+            while (scannedInChannel < 500 && collected.length < limit) {
+                const fetchOptions = { limit: 100 };
+                if (lastId) fetchOptions.before = lastId;
+
+                const messages = await channel.messages.fetch(fetchOptions);
+                if (messages.size === 0) break;
+
+                for (const msg of messages.values()) {
+                    scannedInChannel++;
+                    if (
+                        msg.author.id === targetUserId &&
+                        msg.content &&
+                        msg.content.trim().length > 0 &&
+                        !msg.content.startsWith('/') // 명령어 텍스트는 제외
+                    ) {
+                        collected.push(msg.content.trim());
+                        if (collected.length >= limit) break;
+                    }
+                }
+
+                lastId = messages.last().id;
+                if (messages.size < 100) break; // 채널 끝까지 다 읽음
+            }
+        } catch {
+            continue; // 봇이 접근 권한 없는 채널 등은 건너뜀
+        }
+    }
+
+    return collected;
+}
+
+
+
 function padKo(str, len) {
     let width = 0;
     for (const ch of str) {
@@ -801,7 +849,13 @@ const commands = [
         .setName('성격설정')
         .setDescription('AI 성격을 설정합니다')
         .addStringOption(option =>
-            option.setName('프롬프트').setDescription('AI 성격 설명').setRequired(true)
+            option.setName('프롬프트').setDescription('AI 성격 설명 (유저 옵션 사용 시 생략 가능)').setRequired(false)
+        )
+        .addUserOption(option =>
+            option.setName('유저').setDescription('이 유저의 말투/성격을 서버 채팅 기록에서 학습해서 따라합니다').setRequired(false)
+        )
+        .addIntegerOption(option =>
+            option.setName('메시지수').setDescription('학습할 최근 메시지 개수 (기본 200, 최대 500)').setRequired(false)
         ),
 
     new SlashCommandBuilder()
@@ -3295,10 +3349,60 @@ ${text}
             return interaction.reply({ content: '❌ 관리자만 사용 가능', flags: 64 });
         }
 
-        aiPersonality = interaction.options.getString('프롬프트');
-        // 성격 바뀌면 기존 대화 기록 초기화
+        const promptInput = interaction.options.getString('프롬프트');
+        const targetUser = interaction.options.getUser('유저');
+        const msgCountInput = interaction.options.getInteger('메시지수');
+
+        if (!promptInput && !targetUser) {
+            return interaction.reply({
+                content: '❌ `프롬프트` 또는 `유저` 중 하나는 입력해야 합니다.',
+                flags: 64
+            });
+        }
+
+        // ── 유저 말투 학습 모드 ──
+        if (targetUser) {
+            await interaction.deferReply({ flags: 64 });
+
+            const limit = Math.min(Math.max(msgCountInput || 200, 20), 500);
+
+            let samples;
+            try {
+                samples = await collectUserMessages(interaction.guild, targetUser.id, limit);
+            } catch (err) {
+                console.error(err);
+                return interaction.editReply('❌ 메시지 수집 중 오류가 발생했습니다.');
+            }
+
+            if (samples.length < 10) {
+                return interaction.editReply(
+                    `❌ 학습할 메시지가 너무 적습니다. (${samples.length}개 수집됨, 최소 10개 필요)\n` +
+                    `봇의 채널 접근/메시지 기록 읽기 권한을 확인해주세요.`
+                );
+            }
+
+            const sampleText = samples.map(s => `- ${s}`).join('\n');
+
+            aiPersonality =
+                `너는 이제부터 디스코드 유저 "${targetUser.username}" 의 말투와 성격을 그대로 흉내내는 역할이다.\n` +
+                `아래는 그 유저가 실제로 이 서버에 남긴 메시지들이다. 이 메시지들에 나타난 말투, 자주 쓰는 표현, 반응 방식, 성격을 분석해서 최대한 비슷하게 대화해라.\n` +
+                `너 자신을 진짜 "${targetUser.username}" 본인이라고 주장하지는 말고, 그 사람 흉내를 내는 캐릭터처럼 행동해라.\n\n` +
+                `[학습한 메시지 목록 (${samples.length}개)]\n${sampleText}`;
+
+            aiChatHistory.clear();
+
+            return interaction.editReply(
+                `🤖 ${targetUser.username}님의 말투 학습 완료! (메시지 ${samples.length}개 기반, 대화 기록 초기화됨)`
+            );
+        }
+
+        // ── 기존 텍스트 프롬프트 모드 ──
+        aiPersonality = promptInput;
         aiChatHistory.clear();
-        return interaction.reply({ content: `🤖 AI 성격 변경 완료! (대화 기록 초기화됨)\n\n${aiPersonality}`, flags: 64 });
+        return interaction.reply({
+            content: `🤖 AI 성격 변경 완료! (대화 기록 초기화됨)\n\n${aiPersonality}`,
+            flags: 64
+        });
     }
 
     if (interaction.commandName === '송금') {
