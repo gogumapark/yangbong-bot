@@ -1027,10 +1027,13 @@ const commands = [
         ),
 
     new SlashCommandBuilder()
-        .setName('오버워치유튜브')
-        .setDescription('[관리자] 오버워치 공식 유튜브 신규 영상을 자동으로 올릴 채널을 지정합니다')
-        .addChannelOption(option =>
-            option.setName('채널').setDescription('영상을 올릴 채널').setRequired(true)
+        .setName('오버워치영상')
+        .setDescription('오버워치 유튜브 영상을 채널에 공유합니다')
+        .addStringOption(option =>
+            option.setName('링크').setDescription('유튜브 영상 링크').setRequired(true)
+        )
+        .addStringOption(option =>
+            option.setName('설명').setDescription('영상에 대한 짧은 설명 (선택)').setRequired(false)
         ),
 
     new SlashCommandBuilder()
@@ -1103,9 +1106,6 @@ client.once('clientReady', async () => {
 
     // 오버워치 패치노트 시작 시 1회 확인 (재시작 사이 새 패치노트 대비)
     checkOverwatchPatchNotes().catch(err => console.error('[오버워치 패치노트] 시작 확인 오류:', err));
-
-    // 오버워치 유튜브 시작 시 1회 확인 (재시작 사이 새 영상 대비)
-    checkYoutubeVideos().catch(err => console.error('[오버워치 유튜브] 시작 확인 오류:', err));
 });
 
 client.on('presenceUpdate', async (oldPresence, newPresence) => {
@@ -1635,148 +1635,29 @@ setInterval(() => {
 }, OVERWATCH_CHECK_INTERVAL);
 
 // ════════════════════════════════════════
-// 오버워치 유튜브(신규 영상) 알리미
-// API 키 불필요 - 유튜브 채널의 공개 RSS 피드를 사용합니다
+// 오버워치 유튜브 영상 공유 (수동 등록)
+// 자동으로 채널을 감시하지 않고, /오버워치영상 명령어로 직접 입력한 링크만 게시합니다.
 // ════════════════════════════════════════
 
-const YOUTUBE_CHANNEL_HANDLE_URL = 'https://www.youtube.com/OverwatchKR'; // 오버워치 코리아 공식 채널
-const YOUTUBE_CHECK_INTERVAL = 10 * 60 * 1000; // 10분마다 확인
-
-let cachedYoutubeChannelId = null;
-
-const youtubeConfigSchema = new mongoose.Schema({
-    guildId: { type: String, unique: true },
-    channelId: String, // 영상을 올릴 디스코드 채널 ID
-    postedVideoIds: { type: [String], default: [] },
-});
-const YoutubeConfig = mongoose.model('YoutubeConfig', youtubeConfigSchema);
-
-// 유튜브 채널 URL/핸들 페이지에서 실제 채널 ID(UCxxxxx)를 알아내고 캐싱합니다
-async function resolveYoutubeChannelId() {
-    if (cachedYoutubeChannelId) return cachedYoutubeChannelId;
-
-    const res = await fetch(YOUTUBE_CHANNEL_HANDLE_URL, {
-        headers: { 'User-Agent': 'Mozilla/5.0 (compatible; YangbongBot/1.0)' }
-    });
-    if (!res.ok) throw new Error(`유튜브 채널 페이지 요청 실패: ${res.status}`);
-    const html = await res.text();
-
-    const match = html.match(/"channelId":"(UC[a-zA-Z0-9_-]{22})"/);
-    if (!match) throw new Error('유튜브 채널 ID를 찾지 못했습니다 (페이지 구조가 변경되었을 수 있습니다)');
-
-    cachedYoutubeChannelId = match[1];
-    return cachedYoutubeChannelId;
-}
-
-// 채널의 최신 영상 목록을 RSS 피드로 가져옵니다 (최신 15개 정도 제공됨)
-async function fetchYoutubeLatestVideos() {
-    const channelId = await resolveYoutubeChannelId();
-    const feedUrl = `https://www.youtube.com/feeds/videos.xml?channel_id=${channelId}`;
-
-    const res = await fetch(feedUrl, {
-        headers: { 'User-Agent': 'Mozilla/5.0 (compatible; YangbongBot/1.0)' }
-    });
-    if (!res.ok) throw new Error(`유튜브 RSS 요청 실패: ${res.status}`);
-    const xml = await res.text();
-
-    const entries = [];
-    const entryRegex = /<entry>([\s\S]*?)<\/entry>/g;
-    let em;
-
-    while ((em = entryRegex.exec(xml)) !== null) {
-        const block = em[1];
-
-        const videoId = (block.match(/<yt:videoId>(.*?)<\/yt:videoId>/) || [])[1];
-        const titleRaw = (block.match(/<title>([\s\S]*?)<\/title>/) || [])[1];
-        const link = (block.match(/<link rel="alternate" href="(.*?)"/) || [])[1];
-        const thumbnail = (block.match(/<media:thumbnail url="(.*?)"/) || [])[1];
-        const published = (block.match(/<published>(.*?)<\/published>/) || [])[1];
-
-        if (!videoId || !titleRaw) continue;
-
-        const title = titleRaw
-            .replace(/&amp;/g, '&')
-            .replace(/&#39;/g, "'")
-            .replace(/&quot;/g, '"')
-            .replace(/&lt;/g, '<')
-            .replace(/&gt;/g, '>');
-
-        entries.push({
-            id: videoId,
-            title,
-            link: link || `https://www.youtube.com/watch?v=${videoId}`,
-            thumbnail: thumbnail || `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`,
-            published: published ? new Date(published) : new Date()
-        });
-    }
-
-    entries.sort((a, b) => b.published - a.published); // 최신순 정렬 (안전장치)
-
-    return entries.slice(0, 10); // 최신 10개까지만 확인
-}
-
-// 영상 제목을 보고 종류를 분류합니다 (영웅 트레일러 / 스토리 타임 / 게임 트레일러만 관심 대상)
+// 영상 제목을 보고 종류를 분류합니다 (참고용 라벨 표시에만 사용)
 // 오버워치 공식 채널은 "OO 영웅 트레일러", "OO 스토리 타임", "OO 출시/시즌/시네마틱 트레일러" 같은
 // 고정된 제목 패턴을 사용하므로 키워드로 충분히 구분 가능합니다.
 function classifyOverwatchVideo(title) {
-    if (/영웅\s*(게임플레이\s*)?트레일러/.test(title)) return { type: 'hero', label: '🦸 영웅 트레일러' };
-    if (/스토리\s*타임/.test(title)) return { type: 'story', label: '📖 스토리 타임' };
-    if (/트레일러/.test(title)) return { type: 'game', label: '🎬 게임 트레일러' }; // 출시/시즌/시네마틱 트레일러 등
-    return null; // 그 외(주간 보고, 인터뷰, 쇼츠 등)는 대상 아님
+    if (/영웅\s*(게임플레이\s*)?트레일러/.test(title)) return { type: 'hero', label: ' 영웅 트레일러' };
+    if (/스토리\s*타임/.test(title)) return { type: 'story', label: ' 스토리 타임' };
+    if (/트레일러/.test(title)) return { type: 'game', label: ' 게임 트레일러' }; // 출시/시즌/시네마틱 트레일러 등
+    return null; // 분류 안 되면 라벨 없이 게시
 }
 
-// 등록된 서버 채널에 아직 올리지 않은 새 영상을 게시합니다
-async function checkYoutubeVideos() {
-    let videos;
-    try {
-        videos = await fetchYoutubeLatestVideos();
-    } catch (err) {
-        console.error('[오버워치 유튜브] 조회 실패:', err.message);
-        return;
-    }
-
-    if (videos.length === 0) return;
-
-    const configs = await YoutubeConfig.find({ channelId: { $ne: null } });
-
-    for (const config of configs) {
-        const postedIds = new Set(config.postedVideoIds || []);
-        // 영웅 트레일러 / 스토리 타임 / 게임 트레일러만 대상으로 필터링
-        const relevantVideos = videos
-            .map(v => ({ ...v, category: classifyOverwatchVideo(v.title) }))
-            .filter(v => v.category !== null);
-
-        const newVideos = relevantVideos.filter(v => !postedIds.has(v.id)).reverse(); // 오래된 것부터 게시
-
-        if (newVideos.length === 0) continue;
-
-        try {
-            const channel = await client.channels.fetch(config.channelId);
-            if (!channel) continue;
-
-            for (const video of newVideos) {
-                // 링크를 그냥 본문으로 보내면 디스코드가 자동으로 재생 가능한 영상 미리보기를 붙여줍니다
-                await channel.send(`${video.category.label}\n**${video.title}**\n${video.link}`);
-                config.postedVideoIds.push(video.id);
-            }
-
-            config.postedVideoIds = config.postedVideoIds.slice(-50);
-            await config.save();
-
-            console.log(`[오버워치 유튜브] ${newVideos.length}개 새 영상 게시 완료 (채널: ${config.channelId})`);
-        } catch (err) {
-            console.error(`[오버워치 유튜브] 채널(${config.channelId}) 게시 실패:`, err.message);
-        }
-    }
+// 유튜브 링크에서 영상 제목을 가져옵니다 (API 키 불필요, 공개 oEmbed 엔드포인트 사용)
+async function fetchYoutubeTitle(url) {
+    const res = await fetch(`https://www.youtube.com/oembed?url=${encodeURIComponent(url)}&format=json`, {
+        headers: { 'User-Agent': 'Mozilla/5.0 (compatible; YangbongBot/1.0)' }
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    return data.title || null;
 }
-
-// =========================
-// 오버워치 유튜브 자동 확인 (10분마다)
-// =========================
-setInterval(() => {
-    checkYoutubeVideos().catch(err => console.error('[오버워치 유튜브] 주기 확인 오류:', err));
-}, YOUTUBE_CHECK_INTERVAL);
-
 
 // =========================
 // interactionCreate
@@ -2244,8 +2125,8 @@ ai의 성격혹은 말투, 등 을 설정합니다.
 \`/오버워치패치노트 채널:\`
 [관리자] 지정한 채널에 오버워치 패치노트를 자동으로 올립니다. (10분마다 확인, 새 패치노트/핫픽스가 나오면 새 메시지로 게시됩니다)
 
-\`/오버워치유튜브 채널:\`
-[관리자] 지정한 채널에 오버워치 공식 유튜브의 영웅 트레일러/스토리 타임/게임 트레일러만 자동으로 올립니다. (10분마다 확인, 그 외 영상은 걸러집니다)
+\`/오버워치영상 링크: 설명:\`
+유튜브 영상 링크를 채널에 공유합니다. (영웅 트레일러/스토리 타임/게임 트레일러는 자동으로 라벨이 붙습니다)
 
 \`/초기화\`
 [관리자] 전체 초기화
@@ -3973,37 +3854,32 @@ ${text}
         return;
     }
 
-    if (interaction.commandName === '오버워치유튜브') {
-        if (!interaction.member.permissions.has('Administrator')) {
-            return interaction.reply({ content: '❌ 관리자만 사용 가능', flags: 64 });
+    if (interaction.commandName === '오버워치영상') {
+        await interaction.deferReply();
+
+        const link = interaction.options.getString('링크');
+        const desc = interaction.options.getString('설명');
+
+        const isYoutube = /(youtube\.com|youtu\.be)/.test(link);
+        if (!isYoutube) {
+            return interaction.editReply('❌ 유튜브 링크만 등록할 수 있습니다.');
         }
 
-        await interaction.deferReply({ flags: 64 });
-
-        const channel = interaction.options.getChannel('채널');
-        const guildId3 = interaction.guild.id;
-
-        let config = await YoutubeConfig.findOne({ guildId: guildId3 });
-
-        if (!config) {
-            config = await YoutubeConfig.create({ guildId: guildId3, channelId: channel.id, postedVideoIds: [] });
-        } else {
-            config.channelId = channel.id;
-            config.postedVideoIds = [];
-            await config.save();
-        }
-
-        await interaction.editReply(`✅ 오버워치 유튜브 알림 채널을 ${channel} (으)로 설정했습니다!\n🎥 최신 영상을 확인 중...`);
-
+        let label = '🎥 영상 공유';
         try {
-            await checkYoutubeVideos();
-            await interaction.followUp({ content: '📢 최신 영상을 게시했습니다!', flags: 64 });
+            const title = await fetchYoutubeTitle(link);
+            if (title) {
+                const category = classifyOverwatchVideo(title);
+                if (category) label = category.label;
+            }
         } catch (err) {
-            console.error(err);
-            await interaction.followUp({ content: '❌ 영상을 불러오지 못했습니다. 잠시 후 자동으로 다시 시도합니다.', flags: 64 });
+            console.error('[오버워치 영상] 제목 조회 실패:', err.message);
         }
 
-        return;
+        // 링크를 그냥 본문으로 보내면 디스코드가 자동으로 재생 가능한 영상 미리보기를 붙여줍니다
+        const content = `${label}${desc ? `\n${desc}` : ''}\n${link}`;
+
+        return interaction.editReply(content);
     }
 
     if (interaction.commandName === '마법의굼박고동님') {
