@@ -470,22 +470,33 @@ function formatMoney(num) {
     return num.toLocaleString('ko-KR') + '원';
 }
 
-// 특정 유저가 서버 내에서 보낸 메시지들을 채널별로 최근순으로 수집
-async function collectUserMessages(guild, targetUserId, limit = 200) {
+// 특정 유저가 서버 내에서 보낸 메시지들을 채널별로 수집합니다.
+// startDate/endDate가 주어지면 해당 기간 내의 메시지만 수집하고,
+// 없으면 기존처럼 최신 메시지 limit개까지 수집합니다.
+async function collectUserMessages(guild, targetUserId, limit = 200, startDate = null, endDate = null) {
     const collected = [];
     const channels = guild.channels.cache.filter(
         c => c.isTextBased?.() && !c.isThread?.() && c.viewable
     );
 
+    const useDateRange = !!(startDate || endDate);
+    const rangeStart = startDate ? startDate.getTime() : 0;
+    const rangeEnd = endDate ? endDate.getTime() : Date.now();
+
+    // 날짜 범위 모드는 기간이 길수록 메시지가 많으므로 채널당 스캔량을 넉넉하게 잡음
+    const MAX_SCAN_PER_CHANNEL = useDateRange ? 3000 : 500;
+
     for (const channel of channels.values()) {
-        if (collected.length >= limit) break;
+        if (!useDateRange && collected.length >= limit) break;
 
         try {
             let lastId;
             let scannedInChannel = 0;
+            let reachedBeforeRange = false;
 
-            // 채널당 최대 500개까지만 훑어봄 (레이트리밋/시간 방지)
-            while (scannedInChannel < 500 && collected.length < limit) {
+            while (scannedInChannel < MAX_SCAN_PER_CHANNEL && !reachedBeforeRange) {
+                if (!useDateRange && collected.length >= limit) break;
+
                 const fetchOptions = { limit: 100 };
                 if (lastId) fetchOptions.before = lastId;
 
@@ -494,23 +505,39 @@ async function collectUserMessages(guild, targetUserId, limit = 200) {
 
                 for (const msg of messages.values()) {
                     scannedInChannel++;
+
+                    // 메시지는 최신순으로 옴 → 시작일보다 오래된 메시지가 나오면 이 채널은 더 볼 필요 없음
+                    if (useDateRange && msg.createdTimestamp < rangeStart) {
+                        reachedBeforeRange = true;
+                        break;
+                    }
+
+                    if (useDateRange && msg.createdTimestamp > rangeEnd) {
+                        continue; // 종료일 이후 메시지는 건너뜀 (아직 시작일 이전은 아니므로 계속 스캔)
+                    }
+
                     if (
                         msg.author.id === targetUserId &&
                         msg.content &&
                         msg.content.trim().length > 0 &&
-                        !msg.content.startsWith('/') // 명령어 텍스트는 제외
+                        !msg.content.startsWith('/')
                     ) {
                         collected.push(msg.content.trim());
-                        if (collected.length >= limit) break;
+                        if (!useDateRange && collected.length >= limit) break;
                     }
                 }
 
                 lastId = messages.last().id;
-                if (messages.size < 100) break; // 채널 끝까지 다 읽음
+                if (messages.size < 100) break;
             }
         } catch {
             continue; // 봇이 접근 권한 없는 채널 등은 건너뜀
         }
+    }
+
+    // 날짜 범위 모드에서 너무 많이 모이면 학습 프롬프트가 과도하게 길어지지 않도록 상한
+    if (useDateRange && collected.length > 500) {
+        return collected.slice(0, 500);
     }
 
     return collected;
@@ -842,10 +869,6 @@ const commands = [
         ),
 
     new SlashCommandBuilder()
-        .setName('뉴스')
-        .setDescription('다음 주식 변동 예측 뉴스를 확인합니다'),
-
-    new SlashCommandBuilder()
         .setName('성격설정')
         .setDescription('AI 성격을 설정합니다')
         .addStringOption(option =>
@@ -855,7 +878,13 @@ const commands = [
             option.setName('유저').setDescription('이 유저의 말투/성격을 서버 채팅 기록에서 학습해서 따라합니다').setRequired(false)
         )
         .addIntegerOption(option =>
-            option.setName('메시지수').setDescription('학습할 최근 메시지 개수 (기본 200, 최대 500)').setRequired(false)
+            option.setName('메시지수').setDescription('학습할 최근 메시지 개수 (기본 200, 최대 500, 날짜 지정시 무시됨)').setRequired(false)
+        )
+        .addStringOption(option =>
+            option.setName('시작일').setDescription('학습 시작 날짜 (예: 2026-08-01)').setRequired(false)
+        )
+        .addStringOption(option =>
+            option.setName('종료일').setDescription('학습 종료 날짜 (예: 2026-08-14, 생략시 오늘까지)').setRequired(false)
         ),
 
     new SlashCommandBuilder()
@@ -3352,6 +3381,8 @@ ${text}
         const promptInput = interaction.options.getString('프롬프트');
         const targetUser = interaction.options.getUser('유저');
         const msgCountInput = interaction.options.getInteger('메시지수');
+        const startDateInput = interaction.options.getString('시작일');
+        const endDateInput = interaction.options.getString('종료일');
 
         if (!promptInput && !targetUser) {
             return interaction.reply({
@@ -3364,11 +3395,42 @@ ${text}
         if (targetUser) {
             await interaction.deferReply({ flags: 64 });
 
+            let startDate = null;
+            let endDate = null;
+
+            if (startDateInput) {
+                startDate = new Date(startDateInput);
+                if (isNaN(startDate.getTime())) {
+                    return interaction.editReply('❌ 시작일 형식이 올바르지 않습니다. 예: `2026-08-01`');
+                }
+            }
+
+            if (endDateInput) {
+                endDate = new Date(endDateInput);
+                if (isNaN(endDate.getTime())) {
+                    return interaction.editReply('❌ 종료일 형식이 올바르지 않습니다. 예: `2026-08-14`');
+                }
+                endDate.setHours(23, 59, 59, 999); // 해당 날짜의 끝까지 포함
+            } else if (startDate) {
+                endDate = new Date(); // 종료일 생략시 현재 시각까지
+            }
+
+            if (startDate && endDate && startDate > endDate) {
+                return interaction.editReply('❌ 시작일이 종료일보다 늦을 수 없습니다.');
+            }
+
+            const useDateRange = !!startDate;
             const limit = Math.min(Math.max(msgCountInput || 200, 20), 500);
 
             let samples;
             try {
-                samples = await collectUserMessages(interaction.guild, targetUser.id, limit);
+                samples = await collectUserMessages(
+                    interaction.guild,
+                    targetUser.id,
+                    limit,
+                    useDateRange ? startDate : null,
+                    useDateRange ? endDate : null
+                );
             } catch (err) {
                 console.error(err);
                 return interaction.editReply('❌ 메시지 수집 중 오류가 발생했습니다.');
@@ -3377,22 +3439,29 @@ ${text}
             if (samples.length < 10) {
                 return interaction.editReply(
                     `❌ 학습할 메시지가 너무 적습니다. (${samples.length}개 수집됨, 최소 10개 필요)\n` +
-                    `봇의 채널 접근/메시지 기록 읽기 권한을 확인해주세요.`
+                    (useDateRange
+                        ? `해당 기간에 메시지가 부족하거나 기간이 너무 짧을 수 있습니다.`
+                        : `봇의 채널 접근/메시지 기록 읽기 권한을 확인해주세요.`)
                 );
             }
 
             const sampleText = samples.map(s => `- ${s}`).join('\n');
+            const rangeDesc = useDateRange
+                ? `${startDate.toLocaleDateString('ko-KR')} ~ ${endDate.toLocaleDateString('ko-KR')} 기간의`
+                : `최근`;
 
             aiPersonality =
                 `너는 이제부터 디스코드 유저 "${targetUser.username}" 의 말투와 성격을 그대로 흉내내는 역할이다.\n` +
-                `아래는 그 유저가 실제로 이 서버에 남긴 메시지들이다. 이 메시지들에 나타난 말투, 자주 쓰는 표현, 반응 방식, 성격을 분석해서 최대한 비슷하게 대화해라.\n` +
+                `아래는 그 유저가 실제로 이 서버에 남긴 (${rangeDesc}) 메시지들이다. 이 메시지들에 나타난 말투, 자주 쓰는 표현, 반응 방식, 성격을 분석해서 최대한 비슷하게 대화해라.\n` +
                 `너 자신을 진짜 "${targetUser.username}" 본인이라고 주장하지는 말고, 그 사람 흉내를 내는 캐릭터처럼 행동해라.\n\n` +
                 `[학습한 메시지 목록 (${samples.length}개)]\n${sampleText}`;
 
             aiChatHistory.clear();
 
             return interaction.editReply(
-                `🤖 ${targetUser.username}님의 말투 학습 완료! (메시지 ${samples.length}개 기반, 대화 기록 초기화됨)`
+                `🤖 ${targetUser.username}님의 말투 학습 완료! (메시지 ${samples.length}개 기반` +
+                (useDateRange ? `, 기간: ${startDate.toLocaleDateString('ko-KR')} ~ ${endDate.toLocaleDateString('ko-KR')}` : '') +
+                `, 대화 기록 초기화됨)`
             );
         }
 
